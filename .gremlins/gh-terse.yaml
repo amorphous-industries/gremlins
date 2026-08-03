@@ -1,4 +1,4 @@
-default_client: openrouter:deepseek-v4-flash
+default_client: openrouter:deepseek-v4-pro
 base_ref: main
 github_integration: true
 prompt_dir: prompts
