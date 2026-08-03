@@ -285,7 +285,7 @@ def test_parallel_child_artifact_dir_is_full_copy(sandbox) -> None:
 def test_fork_uses_parent_not_child_state_as_source(sandbox) -> None:
     """Regression: fork() copies artifacts from the parent gremlin (self),
     not from the child state's artifact_dir (which is empty when created via
-    child_state(fan_out=True) as ParallelStage._fan_out does)."""
+    child_state(fan_out=True) as _ParallelExecutor._fan_out does)."""
     import subprocess
 
     from gremlins.executor.gremlin import Gremlin
@@ -372,7 +372,7 @@ def test_fork_uses_parent_not_child_state_as_source(sandbox) -> None:
     )
     gremlin.registry = parent_artifacts
 
-    # Simulate what ParallelStage._fan_out does:
+    # Simulate what _ParallelExecutor._fan_out does:
     # 1. Create a child state via child_state(fan_out=True) — this gives artifact_dir
     #    pointing to an empty directory under state_root/<child_id>/artifacts/
     child_stage = Stage("child-x")
