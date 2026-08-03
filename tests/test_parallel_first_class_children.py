@@ -280,3 +280,145 @@ def test_parallel_child_artifact_dir_is_full_copy(sandbox) -> None:
             cwd=tmp_repo,
             capture_output=True,
         )
+
+
+def test_fork_uses_parent_not_child_state_as_source(sandbox) -> None:
+    """Regression: fork() copies artifacts from the parent gremlin (self),
+    not from the child state's artifact_dir (which is empty when created via
+    child_state(fan_out=True) as _ParallelExecutor._fan_out does)."""
+    import subprocess
+
+    from gremlins.executor.gremlin import Gremlin
+    from gremlins.pipeline import Pipeline
+    from gremlins.stages.base import Stage
+    from gremlins.stages.composite import child_state
+
+    # Create a temporary git repo
+    tmp_repo = sandbox.root / "repo"
+    tmp_repo.mkdir()
+    subprocess.run(["git", "init"], cwd=tmp_repo, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"],
+        cwd=tmp_repo,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test User"],
+        cwd=tmp_repo,
+        check=True,
+        capture_output=True,
+    )
+    (tmp_repo / "file.txt").write_text("initial")
+    subprocess.run(
+        ["git", "add", "file.txt"], cwd=tmp_repo, check=True, capture_output=True
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "initial"],
+        cwd=tmp_repo,
+        check=True,
+        capture_output=True,
+    )
+
+    gremlin_id = "parent-regression"
+    state_root = paths.state_root()
+    parent_state_dir = state_root / gremlin_id
+    parent_state_dir.mkdir(parents=True, exist_ok=True)
+    parent_artifact_dir = parent_state_dir / "artifacts"
+    parent_artifact_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create parent artifacts
+    (parent_artifact_dir / "plan.md").write_text("# Plan\nSome plan content")
+    (parent_artifact_dir / "spec.md").write_text("# Spec\nSome spec")
+
+    # Persist parent registry.json (simulates what a real run does)
+    parent_registry_path = parent_state_dir / "registry.json"
+    parent_registry_path.write_text(
+        json.dumps(
+            {
+                "plan": "file://session/plan.md",
+                "spec": "file://session/spec.md",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    state_file = parent_state_dir / "state.json"
+    state_file.write_text(
+        json.dumps(
+            {"id": gremlin_id, "client": "fake:fake", "project_root": str(tmp_repo)}
+        ),
+        encoding="utf-8",
+    )
+    data = StateData(gremlin_id=gremlin_id, state_file=state_file)
+    parent_artifacts = ArtifactRegistry(artifact_dir=parent_artifact_dir)
+    parent_artifacts.bind("plan", Uri.parse("file://session/plan.md"))
+    parent_artifacts.bind("spec", Uri.parse("file://session/spec.md"))
+
+    parent_state = build_state(
+        data=data,
+        client=FakeClaudeClient(),
+        artifact_dir=parent_artifact_dir,
+        artifacts=parent_artifacts,
+        cwd=str(tmp_repo),
+        worktree=tmp_repo,
+    )
+
+    # Create the parent gremlin
+    gremlin = Gremlin(
+        stages=[],
+        state_dir=parent_state_dir,
+        gremlin_id=gremlin_id,
+        pipeline_data=Pipeline(name="test", path=tmp_repo, stages=[]),
+        project_root=str(tmp_repo),
+    )
+    gremlin.registry = parent_artifacts
+
+    # Simulate what _ParallelExecutor._fan_out does:
+    # 1. Create a child state via child_state(fan_out=True) — this gives artifact_dir
+    #    pointing to an empty directory under state_root/<child_id>/artifacts/
+    child_stage = Stage("child-x")
+    child_stage.type = "agent"
+    child_id = f"{gremlin_id}--mygroup--child-x"
+    cs = child_state(parent_state, child_stage, fan_out=True, child_id=child_id)
+
+    # The child state's artifact_dir is NOT the parent's artifact_dir
+    assert cs.artifact_dir != parent_artifact_dir
+    # At this point the child's artifact dir exists but is empty
+    assert cs.artifact_dir.exists()
+    assert list(cs.artifact_dir.iterdir()) == []
+
+    # 2. Pass the child state to fork() — this is the bug path
+    async def _fork():
+        return await gremlin.fork(
+            cs,
+            child_id,
+            parent_id=gremlin_id,
+            group_name="mygroup",
+            child_key="child-x",
+        )
+
+    forked = asyncio.run(_fork())
+
+    try:
+        # The forked child should have the parent's artifacts, not an empty dir
+        assert (forked.artifact_dir / "plan.md").exists()
+        assert (
+            forked.artifact_dir / "plan.md"
+        ).read_text() == "# Plan\nSome plan content"
+        assert (forked.artifact_dir / "spec.md").exists()
+        assert (forked.artifact_dir / "spec.md").read_text() == "# Spec\nSome spec"
+
+        # And the child's registry should be a copy of the parent's registry
+        child_registry_path = state_root / child_id / "registry.json"
+        assert child_registry_path.exists()
+        child_reg_data = json.loads(child_registry_path.read_text(encoding="utf-8"))
+        assert child_reg_data["plan"] == "file://session/plan.md"
+        assert child_reg_data["spec"] == "file://session/spec.md"
+    finally:
+        if forked.worktree and forked.worktree.exists():
+            subprocess.run(
+                ["git", "worktree", "remove", "--force", str(forked.worktree)],
+                cwd=tmp_repo,
+                capture_output=True,
+            )
