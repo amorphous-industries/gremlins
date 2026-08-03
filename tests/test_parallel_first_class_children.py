@@ -345,7 +345,9 @@ def test_fork_uses_parent_not_child_state_as_source(sandbox) -> None:
 
     state_file = parent_state_dir / "state.json"
     state_file.write_text(
-        json.dumps({"id": gremlin_id, "client": "fake:fake", "project_root": str(tmp_repo)}),
+        json.dumps(
+            {"id": gremlin_id, "client": "fake:fake", "project_root": str(tmp_repo)}
+        ),
         encoding="utf-8",
     )
     data = StateData(gremlin_id=gremlin_id, state_file=state_file)
@@ -401,7 +403,9 @@ def test_fork_uses_parent_not_child_state_as_source(sandbox) -> None:
     try:
         # The forked child should have the parent's artifacts, not an empty dir
         assert (forked.artifact_dir / "plan.md").exists()
-        assert (forked.artifact_dir / "plan.md").read_text() == "# Plan\nSome plan content"
+        assert (
+            forked.artifact_dir / "plan.md"
+        ).read_text() == "# Plan\nSome plan content"
         assert (forked.artifact_dir / "spec.md").exists()
         assert (forked.artifact_dir / "spec.md").read_text() == "# Spec\nSome spec"
 
@@ -418,4 +422,3 @@ def test_fork_uses_parent_not_child_state_as_source(sandbox) -> None:
                 cwd=tmp_repo,
                 capture_output=True,
             )
-
