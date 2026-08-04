@@ -17,6 +17,8 @@ regex = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 async-trait = "0.1"
+rig-core = { version = "0.41", features = ["derive"] }
+rig-agent = { version = "0.41" }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt"] }
