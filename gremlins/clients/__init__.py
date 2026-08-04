@@ -45,9 +45,17 @@ def _make_anthropic_client(model: str | None, policy: Policy) -> object:
     return make_anthropic_client(model, policy)
 
 
+def _make_cmd_client(command: str | None, policy: Policy) -> object:
+    # cmd: bypass/flags are spelled in the command template; policy is unused.
+    from _gremlins_core.clients import RustClient
+
+    return RustClient.cmd(command or "")
+
+
 register_client_factory("anthropic", _make_anthropic_client)
 register_client_factory("claude", _make_claude_client)
 register_client_factory("copilot", _make_copilot_client, bypass_only=True)
 register_client_factory("openai", _make_openai_client)
 register_client_factory("openrouter", _make_openrouter_client)
 register_client_factory("xai", _make_xai_client)
+register_client_factory("cmd", _make_cmd_client)

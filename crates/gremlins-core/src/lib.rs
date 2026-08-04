@@ -1,3 +1,4 @@
+mod clients;
 mod core;
 mod python;
 
@@ -12,6 +13,7 @@ fn __version__() -> &'static str {
 /// The `_gremlins_core` native extension module.
 #[pymodule(name = "_gremlins_core")]
 fn _gremlins_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    // utils submodule
     let utils = PyModule::new(m.py(), "utils")?;
     let proc = PyModule::new(m.py(), "proc")?;
     proc.add_function(wrap_pyfunction!(python::utils::proc::run_ok, &proc)?)?;
@@ -26,9 +28,17 @@ fn _gremlins_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     )?)?;
     utils.add_submodule(&proc)?;
     m.add_submodule(&utils)?;
+
+    // clients submodule
+    let clients = PyModule::new(m.py(), "clients")?;
+    clients.add_class::<python::clients::RustClient>()?;
+    m.add_submodule(&clients)?;
+
     let modules = m.py().import("sys")?.getattr("modules")?;
     modules.set_item("_gremlins_core.utils", &utils)?;
     modules.set_item("_gremlins_core.utils.proc", &proc)?;
+    modules.set_item("_gremlins_core.clients", &clients)?;
+
     m.add_function(wrap_pyfunction!(__version__, m)?)?;
     Ok(())
 }
