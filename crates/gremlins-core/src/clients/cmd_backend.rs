@@ -56,11 +56,11 @@ impl CmdBackend {
         }
 
         let stream_json = args
-            .iter()
-            .any(|a| a == "--output-format" && args.iter().any(|b| b == "stream-json"))
+            .windows(2)
+            .any(|pair| pair[0] == "--output-format" && pair[1] == "stream-json")
             || args
                 .iter()
-                .any(|a| a.contains("--output-format") && a.contains("stream-json"));
+                .any(|a| a == "--output-format=stream-json");
 
         let footer_re = if args.first().is_some_and(|a| a.contains("copilot")) {
             Some(footer_re().clone())
@@ -484,12 +484,9 @@ impl Backend for CmdBackend {
                 }
                 Ok(r)
             }
-            Err(ClientError::Timeout { .. }) | Err(ClientError::ApiServerError { .. })
-                if params.max_retries > 0 =>
-            {
+            Err(ClientError::Timeout { .. }) | Err(ClientError::ApiServerError { .. }) => {
                 self.resume().await
             }
-            Err(e @ (ClientError::Timeout { .. } | ClientError::ApiServerError { .. })) => Err(e),
             Err(e) => Err(e),
         }
     }

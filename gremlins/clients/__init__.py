@@ -47,9 +47,11 @@ def _make_anthropic_client(model: str | None, policy: Policy) -> object:
 
 def _make_cmd_client(command: str | None, policy: Policy) -> object:
     # cmd: bypass/flags are spelled in the command template; policy is unused.
+    if not command:
+        raise ValueError("cmd: command is required")
     from _gremlins_core.clients import RustClient
 
-    return RustClient.cmd(command or "")
+    return RustClient.cmd(command)
 
 
 register_client_factory("anthropic", _make_anthropic_client)
