@@ -215,7 +215,9 @@ fn check_tool(name: &str, ctx: &ToolContext, args: &serde_json::Value) -> Option
         "Read" | "Edit" | "Write" => enforce(
             ctx.bypass,
             &ctx.worktree_root,
-            args.get("file_path").and_then(|v| v.as_str()).unwrap_or("."),
+            args.get("file_path")
+                .and_then(|v| v.as_str())
+                .unwrap_or("."),
             ctx.cwd.as_deref(),
         ),
         "Grep" => enforce(
