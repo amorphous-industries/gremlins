@@ -10,7 +10,7 @@ use tokio::process::Command;
 
 const GREP_MAX_LINES: usize = 2000;
 const BASH_TIMEOUT_SECS: u64 = 120;
-const SKIP_DIRS: &[&str] = &["__pycache__", "node_modules"];
+const SKIP_DIRS: &[&str] = &["__pycache__", "node_modules", "target"];
 
 #[derive(Clone)]
 pub struct ToolContext {
@@ -210,21 +210,31 @@ fn result_status(res: &str) -> &'static str {
     }
 }
 
-fn path_arg(args: &serde_json::Value) -> &str {
-    args.get("file_path")
-        .and_then(|v| v.as_str())
-        .or_else(|| args.get("path").and_then(|v| v.as_str()))
-        .unwrap_or(".")
-}
-
 fn check_tool(name: &str, ctx: &ToolContext, args: &serde_json::Value) -> Option<String> {
     match name {
-        "Read" | "Edit" | "Write" | "Grep" | "Glob" => enforce(
+        "Read" | "Edit" | "Write" => enforce(
             ctx.bypass,
             &ctx.worktree_root,
-            path_arg(args),
+            args.get("file_path").and_then(|v| v.as_str()).unwrap_or("."),
             ctx.cwd.as_deref(),
         ),
+        "Grep" => enforce(
+            ctx.bypass,
+            &ctx.worktree_root,
+            args.get("path").and_then(|v| v.as_str()).unwrap_or("."),
+            ctx.cwd.as_deref(),
+        ),
+        "Glob" => {
+            let path = args.get("path").and_then(|v| v.as_str()).unwrap_or(".");
+            let pattern = args.get("pattern").and_then(|v| v.as_str()).unwrap_or("");
+            let base = resolve(path, ctx.cwd.as_deref());
+            let full_path = base.join(pattern);
+            let full_str = full_path.to_string_lossy();
+            // Reject absolute patterns and parent traversal that escape the base.
+            // enforce resolves the argument, so passing the joined absolute path
+            // correctly guards against e.g. {"path":".","pattern":"../*"}.
+            enforce(ctx.bypass, &ctx.worktree_root, &full_str, None)
+        }
         "Bash" => bash_check(
             ctx.bypass,
             &ctx.worktree_root,
@@ -897,6 +907,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn within_worktree_symlink_traversal() {
         let dir = tmp();
         let worktree = dir.join("worktree");
