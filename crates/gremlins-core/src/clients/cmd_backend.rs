@@ -58,9 +58,7 @@ impl CmdBackend {
         let stream_json = args
             .windows(2)
             .any(|pair| pair[0] == "--output-format" && pair[1] == "stream-json")
-            || args
-                .iter()
-                .any(|a| a == "--output-format=stream-json");
+            || args.iter().any(|a| a == "--output-format=stream-json");
 
         let footer_re = if args.first().is_some_and(|a| a.contains("copilot")) {
             Some(footer_re().clone())
