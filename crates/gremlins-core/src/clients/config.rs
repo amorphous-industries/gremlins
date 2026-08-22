@@ -19,3 +19,31 @@ pub fn validate_max_retries(max_retries: usize) -> Result<(), String> {
         Ok(())
     }
 }
+
+pub fn openai_agents_max_turns() -> usize {
+    env::var("GREMLINS_OPENAI_AGENTS_MAX_TURNS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(100)
+}
+
+const TRANSIENT_SUBSTRINGS: &[&str] = &[
+    "capacity",
+    "rate limit",
+    "rate_limit",
+    "too many requests",
+    "try again",
+    "please retry",
+    "server error",
+    "service unavailable",
+    "bad gateway",
+    "gateway timeout",
+    "overloaded",
+    "timed out in queue",
+    " 529",
+];
+
+pub fn is_transient_stream_error(message: &str) -> bool {
+    let lower = message.to_lowercase();
+    TRANSIENT_SUBSTRINGS.iter().any(|s| lower.contains(s))
+}

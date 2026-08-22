@@ -513,6 +513,8 @@ name = "gremlins-core"
 version = "0.0.0"
 dependencies = [
  "async-trait",
+ "futures",
+ "glob",
  "libc",
  "pyo3",
  "pyo3-async-runtimes",

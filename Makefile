@@ -18,9 +18,9 @@ format-write:
 typecheck:
 	PYTHONPATH='' pyright --pythonpath $(shell which python)
 
-test: rust-test $(TEST_FILES)
+test: dev rust-test $(TEST_FILES)
 
-$(TEST_FILES):
+$(TEST_FILES): dev
 	PYTHONPATH='' python -m pytest $@ || { code=$$?; [ $$code -eq 5 ] && exit 0 || exit $$code; }
 
 # --- Rust ---

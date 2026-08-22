@@ -656,3 +656,66 @@ def test_bash_invoke_no_extra_env_passes_none() -> None:
 
     _call_kwargs = mock_spawn.call_args.kwargs
     assert _call_kwargs.get("env") is None
+
+
+def _registered_client(provider: str, model: str | None, policy: Policy) -> Any:
+    import gremlins.clients  # noqa: F401
+    from gremlins.clients.registry import CLIENT_FACTORIES
+
+    return CLIENT_FACTORIES[provider](model, policy)
+
+
+def test_registered_openai_factory_returns_rust_client(monkeypatch: Any) -> None:
+    from _gremlins_core.clients import RustClient
+
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    client = _registered_client("openai", "gpt-4o", Policy())
+    assert isinstance(client, RustClient)
+    assert client.total_cost_usd is None
+
+
+def test_registered_xai_factory_returns_rust_client(monkeypatch: Any) -> None:
+    from _gremlins_core.clients import RustClient
+
+    monkeypatch.setenv("XAI_API_KEY", "test-key")
+    client = _registered_client("xai", None, Policy())
+    assert isinstance(client, RustClient)
+
+
+def test_registered_openrouter_factory_returns_rust_client(monkeypatch: Any) -> None:
+    from _gremlins_core.clients import RustClient
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    client = _registered_client("openrouter", "openai/gpt-4o-mini", Policy())
+    assert isinstance(client, RustClient)
+
+
+def test_registered_openai_factory_missing_key(monkeypatch: Any) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
+        _registered_client("openai", "gpt-4o", Policy())
+
+
+def test_registered_xai_factory_missing_key(monkeypatch: Any) -> None:
+    monkeypatch.delenv("XAI_API_KEY", raising=False)
+    with pytest.raises(RuntimeError, match="XAI_API_KEY"):
+        _registered_client("xai", "grok-4", Policy())
+
+
+def test_registered_openrouter_factory_missing_key(monkeypatch: Any) -> None:
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    with pytest.raises(RuntimeError, match="OPENROUTER_API_KEY"):
+        _registered_client("openrouter", "openai/gpt-4o-mini", Policy())
+
+
+@pytest.mark.skipif(
+    not os.environ.get("OPENAI_API_KEY"),
+    reason="OPENAI_API_KEY not set",
+)
+def test_registered_openai_integration_run() -> None:
+    client = _registered_client("openai", "gpt-4o-mini", Policy())
+    result = asyncio.run(
+        client.run("Reply with the single word: done", label="integration-test")
+    )
+    assert result.exit_code == 0
+    assert result.text_result

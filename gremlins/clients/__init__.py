@@ -21,22 +21,52 @@ def _make_copilot_client(_model: str | None, policy: Policy) -> SubprocessCopilo
     return SubprocessCopilotClient(bypass=True, native_block={})
 
 
-def _make_openai_client(model: str | None, policy: Policy) -> object:
-    from gremlins.clients.providers.openai_agents import make_openai_client
+def _openai_instructions() -> str:
+    from gremlins.utils.yaml_io import load_bundled_prompt
 
-    return make_openai_client(model, policy)
+    return load_bundled_prompt("default_openai_agents_instructions.md")
+
+
+def _make_openai_client(model: str | None, policy: Policy) -> object:
+    from _gremlins_core.clients import RustClient
+
+    from gremlins.permissions.loader import load_default_block
+
+    return RustClient(
+        "openai",
+        model or "",
+        policy.bypass,
+        load_default_block("openai") | policy.block_for("openai"),
+        instructions=_openai_instructions(),
+    )
 
 
 def _make_xai_client(model: str | None, policy: Policy) -> object:
-    from gremlins.clients.providers.openai_agents import make_xai_client
+    from _gremlins_core.clients import RustClient
 
-    return make_xai_client(model, policy)
+    from gremlins.permissions.loader import load_default_block
+
+    return RustClient(
+        "xai",
+        model or "grok-4",
+        policy.bypass,
+        load_default_block("xai") | policy.block_for("xai"),
+        instructions=_openai_instructions(),
+    )
 
 
 def _make_openrouter_client(model: str | None, policy: Policy) -> object:
-    from gremlins.clients.providers.openai_agents import make_openrouter_client
+    from _gremlins_core.clients import RustClient
 
-    return make_openrouter_client(model, policy)
+    from gremlins.permissions.loader import load_default_block
+
+    return RustClient(
+        "openrouter",
+        model or "",
+        policy.bypass,
+        load_default_block("openrouter") | policy.block_for("openrouter"),
+        instructions=_openai_instructions(),
+    )
 
 
 def _make_anthropic_client(model: str | None, policy: Policy) -> object:

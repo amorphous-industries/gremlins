@@ -7,7 +7,9 @@ use pyo3::types::{PyDict, PyList};
 
 use crate::clients::backend::{Backend, ClientError, RunParams};
 use crate::clients::cmd_backend::CmdBackend;
+use crate::clients::openai_backend::{OpenAiBackend, OpenAiProvider};
 use crate::clients::protocol::CompletedRun;
+use rig_core::providers::openai;
 
 /// Python-exposed RustClient.
 #[pyclass]
@@ -28,26 +30,54 @@ fn map_error(e: ClientError) -> PyErr {
 #[pymethods]
 impl RustClient {
     #[new]
+    #[pyo3(signature = (provider, model, bypass, native_block, instructions=None))]
     fn new(
         provider: String,
         model: String,
-        _bypass: bool,
-        _native_block: HashMap<String, Vec<String>>,
+        bypass: bool,
+        native_block: HashMap<String, Vec<String>>,
+        instructions: Option<String>,
     ) -> PyResult<Self> {
-        let backend: Arc<dyn Backend> = match provider.as_str() {
+        let kind = match provider.as_str() {
             "cmd" => {
                 let cmd =
                     CmdBackend::new(&model).map_err(pyo3::exceptions::PyValueError::new_err)?;
-                Arc::new(cmd)
+                return Ok(RustClient {
+                    inner: Arc::new(cmd),
+                });
             }
+            "openai" => OpenAiProvider::OpenAi,
+            "xai" => OpenAiProvider::Xai,
+            "openrouter" => OpenAiProvider::OpenRouter,
             _ => {
                 return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                    "unknown provider '{provider}'; Rust only supports 'cmd' in this phase. \
-                     Other providers use Python backends."
+                    "unknown provider '{provider}'"
                 )));
             }
         };
-        Ok(RustClient { inner: backend })
+        let api_key = std::env::var(kind.api_key_env()).map_err(|_| {
+            pyo3::exceptions::PyRuntimeError::new_err(format!(
+                "{} environment variable is not set",
+                kind.api_key_env()
+            ))
+        })?;
+        let client = openai::Client::builder()
+            .api_key(rig_core::client::BearerAuth::from(api_key))
+            .base_url(kind.base_url())
+            .build()
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?
+            .completions_api();
+        let tool_filter = native_block.get("allowed_tools").cloned();
+        Ok(RustClient {
+            inner: Arc::new(OpenAiBackend::new(
+                kind,
+                client,
+                model,
+                instructions.unwrap_or_default(),
+                tool_filter,
+                bypass,
+            )),
+        })
     }
 
     #[staticmethod]
@@ -59,6 +89,7 @@ impl RustClient {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (prompt, label, model=None, raw_path=None, capture_events=false, on_timeout_prompt=None, max_retries=0, cwd=None, idle_timeout=None, extra_env=None))]
     fn run<'py>(
         &self,
         py: Python<'py>,
