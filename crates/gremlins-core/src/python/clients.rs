@@ -1,0 +1,137 @@
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::Arc;
+
+use pyo3::prelude::*;
+use pyo3::types::{PyDict, PyList};
+
+use crate::clients::backend::{Backend, ClientError, RunParams};
+use crate::clients::cmd_backend::CmdBackend;
+use crate::clients::protocol::CompletedRun;
+
+/// Python-exposed RustClient.
+#[pyclass]
+pub struct RustClient {
+    inner: Arc<dyn Backend>,
+}
+
+fn map_error(e: ClientError) -> PyErr {
+    match e {
+        ClientError::Timeout { message } => pyo3::exceptions::PyTimeoutError::new_err(message),
+        ClientError::ApiServerError { message } => {
+            pyo3::exceptions::PyRuntimeError::new_err(message)
+        }
+        ClientError::Runtime { message } => pyo3::exceptions::PyRuntimeError::new_err(message),
+    }
+}
+
+#[pymethods]
+impl RustClient {
+    #[new]
+    fn new(
+        provider: String,
+        model: String,
+        _bypass: bool,
+        _native_block: HashMap<String, Vec<String>>,
+    ) -> PyResult<Self> {
+        let backend: Arc<dyn Backend> = match provider.as_str() {
+            "cmd" => {
+                let cmd =
+                    CmdBackend::new(&model).map_err(pyo3::exceptions::PyValueError::new_err)?;
+                Arc::new(cmd)
+            }
+            _ => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "unknown provider '{provider}'; Rust only supports 'cmd' in this phase. \
+                     Other providers use Python backends."
+                )));
+            }
+        };
+        Ok(RustClient { inner: backend })
+    }
+
+    #[staticmethod]
+    fn cmd(command: String) -> PyResult<Self> {
+        let backend = CmdBackend::new(&command).map_err(pyo3::exceptions::PyValueError::new_err)?;
+        Ok(RustClient {
+            inner: Arc::new(backend),
+        })
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn run<'py>(
+        &self,
+        py: Python<'py>,
+        prompt: String,
+        label: String,
+        model: Option<String>,
+        raw_path: Option<PathBuf>,
+        capture_events: bool,
+        on_timeout_prompt: Option<String>,
+        max_retries: usize,
+        cwd: Option<PathBuf>,
+        idle_timeout: Option<f64>,
+        extra_env: Option<HashMap<String, String>>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let backend = self.inner.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let params = RunParams {
+                prompt,
+                label,
+                model,
+                raw_path,
+                capture_events,
+                on_timeout_prompt,
+                max_retries,
+                cwd,
+                idle_timeout,
+                extra_env,
+            };
+            let result = backend.run(params).await.map_err(map_error)?;
+            Python::attach(|py| completed_run_to_py(py, &result))
+        })
+    }
+
+    fn resume<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let backend = self.inner.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let result = backend.resume().await.map_err(map_error)?;
+            Python::attach(|py| completed_run_to_py(py, &result))
+        })
+    }
+
+    fn reap_all(&self) {
+        self.inner.reap_all();
+    }
+
+    #[getter]
+    fn total_cost_usd(&self) -> Option<f64> {
+        self.inner.total_cost_usd()
+    }
+}
+
+fn completed_run_to_py(py: Python<'_>, r: &CompletedRun) -> PyResult<Py<PyAny>> {
+    let protocol = py.import("gremlins.clients.protocol")?;
+    let cls = protocol.getattr("CompletedRun")?;
+    let kwargs = PyDict::new(py);
+    kwargs.set_item("exit_code", r.exit_code)?;
+    if let Some(ref text) = r.text_result {
+        kwargs.set_item("text_result", text)?;
+    }
+    if let Some(ref events) = r.events {
+        let py_events = PyList::empty(py);
+        let json_mod = py.import("json")?;
+        for evt in events {
+            let json_str = serde_json::to_string(evt).map_err(|e| {
+                pyo3::exceptions::PyValueError::new_err(format!("JSON serialization error: {e}"))
+            })?;
+            let py_obj = json_mod.call_method1("loads", (json_str,))?;
+            py_events.append(py_obj)?;
+        }
+        kwargs.set_item("events", py_events)?;
+    }
+    if let Some(cost) = r.cost_usd {
+        kwargs.set_item("cost_usd", cost)?;
+    }
+    Ok(cls.call((), Some(&kwargs))?.into_any().unbind())
+}
