@@ -489,7 +489,12 @@ class _ParallelExecutor:
 
         # key -> [(child_key, child_id, uri_str)] — only new bindings not in parent at fan-out
         per_key: dict[str, list[tuple[str, str, str]]] = {}
-        for child_key, _, _ in self._child_runners:
+        # Iterate all children (via _stages_by_key), not _child_runners.
+        # On resume, _child_runners excludes already-done children, but those
+        # children may have completed in a prior run whose fan-in was skipped
+        # (e.g. because a sibling failed, causing _parallel to raise).  We must
+        # still gather their artifacts before removing child state dirs.
+        for child_key in self._stages_by_key:
             child_id = f"{parent_gid}--{self._group_name}--{child_key}"
             child_reg = sr / child_id / "registry.json"
             if not child_reg.exists():

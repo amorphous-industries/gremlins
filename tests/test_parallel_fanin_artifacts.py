@@ -11,6 +11,7 @@ import pytest
 from gremlins.artifacts.uri import Uri
 from gremlins.clients.fake import FakeClaudeClient
 from gremlins.executor.state import State, StateData, build_state
+from gremlins.stages.base import Stage
 from gremlins.stages.parallel import ParallelStage, _ParallelExecutor
 
 
@@ -51,6 +52,7 @@ def _executor(
         bail_policy="any",
         parent_state=parent_state,
         project_root=pathlib.Path("/nonexistent"),
+        child_stages=[Stage(k) for k in child_keys],
     )
 
 

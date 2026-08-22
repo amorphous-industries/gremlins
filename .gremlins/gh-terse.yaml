@@ -77,7 +77,7 @@ stages:
       - name: local-review-gpt
         type: agent
         prompt: [code-style, terse, local_review.md]
-        client: openrouter:gpt-5.6-luna
+        client: openrouter:gpt-5.6-terra
         out:
           local-review-gpt: "file://session/local-review-gpt.md"
       - name: local-review-grok
