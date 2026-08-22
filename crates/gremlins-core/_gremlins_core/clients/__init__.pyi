@@ -9,6 +9,7 @@ class RustClient:
         model: str,
         bypass: bool,
         native_block: dict[str, list[str]],
+        instructions: str | None = None,
     ) -> None: ...
     @staticmethod
     def cmd(command: str) -> RustClient: ...

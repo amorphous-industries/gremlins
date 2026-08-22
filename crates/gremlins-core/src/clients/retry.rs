@@ -6,7 +6,7 @@ use tokio::time::sleep;
 pub async fn with_retry<F, Fut, T, E>(
     backoff: &[f64],
     classify: impl Fn(&E) -> bool,
-    on_retry: impl Fn(usize, &E, f64),
+    mut on_retry: impl FnMut(usize, &E, f64),
     mut f: F,
 ) -> Result<T, E>
 where
