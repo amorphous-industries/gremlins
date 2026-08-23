@@ -40,7 +40,7 @@ rust-clippy:
 # --- Build ---
 
 dev: ## Build and install the native extension in dev mode
-	cd crates/pyext && maturin develop
+	maturin develop
 
 install: ## Build and install the native extension in release mode
 	maturin develop --release
