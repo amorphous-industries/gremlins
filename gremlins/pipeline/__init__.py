@@ -17,8 +17,7 @@ GREMLINS_PREFIX = "gremlins:"
 
 def _fill_stage_clients(stages: list[Stage], default: Client) -> None:
     for stage in stages:
-        if stage.type != "parallel":
-            stage.client = stage.client or default
+        stage.client = stage.client or default
         body = getattr(stage, "body", [])
         if body:
             _fill_stage_clients(body, default)

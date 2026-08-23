@@ -532,8 +532,8 @@ stages:
 """,
     )
     pipeline = Pipeline.from_yaml(yaml_path)
-    # parallel groups never get a client assigned
-    assert pipeline.stages[0].client is None
+    # parallel groups inherit the default client (harmless — parallel never uses it)
+    assert str(pipeline.stages[0].client) == "openai:gpt-4o"
     # children of a parallel group inherit the pipeline default
     assert str(pipeline.stages[0].body[0].client) == "openai:gpt-4o"
 
