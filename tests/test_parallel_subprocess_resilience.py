@@ -553,59 +553,62 @@ def test_build_child_spec_dict_base_ref_empty_by_default(
     assert spec["base_ref"] == ""
 
 
-@pytest.mark.anyio
-async def test_terminate_with_grace_does_not_kill_descendants(
+def test_terminate_with_grace_does_not_kill_descendants(
     tmp_path: pathlib.Path,
 ) -> None:
     """Real Rust terminate_with_grace kills only the target PID — descendants survive."""
-    pid_file = tmp_path / "grandchild_pid"
-    pid_file.write_text("")
 
-    proc = await asyncio.create_subprocess_exec(
-        "sh",
-        "-c",
-        f"(sleep 999 & echo $! > {pid_file}) & sleep 999",
-        stdout=asyncio.subprocess.DEVNULL,
-        stderr=asyncio.subprocess.DEVNULL,
-        start_new_session=True,
-    )
-    pid = proc.pid
-    assert pid is not None
+    async def _run() -> None:
+        pid_file = tmp_path / "grandchild_pid"
+        pid_file.write_text("")
 
-    # Wait for grandchild to start and write its PID.
-    for _ in range(20):
-        gc_pid = pid_file.read_text().strip()
-        if gc_pid:
-            break
-        await asyncio.sleep(0.05)
-
-    assert gc_pid, "grandchild did not start in time"
-
-    try:
-        # Call the real Rust binding (targets only the specific PID, not the PG).
-        await _proc_mod.terminate_with_grace(proc, grace_s=0.1)
-
-        # Parent should be dead.
-        ret = await proc.wait()
-        assert ret != 0
-
-        # Grandchild should still be alive (terminate_with_grace does not kill
-        # the process group — it only targets the specific PID).
-        gc_alive = await asyncio.create_subprocess_exec(
-            "kill",
-            "-0",
-            gc_pid,
+        proc = await asyncio.create_subprocess_exec(
+            "sh",
+            "-c",
+            f"(sleep 999 & echo $! > {pid_file}) & sleep 999",
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
+            start_new_session=True,
         )
-        ret = await gc_alive.wait()
-        assert ret == 0, f"grandchild {gc_pid} died unexpectedly"
-    finally:
-        # Cleanup: kill the grandchild to avoid leaking a long-lived process.
-        await asyncio.create_subprocess_exec(
-            "kill",
-            "-9",
-            gc_pid,
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL,
-        )
+        pid = proc.pid
+        assert pid is not None
+
+        # Wait for grandchild to start and write its PID.
+        for _ in range(20):
+            gc_pid = pid_file.read_text().strip()
+            if gc_pid:
+                break
+            await asyncio.sleep(0.05)
+
+        assert gc_pid, "grandchild did not start in time"
+
+        try:
+            # Call the real Rust binding (targets only the specific PID, not the PG).
+            await _proc_mod.terminate_with_grace(proc, grace_s=0.1)
+
+            # Parent should be dead.
+            ret = await proc.wait()
+            assert ret != 0
+
+            # Grandchild should still be alive (terminate_with_grace does not kill
+            # the process group — it only targets the specific PID).
+            gc_alive = await asyncio.create_subprocess_exec(
+                "kill",
+                "-0",
+                gc_pid,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            ret = await gc_alive.wait()
+            assert ret == 0, f"grandchild {gc_pid} died unexpectedly"
+        finally:
+            # Cleanup: kill the grandchild to avoid leaking a long-lived process.
+            await asyncio.create_subprocess_exec(
+                "kill",
+                "-9",
+                gc_pid,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+
+    asyncio.run(_run())
