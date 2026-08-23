@@ -518,7 +518,7 @@ stages:
     assert pipeline.stages[0].client == pipeline.default_client
 
 
-def test_client_spec_parallel_group_is_none(tmp_path: pathlib.Path) -> None:
+def test_client_spec_parallel_group_inherits_default(tmp_path: pathlib.Path) -> None:
     yaml_path = _write_yaml(
         tmp_path / "pipeline.yaml",
         """\
@@ -532,7 +532,7 @@ stages:
 """,
     )
     pipeline = Pipeline.from_yaml(yaml_path)
-    # parallel groups inherit the default client (harmless — parallel never uses it)
+    # parallel groups inherit the default client (required — Gremlin._collect_stages asserts non-None)
     assert str(pipeline.stages[0].client) == "openai:gpt-4o"
     # children of a parallel group inherit the pipeline default
     assert str(pipeline.stages[0].body[0].client) == "openai:gpt-4o"
