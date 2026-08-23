@@ -149,8 +149,8 @@ def test_local_main_resume_from_review_code_allows_existing_git_changes(
     ]
 
 
-def test_local_main_client_specifier_model(tmp_path, monkeypatch):
-    """Model from --client provider:model flows into stage run() calls."""
+def test_local_main_injected_client_model(tmp_path, monkeypatch):
+    """Injected client.model flows into stage run() calls."""
     gremlin_id = "test-gr-id"
     artifact_dir = tmp_path / gremlin_id / "artifacts"
     artifact_dir.mkdir(parents=True)

@@ -679,7 +679,7 @@ def test_plan_stage_uses_bundled_prompt_not_slash_command(tmp_path, monkeypatch)
 
 
 def test_model_forwarded_to_all_stages(tmp_path, monkeypatch):
-    """--client provider:model is forwarded to every client.run call."""
+    """Injected client.model is forwarded to every client.run call."""
     _init_git_repo(tmp_path)
     monkeypatch.chdir(tmp_path)
 
@@ -722,10 +722,10 @@ def test_model_forwarded_to_all_stages(tmp_path, monkeypatch):
         assert call.model == "gpt-4o", f"stage {call.label!r} got model={call.model!r}"
 
 
-def test_gh_main_defaults_model_to_sonnet(tmp_path, monkeypatch):
-    """Regression: ghgremlin must default --model to sonnet, not fall through
-    to claude's runtime default (which inherits the calling session's model
-    and silently runs every stage on opus when launched from an opus session).
+def test_gh_main_defaults_to_pipeline_model(tmp_path, monkeypatch):
+    """Regression: ghgremlin must default to the pipeline's default_client
+    (xai:grok-4), not fall through to the provider's runtime default (which
+    may silently run every stage on a different model).
     """
     _init_git_repo(tmp_path)
     monkeypatch.chdir(tmp_path)
