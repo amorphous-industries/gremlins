@@ -34,6 +34,12 @@ fn _gremlins_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     clients.add_class::<python::clients::RustClient>()?;
     m.add_submodule(&clients)?;
 
+    // schemas submodule
+    python::schemas::register_schemas_module(m)?;
+
+    // discovery submodule
+    python::discovery::register_discovery_module(m)?;
+
     let modules = m.py().import("sys")?.getattr("modules")?;
     modules.set_item("_gremlins_core.utils", &utils)?;
     modules.set_item("_gremlins_core.utils.proc", &proc)?;
