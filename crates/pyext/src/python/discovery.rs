@@ -2,8 +2,8 @@ use std::path::PathBuf;
 
 use pyo3::prelude::*;
 
-use gremlins::core::discovery;
 use crate::convert::discovery_error_to_pyerr;
+use gremlins::core::discovery;
 
 #[pyfunction]
 fn list_pipelines(project_root: PathBuf, bundled_pipeline_dir: PathBuf) -> Vec<(String, PathBuf)> {

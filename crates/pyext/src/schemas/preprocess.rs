@@ -4,8 +4,8 @@ use std::path::PathBuf;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyList};
 
-use crate::schemas::GREMLINS_PREFIX;
 use crate::schemas::error::SchemaError;
+use crate::schemas::GREMLINS_PREFIX;
 
 pub fn expand_pipeline(
     py: Python<'_>,
