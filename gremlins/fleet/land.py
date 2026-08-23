@@ -289,25 +289,30 @@ def do_rm(target: str) -> bool:
 
 
 def _compose_commit_message(plan_path: str):
-    """Return (subject, body) distilled from plan.md's ## Context and ## Tasks."""
+    """Return (subject, body) distilled from plan.md.
+
+    Tries sections in order: ## Context, then ## Goal.
+    Falls back to the document title (first # heading) if neither works.
+    """
     try:
         with open(plan_path, encoding="utf-8") as fh:
             content = fh.read()
     except OSError:
-        return "Land gremlin branch", ""
+        return _fallback_commit_subject(), ""
 
-    m = re.search(
-        r"^##\s+Context\s*\n(.*?)(?=^##\s|\Z)", content, re.MULTILINE | re.DOTALL
+    # Try ## Context, then ## Goal
+    para = _extract_first_paragraph(content, "Context") or _extract_first_paragraph(
+        content, "Goal"
     )
-    if not m:
-        return "Land gremlin branch", ""
 
-    para = next(
-        (p.strip() for p in re.split(r"\n\n+", m.group(1).strip()) if p.strip()),
-        "",
-    )
     if not para:
-        return "Land gremlin branch", ""
+        # Fall back to the document title
+        title_m = re.search(r"^#\s+(.+)", content, re.MULTILINE)
+        if title_m:
+            para = title_m.group(1).strip()
+
+    if not para:
+        return _fallback_commit_subject(), ""
 
     subject = " ".join(para.split())
     subject = re.sub(
@@ -324,18 +329,43 @@ def _compose_commit_message(plan_path: str):
         boundary = cut.rfind(" ")
         subject = cut[:boundary] if boundary > 0 else cut
 
+    body = _extract_task_body(content)
+    return subject, body
+
+
+def _fallback_commit_subject() -> str:
+    return "Land gremlin branch"
+
+
+def _extract_first_paragraph(content: str, heading: str) -> str | None:
+    """Extract the first non-empty paragraph from ## <heading>."""
+    m = re.search(
+        rf"^##\s+{re.escape(heading)}\s*\n(.*?)(?=^##\s|\Z)",
+        content,
+        re.MULTILINE | re.DOTALL,
+    )
+    if not m:
+        return None
+    para = next(
+        (p.strip() for p in re.split(r"\n\n+", m.group(1).strip()) if p.strip()),
+        "",
+    )
+    return para or None
+
+
+def _extract_task_body(content: str) -> str:
+    """Extract body lines from ## Tasks checkboxes."""
     tm = re.search(
         r"^##\s+Tasks\s*\n(.*?)(?=^##\s|\Z)", content, re.MULTILINE | re.DOTALL
     )
-    body = ""
-    if tm:
-        done = re.findall(
-            r"^\s*-\s+\[x\]\s+(.+)", tm.group(1), re.MULTILINE | re.IGNORECASE
-        )
-        if done:
-            body = "\n".join(f"- {t.strip()}" for t in done[:8])
-
-    return subject, body
+    if not tm:
+        return ""
+    done = re.findall(
+        r"^\s*-\s+\[x\]\s+(.+)", tm.group(1), re.MULTILINE | re.IGNORECASE
+    )
+    if done:
+        return "\n".join(f"- {t.strip()}" for t in done[:8])
+    return ""
 
 
 def _gather_commit_inputs(
