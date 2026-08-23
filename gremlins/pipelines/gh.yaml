@@ -1,4 +1,4 @@
-default_client: 'cmd:claude -p --model sonnet --verbose --output-format stream-json --permission-mode bypassPermissions'
+default_client: 'xai:grok-4'
 
 base_ref: main
 

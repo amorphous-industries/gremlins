@@ -404,7 +404,7 @@ def _run_client_text(
     """Run a Client prompt and return (text_result, cost_usd).
 
     Exists so land-time commit-message synthesis goes through the same
-    backend abstraction as pipeline stages — no more hardcoded ``claude -p``.
+    backend abstraction as pipeline stages.
     """
     import asyncio
 

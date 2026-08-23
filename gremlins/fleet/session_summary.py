@@ -81,8 +81,7 @@ def _read_stdin() -> dict[str, Any]:
 
 def _resolve_project_root(cwd_from_input: str) -> str:
     root = (
-        os.environ.get("CLAUDE_PROJECT_DIR")
-        or cwd_from_input
+        cwd_from_input
         or str(_paths.project_root())
     )
     if root:

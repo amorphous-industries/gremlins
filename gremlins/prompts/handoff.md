@@ -31,7 +31,7 @@ A child gremlin operates **inside a detached-HEAD worktree, against a single fea
 
 Classify a task as **operator** if executing it inside a child gremlin's worktree would be impossible, destructive, or undefined. Concrete signals:
 
-- **Mutates the user's live config or other shared machine state directly**: hand-edits under `~/.claude/` (or equivalent live config dirs), running a script that mirrors the worktree into shared state, copying built artifacts onto the user's machine. (The child has unmerged code in its worktree; pushing that into live state would suddenly run unmerged code on the user's machine.)
+- **Mutates the user's live config or other shared machine state directly**: hand-edits under the user's live config directory (e.g. `~/.config/`), running a script that mirrors the worktree into shared state, copying built artifacts onto the user's machine. (The child has unmerged code in its worktree; pushing that into live state would suddenly run unmerged code on the user's machine.)
 - **Launches another gremlin**: `/localgremlin`, `/ghgremlin`, `/bossgremlin`, or a smoke-run / end-to-end run that boils down to invoking one. Recursive gremlin launch from a detached worktree is undefined behavior.
 - **Pushes to a remote outside the PR flow**: `git push origin main`, force-pushes, manual `gh pr merge`, direct merges. The child's only remote interaction is opening (and updating) one PR.
 - **Operator commands**: `/gremlins land`, `/gremlins stop`, `/gremlins close`, `/gremlins rm`. These are human controls, not workflow steps.
