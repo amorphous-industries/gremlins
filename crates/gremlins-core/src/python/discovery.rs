@@ -1,0 +1,45 @@
+use std::path::PathBuf;
+
+use pyo3::prelude::*;
+
+use crate::core::discovery;
+
+#[pyfunction]
+fn list_pipelines(project_root: PathBuf, bundled_pipeline_dir: PathBuf) -> Vec<(String, PathBuf)> {
+    discovery::list_pipelines(project_root, bundled_pipeline_dir)
+}
+
+#[pyfunction]
+fn resolve_pipeline_name(
+    name: &str,
+    project_root: PathBuf,
+    bundled_pipeline_dir: PathBuf,
+) -> PyResult<PathBuf> {
+    discovery::resolve_pipeline_name(name, project_root, bundled_pipeline_dir)
+        .map_err(pyo3::PyErr::from)
+}
+
+#[pyfunction]
+fn resolve_pipeline_path(
+    name_or_path: &str,
+    base_dir: PathBuf,
+    bundled_pipeline_dir: PathBuf,
+) -> PyResult<PathBuf> {
+    discovery::resolve_pipeline_path(name_or_path, base_dir, bundled_pipeline_dir)
+        .map_err(pyo3::PyErr::from)
+}
+
+pub fn register_discovery_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    let discovery_mod = PyModule::new(m.py(), "discovery")?;
+
+    discovery_mod.add_function(wrap_pyfunction!(list_pipelines, &discovery_mod)?)?;
+    discovery_mod.add_function(wrap_pyfunction!(resolve_pipeline_name, &discovery_mod)?)?;
+    discovery_mod.add_function(wrap_pyfunction!(resolve_pipeline_path, &discovery_mod)?)?;
+
+    m.add_submodule(&discovery_mod)?;
+
+    let modules = m.py().import("sys")?.getattr("modules")?;
+    modules.set_item("_gremlins_core.discovery", &discovery_mod)?;
+
+    Ok(())
+}
