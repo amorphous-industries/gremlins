@@ -494,9 +494,8 @@ stages:
 """,
     )
     pipeline = Pipeline.from_yaml(yaml_path)
-    from gremlins.clients.client import PACKAGE_DEFAULT
 
-    assert pipeline.stages[0].client == PACKAGE_DEFAULT
+    assert pipeline.stages[0].client == pipeline.default_client
 
 
 def test_client_spec_parallel_group_is_none(tmp_path: pathlib.Path) -> None:

@@ -734,7 +734,8 @@ def test_setup_workdir_overlay_goes_to_state_dir(lenv):
     overlay_src = lenv.repo / ".gremlins"
     overlay_src.mkdir(parents=True)
     (overlay_src / "custom-local.yaml").write_text(
-        "name: custom-local\nstages: []\n", encoding="utf-8"
+        "name: custom-local\ndefault_client: openai:gpt-4o\nstages: []\n",
+        encoding="utf-8",
     )
 
     gremlin_id = "overlay-test-aabbcc"
@@ -848,7 +849,8 @@ def test_stage_inputs_survives_resume(lenv, monkeypatch):
     saved_stage_inputs = {"instructions": "do the thing", "flag": "value"}
     pipeline_yaml = lenv.repo / "pipeline.yaml"
     pipeline_yaml.write_text(
-        "stages:\n  - name: plan\n    type: agent\n", encoding="utf-8"
+        "default_client: openai:gpt-4o\nstages:\n  - name: plan\n    type: agent\n",
+        encoding="utf-8",
     )
     (state_dir / "state.json").write_text(
         json.dumps(

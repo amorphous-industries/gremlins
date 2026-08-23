@@ -256,7 +256,7 @@ def test_fork_with_branch_pipeline_scopes_child(tmp_path, tmp_repo):
     async def _test():
         parent_pipeline_path = tmp_path / "parent.yaml"
         parent_pipeline_path.write_text(
-            "stages:\n  - name: implement\n    type: exec\n"
+            "default_client: openai:gpt-4o\nstages:\n  - name: implement\n    type: exec\n"
         )
         parent_pipeline = Pipeline.from_yaml(parent_pipeline_path)
 

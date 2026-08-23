@@ -5,7 +5,7 @@ import importlib
 import pathlib
 from typing import TYPE_CHECKING, Any, cast
 
-from gremlins.clients.client import PACKAGE_DEFAULT, Client
+from gremlins.clients.client import Client
 
 if TYPE_CHECKING:
     from gremlins.pipeline.inputs import InputSources
@@ -110,7 +110,11 @@ class Pipeline:
 
         check_duplicate_producers(stages)
 
-        _fill_stage_clients(stages, default_client or PACKAGE_DEFAULT)
+        if default_client is None:
+            raise ValueError(
+                "pipeline is missing 'default_client' — every pipeline must declare one"
+            )
+        _fill_stage_clients(stages, default_client)
 
         return cls(
             name=pipeline_name,

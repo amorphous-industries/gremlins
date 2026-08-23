@@ -55,6 +55,7 @@ def test_persist_expanded_pipeline_roundtrips_via_pipeline_from_yaml(tmp_path):
     pipeline_yaml = tmp_path / "proj.yaml"
     pipeline_yaml.write_text(
         """\
+default_client: openai:gpt-4o
 stages:
   - name: plan
     type: agent
@@ -129,6 +130,7 @@ def test_resume_uses_hermetic_pipeline_yaml(lenv, monkeypatch):
     project_yaml.parent.mkdir(parents=True, exist_ok=True)
     project_yaml.write_text(
         """\
+default_client: openai:gpt-4o
 stages:
   - name: plan
     type: agent
@@ -142,6 +144,7 @@ stages:
     hermetic_yaml = state_dir / "pipeline.yaml"
     hermetic_yaml.write_text(
         """\
+default_client: openai:gpt-4o
 stages:
   - name: only-stage
     type: agent
@@ -195,6 +198,7 @@ def test_resume_hermetic_copy_isolates_from_project_yaml_edits(lenv, monkeypatch
     project_yaml = lenv.repo / ".gremlins" / "local.yaml"
     project_yaml.parent.mkdir(parents=True, exist_ok=True)
     original_content = """\
+default_client: openai:gpt-4o
 stages:
   - name: plan
     type: agent
@@ -226,6 +230,7 @@ stages:
     # Mutate the project YAML — add an extra stage.
     project_yaml.write_text(
         """\
+default_client: openai:gpt-4o
 stages:
   - name: plan
     type: agent

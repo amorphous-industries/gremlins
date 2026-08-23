@@ -5,7 +5,6 @@ from __future__ import annotations
 import dataclasses
 
 from gremlins import paths as _paths
-from gremlins.clients.client import PACKAGE_DEFAULT
 from gremlins.executor.gremlin import State
 from gremlins.stages.base import Stage
 
@@ -15,7 +14,7 @@ def child_state(
 ) -> State:
     """Derive a child State from parent."""
     client = parent.client
-    if child.client is not None and child.client != PACKAGE_DEFAULT:
+    if child.client is not None and child.client != parent.client:
         client = child.client
     if not fan_out:
         return dataclasses.replace(parent, client=client)

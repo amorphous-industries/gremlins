@@ -17,7 +17,7 @@ from typing import Any, cast
 from gremlins import paths as _paths
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.artifacts.uri import Uri
-from gremlins.clients.client import PACKAGE_DEFAULT, Client
+from gremlins.clients.client import Client
 from gremlins.executor.state import (
     State,
     StateData,
@@ -373,7 +373,8 @@ class Gremlin:
         built: list[tuple[str, Callable[[], Awaitable[Any]]]] = []
         for e in stages:
             self._set_gremlin_recursive(e)
-            stage_client = e.client or PACKAGE_DEFAULT
+            stage_client = e.client
+            assert stage_client is not None, f"stage {e.name!r} has no client"
             stage_data = StateData(
                 gremlin_id=self.gremlin_id, state_file=self.state_file
             )
@@ -507,7 +508,9 @@ class Gremlin:
         up a chain of parent gremlins to find the topmost repository).
         """
         state_data = StateData.load(self.gremlin_id)
-        kwargs = self._make_build_state_kwargs(state_data, PACKAGE_DEFAULT)
+        default_client = self.pipeline_data.default_client
+        assert default_client is not None, "pipeline has no default_client"
+        kwargs = self._make_build_state_kwargs(state_data, default_client)
         kwargs["cwd"] = cwd
         kwargs["worktree"] = None
         return build_state(**kwargs)
@@ -613,10 +616,10 @@ class Gremlin:
                     self.registry.bind("base_sha", Uri.parse(f"git://commit/{sha}"))
 
             state_data = StateData.load(self.gremlin_id)
+            default_client = resolved_client or self.pipeline_data.default_client
+            assert default_client is not None, "pipeline has no default_client"
             self.state = build_state(
-                **self._make_build_state_kwargs(
-                    state_data, resolved_client or PACKAGE_DEFAULT
-                )
+                **self._make_build_state_kwargs(state_data, default_client)
             )
         except Exception:
             if worktree_created:

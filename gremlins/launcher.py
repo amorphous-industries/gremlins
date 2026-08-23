@@ -23,7 +23,6 @@ from typing import Any, cast
 from gremlins import paths as _paths
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.artifacts.uri import Uri
-from gremlins.clients.client import PACKAGE_DEFAULT
 from gremlins.executor.gremlin import Gremlin, validate_gremlin_id, write_initial_state
 from gremlins.pipeline import Pipeline as _PipelineData
 from gremlins.pipeline.discovery import list_pipelines, resolve_pipeline_path
@@ -529,7 +528,7 @@ def _patch_state_for_resume(
         pid=None,
         pipeline_args=pipeline_args,
         pipeline_path=pipeline_path,
-        client=str(state.get("client") or PACKAGE_DEFAULT),
+        client=str(state.get("client") or ""),
     )
 
     try:

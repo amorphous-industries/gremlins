@@ -100,9 +100,3 @@ class Client:
         if self._impl is None:
             return None
         return self._impl.total_cost_usd
-
-
-PACKAGE_DEFAULT = Client(
-    "cmd",
-    "claude -p --model sonnet --verbose --output-format stream-json --permission-mode bypassPermissions",
-)

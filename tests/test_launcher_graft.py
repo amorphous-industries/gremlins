@@ -78,7 +78,13 @@ def test_disambiguate_parallel_children_collide_with_each_other():
 
 def _write_pipeline(path: pathlib.Path, stages: list) -> None:
     path.write_text(
-        yaml.dump({"__gremlins_expanded__": True, "stages": stages}),
+        yaml.dump(
+            {
+                "default_client": "openai:gpt-4o",
+                "__gremlins_expanded__": True,
+                "stages": stages,
+            }
+        ),
         encoding="utf-8",
     )
 
@@ -228,7 +234,13 @@ def _write_hermetic(state_dir: pathlib.Path, stages: list | None = None) -> None
         ]
     state_dir.mkdir(parents=True, exist_ok=True)
     (state_dir / "pipeline.yaml").write_text(
-        yaml.dump({"__gremlins_expanded__": True, "stages": stages}),
+        yaml.dump(
+            {
+                "default_client": "openai:gpt-4o",
+                "__gremlins_expanded__": True,
+                "stages": stages,
+            }
+        ),
         encoding="utf-8",
     )
 

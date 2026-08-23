@@ -54,6 +54,7 @@ def pipeline_yaml(tmp_path):
     p = tmp_path / "trivial.yaml"
     p.write_text(
         """\
+default_client: openai:gpt-4o
 stages:
   - name: test
     type: exec
@@ -138,6 +139,7 @@ def test_gremlin_open_with_hermetic_pipeline(sandbox, project_dir):
     pipeline_yaml = state_dir / "pipeline.yaml"
     pipeline_yaml.write_text(
         """\
+default_client: openai:gpt-4o
 stages:
   - name: test
     type: exec

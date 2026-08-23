@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pathlib
 
-from gremlins.clients.client import PACKAGE_DEFAULT
 from gremlins.pipeline import Pipeline
 from gremlins.pipeline.discovery import resolve_pipeline_path
 
@@ -61,4 +60,6 @@ def launch_client_label(pipeline_args: list[str], pipeline: Pipeline | None) -> 
         return client_spec
     if pipeline and pipeline.default_client:
         return str(pipeline.default_client)
-    return str(PACKAGE_DEFAULT)
+    raise ValueError(
+        "no client configured — pass --client or ensure the pipeline declares default_client"
+    )

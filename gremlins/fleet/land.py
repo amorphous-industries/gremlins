@@ -954,12 +954,16 @@ def do_land(
     # Resolve the model client this gremlin used so commit-message synthesis
     # goes through the same backend as the pipeline stages.
     client_str: str = str(state.get("client") or "")
+    if not client_str:
+        print(
+            "error: state.json is missing client field — cannot determine which model to use for commit-message synthesis"
+        )
+        return False
     try:
         client: Client = Client.parse(client_str)
-    except Exception:
-        from gremlins.clients.client import PACKAGE_DEFAULT
-
-        client = PACKAGE_DEFAULT
+    except Exception as exc:
+        print(f"error: cannot parse client from state.json: {exc}")
+        return False
 
     if shape in ("empty", "one_branch"):
         artifact_dir = paths.state_root() / gremlin_id / "artifacts"

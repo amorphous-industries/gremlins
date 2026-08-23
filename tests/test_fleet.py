@@ -485,6 +485,7 @@ def test_liveness_crashed_when_pid_gone_and_no_workdir_in_state(tmp_path):
                 "kind": "bossgremlin",
                 "setup_kind": "worktree-detached",
                 "id": "x",
+                "client": "openai:gpt-4o",
             },
             [],
             "_land_boss",
@@ -494,6 +495,7 @@ def test_liveness_crashed_when_pid_gone_and_no_workdir_in_state(tmp_path):
             {
                 "kind": "ghgremlin",
                 "id": "x",
+                "client": "openai:gpt-4o",
                 "artifacts": [
                     {"type": "branch", "name": "feat"},
                     {

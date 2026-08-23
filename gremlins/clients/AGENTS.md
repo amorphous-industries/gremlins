@@ -9,9 +9,7 @@ Agent backends behind the `Client` protocol. Stages talk to one of these via
   `run(...)` calls.
 - `client.py` — `Client` class: parses `provider:model` specifiers
   (`Client.parse`), dispatches to the registered factory, and delegates
-  to the backend impl. Also defines `PACKAGE_DEFAULT`
-  (`cmd:claude -p --model sonnet --verbose --output-format stream-json
-  --permission-mode bypassPermissions`).
+  to the backend impl.
 - `registry.py` — `CLIENT_FACTORIES` dict + `register_client_factory` +
   `BYPASS_REQUIRED` set. Import-time side effects in `__init__.py` wire
   the four providers.

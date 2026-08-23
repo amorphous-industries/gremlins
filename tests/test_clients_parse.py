@@ -2,7 +2,7 @@
 
 import pytest
 
-from gremlins.clients.client import PACKAGE_DEFAULT, Client
+from gremlins.clients.client import Client
 
 
 def test_parse_xai():
@@ -28,7 +28,6 @@ def test_parse_cmd():
         c.model
         == "claude -p --model sonnet --verbose --output-format stream-json --permission-mode bypassPermissions"
     )
-    assert c == PACKAGE_DEFAULT
 
 
 def test_parse_roundtrips():

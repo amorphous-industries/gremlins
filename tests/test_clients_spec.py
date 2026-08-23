@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from gremlins.clients.client import PACKAGE_DEFAULT, Client
+from gremlins.clients.client import Client
 
 
 def test_parse_valid():
@@ -31,11 +31,3 @@ def test_parse_unknown_provider_raises():
 def test_str_round_trip():
     for s in ("openai:gpt-4o", "xai:grok-4"):
         assert str(Client.parse(s)) == s
-
-
-def test_package_default():
-    assert PACKAGE_DEFAULT.provider == "cmd"
-    assert (
-        PACKAGE_DEFAULT.model
-        == "claude -p --model sonnet --verbose --output-format stream-json --permission-mode bypassPermissions"
-    )
