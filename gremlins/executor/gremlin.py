@@ -617,7 +617,6 @@ class Gremlin:
     def from_subprocess(cls, spec: dict[str, Any]) -> Gremlin:
         """Create a Gremlin from a subprocess spec (run_child or spawn/child schema)."""
         importlib.import_module("gremlins.clients")
-        from gremlins.clients.registry import CLIENT_FACTORIES
 
         client_label = spec.get("client")
         if not isinstance(client_label, str) or not client_label:

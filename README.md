@@ -540,18 +540,15 @@ The boss resumes from its child-spawn stage and proceeds with the next iteration
 
 ## What can a gremlin do to my machine?
 
-Gremlins operate in one of two permission modes:
-
-**Default mode** (no flags): The agent is restricted to an allowlist of tools
-(Read, Edit, Write, Bash, Grep, Glob) and its Bash commands are path-scoped to
-the gremlin's git worktree.  It can read and modify files inside that worktree
-and blocks direct path references outside it.  This is a best-effort token
-check, not a full sandbox — indirect references (heredocs, computed paths) may
-not be caught.
+Gremlins are restricted to an allowlist of tools (Read, Edit, Write, Bash,
+Grep, Glob) and their Bash commands are path-scoped to the gremlin's git
+worktree. They can read and modify files inside that worktree and block direct
+path references outside it. This is a best-effort token check, not a full
+sandbox — indirect references (heredocs, computed paths) may not be caught.
 
 **Honest disclaimer**: The allowlist limits *reach* — what paths and tools the
-agent can invoke.  It does not limit *impact within reach*.  A gremlin with
-write access to your worktree can make any change inside it.  Review landed
+agent can invoke. It does not limit *impact within reach*. A gremlin with
+write access to your worktree can make any change inside it. Review landed
 commits before merging.
 
 **Backend differences**: On `openai:`, `xai:`, and `openrouter:` backends,
@@ -559,7 +556,7 @@ gremlins owns the tool layer and enforces worktree/cwd containment directly.
 On `claude:` subprocess backends, the gremlins-layer containment is
 **not** translated into CLI flags or settings — the underlying CLI reads
 the operator's ambient config and enforces whatever the operator has
-configured there.  See "Backend config inheritance" below.
+configured there. See "Backend config inheritance" below.
 
 ### Backend config inheritance
 

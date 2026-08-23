@@ -7,7 +7,6 @@ class RustClient:
         self,
         provider: str,
         model: str,
-        bypass: bool,
         native_block: dict[str, list[str]],
         instructions: str | None = None,
     ) -> None: ...

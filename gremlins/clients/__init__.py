@@ -5,8 +5,8 @@ from gremlins.clients.registry import register_client_factory
 # Default tool allowlists (moved from deleted gremlins.permissions.defaults).
 # These are the only tools each backend permits; permission enforcement is handled
 # by the worktree/cwd containment in the rig client backend.
-_DEFAULT_ALLOWED_TOOLS = ["Bash", "Edit", "Read", "Write", "Grep", "Glob"]
-_DEFAULT_BLOCK: dict = {"allowed_tools": _DEFAULT_ALLOWED_TOOLS}
+_DEFAULT_ALLOWED_TOOLS: list[str] = ["Bash", "Edit", "Read", "Write", "Grep", "Glob"]
+_DEFAULT_BLOCK: dict[str, list[str]] = {"allowed_tools": _DEFAULT_ALLOWED_TOOLS}
 
 
 def _openai_instructions() -> str:
@@ -21,7 +21,7 @@ def _make_openai_client(model: str | None) -> object:
     return RustClient(
         "openai",
         model or "",
-        _DEFAULT_BLOCK,
+        dict(_DEFAULT_BLOCK),
         instructions=_openai_instructions(),
     )
 
@@ -32,7 +32,7 @@ def _make_xai_client(model: str | None) -> object:
     return RustClient(
         "xai",
         model or "grok-4",
-        _DEFAULT_BLOCK,
+        dict(_DEFAULT_BLOCK),
         instructions=_openai_instructions(),
     )
 
@@ -43,7 +43,7 @@ def _make_openrouter_client(model: str | None) -> object:
     return RustClient(
         "openrouter",
         model or "",
-        _DEFAULT_BLOCK,
+        dict(_DEFAULT_BLOCK),
         instructions=_openai_instructions(),
     )
 

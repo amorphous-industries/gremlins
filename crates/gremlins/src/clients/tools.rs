@@ -619,12 +619,7 @@ pub async fn invoke(name: &str, ctx: &ToolContext, args_json: &str) -> String {
         "Glob" => glob_invoke(ctx, args_json).await,
         other => format!("Error: unknown tool {other}"),
     };
-    audit(
-        ctx.audit_log.as_deref(),
-        name,
-        &ka,
-        result_status(&res),
-    );
+    audit(ctx.audit_log.as_deref(), name, &ka, result_status(&res));
     res
 }
 

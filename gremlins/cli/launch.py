@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import argparse
 import importlib
-import os
-import pathlib
 import sys
 import time
 from typing import Any
@@ -180,9 +178,7 @@ def _self_background_main(
         sys.stdout.write(gremlin_id + "\n")
     else:
         info = (
-            f"gremlin id:  {gremlin_id}\n"
-            f"log:         {log_path}\n"
-            f"state file:  {sf}\n"
+            f"gremlin id:  {gremlin_id}\nlog:         {log_path}\nstate file:  {sf}\n"
         )
         sys.stderr.write(info)
         if args.print_id:
