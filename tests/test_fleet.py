@@ -1009,6 +1009,19 @@ def test_compose_commit_message_falls_back_to_title(tmp_path):
     assert body == ""
 
 
+def test_compose_commit_message_falls_back_to_title_with_leading_blank(tmp_path):
+    plan = tmp_path / "plan.md"
+    plan.write_text(
+        "\n"
+        "# Title after a blank line\n\n"
+        "## Background\n\n"
+        "Some background text here.\n"
+    )
+    subject, body = _land._compose_commit_message(str(plan))
+    assert "Title after a blank line" in subject
+    assert body == ""
+
+
 def test_compose_commit_message_prefers_context_over_goal(tmp_path):
     plan = tmp_path / "plan.md"
     plan.write_text(

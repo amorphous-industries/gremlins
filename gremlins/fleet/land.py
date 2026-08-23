@@ -307,7 +307,7 @@ def _compose_commit_message(plan_path: str):
 
     if not para:
         # Fall back to the document title
-        title_m = re.match(r"^#\s+(.+)", content)
+        title_m = re.search(r"^#\s+(.+)", content, re.MULTILINE)
         if title_m:
             para = title_m.group(1).strip()
 
