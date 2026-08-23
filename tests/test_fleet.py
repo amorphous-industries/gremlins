@@ -529,7 +529,7 @@ def test_do_land_dispatches_to_correct_helper(
 
     called = []
 
-    def fake_land_boss(gremlin_id, sf, wdir, state, mode):
+    def fake_land_boss(gremlin_id, sf, wdir, state, mode, client):
         called.append("_land_boss")
         return True
 
