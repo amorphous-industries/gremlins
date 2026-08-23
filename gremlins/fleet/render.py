@@ -76,7 +76,7 @@ def build_row(
     age = humanize_age(started_at)
     sid = display_id(gremlin_id)
     client = state.get("client") or "—"
-    perm_mode = "bypass" if state.get("bypass") else "default"
+    perm_mode = "enforced"
 
     return FleetRow(
         started_at=str(started_at),

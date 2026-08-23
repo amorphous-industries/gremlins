@@ -59,7 +59,6 @@ def write_initial_state(
     pipeline_path: str,
     stage_inputs: dict[str, Any],
     state_dir: pathlib.Path,
-    bypass: bool = False,
     permissions_file: str = "",
 ) -> None:
     """Create and persist initial state data for a gremlin."""
@@ -82,7 +81,6 @@ def write_initial_state(
         stage="starting",
         pid=None,
         stage_inputs=stage_inputs,
-        bypass=bypass,
         permissions_file=permissions_file,
     )
     state_data.persist(state_dir)
@@ -656,9 +654,7 @@ class Gremlin:
             pathlib.Path(data.permissions_file) if data.permissions_file else None
         )
         policy = load_policy(
-            cli_bypass=data.bypass or None,
             cli_permissions_file=perm_file,
-            env=os.environ,
             cwd=project_root,
         )
         validate_policy_against_registry(policy, set(CLIENT_FACTORIES))

@@ -18,7 +18,6 @@ def _make_openai_client(model: str | None, policy: Policy) -> object:
     return RustClient(
         "openai",
         model or "",
-        policy.bypass,
         load_default_block("openai") | policy.block_for("openai"),
         instructions=_openai_instructions(),
     )
@@ -32,7 +31,6 @@ def _make_xai_client(model: str | None, policy: Policy) -> object:
     return RustClient(
         "xai",
         model or "grok-4",
-        policy.bypass,
         load_default_block("xai") | policy.block_for("xai"),
         instructions=_openai_instructions(),
     )
@@ -46,7 +44,6 @@ def _make_openrouter_client(model: str | None, policy: Policy) -> object:
     return RustClient(
         "openrouter",
         model or "",
-        policy.bypass,
         load_default_block("openrouter") | policy.block_for("openrouter"),
         instructions=_openai_instructions(),
     )

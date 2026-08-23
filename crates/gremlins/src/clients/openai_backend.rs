@@ -99,7 +99,6 @@ pub struct OpenAiBackend {
     model: String,
     instructions: String,
     tool_filter: Option<Vec<String>>,
-    bypass: bool,
     last_ctx: Mutex<Option<RunContext>>,
     cancels: Mutex<HashMap<u64, Arc<CancelToken>>>,
     next_id: AtomicU64,
@@ -112,7 +111,6 @@ impl OpenAiBackend {
         model: String,
         instructions: String,
         tool_filter: Option<Vec<String>>,
-        bypass: bool,
     ) -> Self {
         let model = if model.is_empty() {
             provider.default_model().to_string()
@@ -125,7 +123,6 @@ impl OpenAiBackend {
             model,
             instructions,
             tool_filter,
-            bypass,
             last_ctx: Mutex::new(None),
             cancels: Mutex::new(HashMap::new()),
             next_id: AtomicU64::new(1),
@@ -171,7 +168,6 @@ impl OpenAiBackend {
                 instructions: &self.instructions,
                 extra: self.extra_params(),
                 tool_filter: self.tool_filter.as_deref(),
-                bypass: self.bypass,
             },
         )
         .await
@@ -182,7 +178,6 @@ struct LoopOpts<'a> {
     instructions: &'a str,
     extra: Option<serde_json::Value>,
     tool_filter: Option<&'a [String]>,
-    bypass: bool,
 }
 
 async fn run_agent_loop<M: CompletionModel>(
@@ -212,8 +207,8 @@ async fn run_agent_loop<M: CompletionModel>(
     stream::emit_init(&prefix, &model_name, &cwd_display);
     stream::flush();
 
-    if cwd.is_none() && !opts.bypass {
-        eprintln!("{prefix}warning: enforcing against implicit cwd");
+    if cwd.is_none() {
+        eprintln!("{prefix}warning: no cwd set for worktree enforcement");
     }
 
     let mut raw = raw_path
@@ -239,7 +234,6 @@ async fn run_agent_loop<M: CompletionModel>(
     let tool_ctx = ToolContext {
         cwd: cwd.clone(),
         extra_env,
-        bypass: opts.bypass,
         worktree_root: worktree,
         audit_log,
         allowed_tools: opts.tool_filter.map(|s| s.to_vec()),
@@ -713,7 +707,6 @@ mod tests {
             instructions: "",
             extra: None,
             tool_filter: filter,
-            bypass: true,
         }
     }
 
@@ -1024,6 +1017,5 @@ mod tests {
             serde_json::from_str(&std::fs::read_to_string(&audit).unwrap()).unwrap();
         assert_eq!(entry["tool"], "Write");
         assert_eq!(entry["status"], "ok");
-        assert_eq!(entry["bypass"], true);
     }
 }

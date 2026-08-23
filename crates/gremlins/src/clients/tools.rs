@@ -16,7 +16,6 @@ const SKIP_DIRS: &[&str] = &["__pycache__", "node_modules", "target"];
 pub struct ToolContext {
     pub cwd: Option<PathBuf>,
     pub extra_env: Option<HashMap<String, String>>,
-    pub bypass: bool,
     pub worktree_root: PathBuf,
     pub audit_log: Option<PathBuf>,
     pub allowed_tools: Option<Vec<String>>,
@@ -117,10 +116,7 @@ fn expand_user(s: &str) -> String {
     s.to_string()
 }
 
-pub fn enforce(bypass: bool, root: &Path, pth: &str, cwd: Option<&Path>) -> Option<String> {
-    if bypass {
-        return None;
-    }
+pub fn enforce(root: &Path, pth: &str, cwd: Option<&Path>) -> Option<String> {
     let p = resolve(pth, cwd);
     if !within_worktree(&p, root) {
         return Some(format!("Error: path outside worktree: {pth}"));
@@ -128,10 +124,7 @@ pub fn enforce(bypass: bool, root: &Path, pth: &str, cwd: Option<&Path>) -> Opti
     None
 }
 
-pub fn bash_check(bypass: bool, root: &Path, cmd: &str, cwd: Option<&Path>) -> Option<String> {
-    if bypass {
-        return None;
-    }
+pub fn bash_check(root: &Path, cmd: &str, cwd: Option<&Path>) -> Option<String> {
     let s = cmd.trim();
     if s.is_empty() {
         return None;
@@ -177,7 +170,7 @@ fn audit_key_arg(args_json: &str) -> String {
     String::new()
 }
 
-fn audit(log: Option<&Path>, tool: &str, key_arg: &str, status: &str, bypass: bool) {
+fn audit(log: Option<&Path>, tool: &str, key_arg: &str, status: &str) {
     let Some(log) = log else {
         return;
     };
@@ -187,7 +180,6 @@ fn audit(log: Option<&Path>, tool: &str, key_arg: &str, status: &str, bypass: bo
         "tool": tool,
         "key_arg": truncated,
         "status": status,
-        "bypass": bypass,
     });
     let Ok(line) = serde_json::to_string(&entry) else {
         return;
@@ -213,7 +205,6 @@ fn result_status(res: &str) -> &'static str {
 fn check_tool(name: &str, ctx: &ToolContext, args: &serde_json::Value) -> Option<String> {
     match name {
         "Read" | "Edit" | "Write" => enforce(
-            ctx.bypass,
             &ctx.worktree_root,
             args.get("file_path")
                 .and_then(|v| v.as_str())
@@ -221,7 +212,6 @@ fn check_tool(name: &str, ctx: &ToolContext, args: &serde_json::Value) -> Option
             ctx.cwd.as_deref(),
         ),
         "Grep" => enforce(
-            ctx.bypass,
             &ctx.worktree_root,
             args.get("path").and_then(|v| v.as_str()).unwrap_or("."),
             ctx.cwd.as_deref(),
@@ -232,13 +222,9 @@ fn check_tool(name: &str, ctx: &ToolContext, args: &serde_json::Value) -> Option
             let base = resolve(path, ctx.cwd.as_deref());
             let full_path = base.join(pattern);
             let full_str = full_path.to_string_lossy();
-            // Reject absolute patterns and parent traversal that escape the base.
-            // enforce resolves the argument, so passing the joined absolute path
-            // correctly guards against e.g. {"path":".","pattern":"../*"}.
-            enforce(ctx.bypass, &ctx.worktree_root, &full_str, None)
+            enforce(&ctx.worktree_root, &full_str, None)
         }
         "Bash" => bash_check(
-            ctx.bypass,
             &ctx.worktree_root,
             args.get("command").and_then(|v| v.as_str()).unwrap_or(""),
             ctx.cwd.as_deref(),
@@ -616,12 +602,12 @@ pub async fn invoke(name: &str, ctx: &ToolContext, args_json: &str) -> String {
     let args = match parse_args(args_json) {
         Ok(v) => v,
         Err(_) => {
-            audit(ctx.audit_log.as_deref(), name, &ka, "error", ctx.bypass);
+            audit(ctx.audit_log.as_deref(), name, &ka, "error");
             return "Error: invalid arguments".into();
         }
     };
     if let Some(err) = check_tool(name, ctx, &args) {
-        audit(ctx.audit_log.as_deref(), name, &ka, "denied", ctx.bypass);
+        audit(ctx.audit_log.as_deref(), name, &ka, "denied");
         return err;
     }
     let res = match name {
@@ -638,7 +624,6 @@ pub async fn invoke(name: &str, ctx: &ToolContext, args_json: &str) -> String {
         name,
         &ka,
         result_status(&res),
-        ctx.bypass,
     );
     res
 }
@@ -772,7 +757,6 @@ mod tests {
         ToolContext {
             cwd: Some(cwd.to_path_buf()),
             extra_env: None,
-            bypass: false,
             worktree_root: cwd.to_path_buf(),
             audit_log: None,
             allowed_tools: None,
@@ -840,7 +824,6 @@ mod tests {
         let c = ToolContext {
             cwd: Some(dir.clone()),
             extra_env: None,
-            bypass: true,
             worktree_root: dir.clone(),
             audit_log: None,
             allowed_tools: None,
@@ -864,7 +847,6 @@ mod tests {
         let c = ToolContext {
             cwd: None,
             extra_env: None,
-            bypass: true,
             worktree_root: std::env::current_dir().unwrap(),
             audit_log: None,
             allowed_tools: None,
@@ -970,56 +952,43 @@ mod tests {
     }
 
     #[test]
-    fn enforce_bypass_allows_outside() {
-        let dir = tmp();
-        let outside = dir.parent().unwrap().join("other").join("file.txt");
-        assert!(enforce(true, &dir, outside.to_str().unwrap(), None).is_none());
-    }
-
-    #[test]
     fn enforce_inside_worktree() {
         let dir = tmp();
         let inside = dir.join("file.txt");
-        assert!(enforce(false, &dir, inside.to_str().unwrap(), None).is_none());
+        assert!(enforce(&dir, inside.to_str().unwrap(), None).is_none());
     }
 
     #[test]
     fn enforce_outside_worktree() {
         let dir = tmp();
         let outside = dir.parent().unwrap().join("secret.txt");
-        let err = enforce(false, &dir, outside.to_str().unwrap(), None).unwrap();
+        let err = enforce(&dir, outside.to_str().unwrap(), None).unwrap();
         assert!(err.contains("outside worktree"));
     }
 
     #[test]
     fn enforce_relative_path_with_cwd() {
         let dir = tmp();
-        assert!(enforce(false, &dir, "file.txt", Some(&dir)).is_none());
+        assert!(enforce(&dir, "file.txt", Some(&dir)).is_none());
     }
 
     #[test]
     fn enforce_relative_path_escapes_via_cwd() {
         let dir = tmp();
-        let err = enforce(false, &dir, "../../../etc/passwd", Some(&dir)).unwrap();
+        let err = enforce(&dir, "../../../etc/passwd", Some(&dir)).unwrap();
         assert!(err.contains("outside worktree"));
-    }
-
-    #[test]
-    fn bash_check_bypass_allows_absolute() {
-        let dir = tmp();
-        assert!(bash_check(true, &dir, "cat /etc/passwd", None).is_none());
     }
 
     #[test]
     fn bash_check_safe_command() {
         let dir = tmp();
-        assert!(bash_check(false, &dir, "ls -la", Some(&dir)).is_none());
+        assert!(bash_check(&dir, "ls -la", Some(&dir)).is_none());
     }
 
     #[test]
     fn bash_check_absolute_outside() {
         let dir = tmp();
-        let err = bash_check(false, &dir, "cat /etc/passwd", Some(&dir)).unwrap();
+        let err = bash_check(&dir, "cat /etc/passwd", Some(&dir)).unwrap();
         assert!(err.contains("outside worktree"));
     }
 
@@ -1028,7 +997,7 @@ mod tests {
         let dir = tmp();
         let inside = dir.join("file.txt");
         let cmd = format!("cat {}", inside.display());
-        assert!(bash_check(false, &dir, &cmd, Some(&dir)).is_none());
+        assert!(bash_check(&dir, &cmd, Some(&dir)).is_none());
     }
 
     #[test]
@@ -1036,7 +1005,7 @@ mod tests {
         let dir = tmp();
         let prev = std::env::var("HOME").ok();
         unsafe { std::env::set_var("HOME", "/nonexistent-home") };
-        let err = bash_check(false, &dir, "cat ~/.ssh/id_rsa", Some(&dir)).unwrap();
+        let err = bash_check(&dir, "cat ~/.ssh/id_rsa", Some(&dir)).unwrap();
         assert!(err.contains("outside worktree"));
         match prev {
             Some(h) => unsafe { std::env::set_var("HOME", h) },
@@ -1047,29 +1016,29 @@ mod tests {
     #[test]
     fn bash_check_dotdot_escapes() {
         let dir = tmp();
-        let err = bash_check(false, &dir, "cat ../secret", Some(&dir)).unwrap();
+        let err = bash_check(&dir, "cat ../secret", Some(&dir)).unwrap();
         assert!(err.contains("outside worktree"));
     }
 
     #[test]
     fn bash_check_intermediate_traversal() {
         let dir = tmp();
-        let err = bash_check(false, &dir, "cat subdir/../../etc/passwd", Some(&dir)).unwrap();
+        let err = bash_check(&dir, "cat subdir/../../etc/passwd", Some(&dir)).unwrap();
         assert!(err.contains("outside worktree"));
     }
 
     #[test]
     fn bash_check_empty_command() {
         let dir = tmp();
-        assert!(bash_check(false, &dir, "", Some(&dir)).is_none());
-        assert!(bash_check(false, &dir, "   ", Some(&dir)).is_none());
+        assert!(bash_check(&dir, "", Some(&dir)).is_none());
+        assert!(bash_check(&dir, "   ", Some(&dir)).is_none());
     }
 
     #[test]
     fn audit_writes_jsonl() {
         let dir = tmp();
         let log = dir.join("audit.jsonl");
-        audit(Some(&log), "Read", "/some/file", "ok", false);
+        audit(Some(&log), "Read", "/some/file", "ok");
         let lines: Vec<_> = std::fs::read_to_string(&log)
             .unwrap()
             .lines()
@@ -1080,7 +1049,6 @@ mod tests {
         assert_eq!(entry["tool"], "Read");
         assert_eq!(entry["key_arg"], "/some/file");
         assert_eq!(entry["status"], "ok");
-        assert_eq!(entry["bypass"], false);
         assert!(entry.get("ts").is_some());
     }
 
@@ -1088,8 +1056,8 @@ mod tests {
     fn audit_appends_multiple() {
         let dir = tmp();
         let log = dir.join("audit.jsonl");
-        audit(Some(&log), "Read", "a", "ok", false);
-        audit(Some(&log), "Bash", "b", "denied", false);
+        audit(Some(&log), "Read", "a", "ok");
+        audit(Some(&log), "Bash", "b", "denied");
         let text = std::fs::read_to_string(&log).unwrap();
         let lines: Vec<_> = text.lines().collect();
         assert_eq!(lines.len(), 2);
@@ -1099,7 +1067,7 @@ mod tests {
 
     #[test]
     fn audit_none_log_is_noop() {
-        audit(None, "Read", "/file", "ok", false);
+        audit(None, "Read", "/file", "ok");
     }
 
     #[test]
@@ -1107,20 +1075,10 @@ mod tests {
         let dir = tmp();
         let log = dir.join("audit.jsonl");
         let long_arg = "x".repeat(300);
-        audit(Some(&log), "Read", &long_arg, "ok", false);
+        audit(Some(&log), "Read", &long_arg, "ok");
         let entry: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&log).unwrap()).unwrap();
         assert_eq!(entry["key_arg"].as_str().unwrap().len(), 200);
-    }
-
-    #[test]
-    fn audit_bypass_flag() {
-        let dir = tmp();
-        let log = dir.join("audit.jsonl");
-        audit(Some(&log), "Bash", "cmd", "ok", true);
-        let entry: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(&log).unwrap()).unwrap();
-        assert_eq!(entry["bypass"], true);
     }
 
     #[tokio::test]
@@ -1169,31 +1127,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn invoke_bypass_skips_enforcement() {
-        let dir = tmp();
-        let worktree = dir.join("worktree");
-        std::fs::create_dir(&worktree).unwrap();
-        let log = worktree.join("audit.jsonl");
-        let outside = dir.join("outside.txt");
-        std::fs::write(&outside, "sensitive").unwrap();
-        let c = ToolContext {
-            cwd: None,
-            extra_env: None,
-            bypass: true,
-            worktree_root: worktree,
-            audit_log: Some(log.clone()),
-            allowed_tools: None,
-        };
-        let args = serde_json::json!({"file_path": outside.to_str().unwrap()}).to_string();
-        let result = invoke("Read", &c, &args).await;
-        assert_eq!(result, "sensitive");
-        let entry: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(&log).unwrap()).unwrap();
-        assert_eq!(entry["status"], "ok");
-        assert_eq!(entry["bypass"], true);
-    }
-
-    #[tokio::test]
     async fn invoke_bash_denied_writes_audit() {
         let dir = tmp();
         let log = dir.join("audit.jsonl");
@@ -1215,7 +1148,6 @@ mod tests {
         let c = ToolContext {
             cwd: Some(dir.clone()),
             extra_env: None,
-            bypass: true,
             worktree_root: dir.clone(),
             audit_log: None,
             allowed_tools: Some(vec!["Read".into()]),

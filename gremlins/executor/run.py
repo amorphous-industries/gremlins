@@ -273,11 +273,8 @@ async def run_pipeline(
         except RuntimeError as exc:
             die(str(exc))
 
-    stored_bypass = bool(state_json.get("bypass", False))
     policy = load_policy(
-        cli_bypass=stored_bypass,
         cli_permissions_file=None,
-        env=os.environ,
         cwd=pathlib.Path(project_root) if project_root else paths.project_root(),
     )
     _apply_policy_to_stages(gremlin.stages, policy)

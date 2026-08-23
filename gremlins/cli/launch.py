@@ -27,7 +27,6 @@ _INFRA_ARGS = frozenset(
         "client",
         "gremlin_id",
         "wait",
-        "bypass",
         "permissions_file",
     }
 )
@@ -41,7 +40,6 @@ _INFRA_FLAG_NAMES = frozenset(
         "client",
         "gremlin-id",
         "wait",
-        "bypass",
         "permissions-file",
     }
 )
@@ -74,12 +72,6 @@ def build_launch_parser(
     )
     p.add_argument("--base-ref", default=None)
     p.add_argument("--client", default=None)
-    p.add_argument(
-        "--bypass",
-        action="store_true",
-        default=False,
-        help="Skip permission checks; run in bypass mode.",
-    )
     p.add_argument(
         "--permissions-file",
         dest="permissions_file",
@@ -163,9 +155,7 @@ def _self_background_main(
     importlib.import_module("gremlins.clients")
     try:
         policy = load_policy(
-            cli_bypass=args.bypass or None,
             cli_permissions_file=args.permissions_file,
-            env=os.environ,
             cwd=_paths.project_root(),
         )
     except Exception as exc:
@@ -187,7 +177,6 @@ def _self_background_main(
             base_ref=args.base_ref,
             pipeline_args=pipeline_args,
             gremlin_id=args.gremlin_id,
-            bypass=policy.bypass,
             permissions_file=str(args.permissions_file.resolve())
             if args.permissions_file
             else "",
@@ -219,12 +208,10 @@ def _self_background_main(
     if args.print_id_only:
         sys.stdout.write(gremlin_id + "\n")
     else:
-        perm_mode = "bypass" if policy.bypass else "default (allowlist)"
         info = (
             f"gremlin id:  {gremlin_id}\n"
             f"log:         {log_path}\n"
             f"state file:  {sf}\n"
-            f"permissions: {perm_mode}\n"
         )
         sys.stderr.write(info)
         if args.print_id:

@@ -30,11 +30,10 @@ fn map_error(e: ClientError) -> PyErr {
 #[pymethods]
 impl RustClient {
     #[new]
-    #[pyo3(signature = (provider, model, bypass, native_block, instructions=None))]
+    #[pyo3(signature = (provider, model, native_block, instructions=None))]
     fn new(
         provider: String,
         model: String,
-        bypass: bool,
         native_block: HashMap<String, Vec<String>>,
         instructions: Option<String>,
     ) -> PyResult<Self> {
@@ -75,7 +74,6 @@ impl RustClient {
                 model,
                 instructions.unwrap_or_default(),
                 tool_filter,
-                bypass,
             )),
         })
     }
