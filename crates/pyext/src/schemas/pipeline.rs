@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyType};
 
-use super::loader;
+use crate::schemas::loader;
 
 #[pyclass(name = "Pipeline")]
 pub struct Pipeline {
@@ -50,7 +50,7 @@ impl Pipeline {
 
         py.import("gremlins.clients")?;
 
-        let raw = super::preprocess::expand_pipeline(
+        let raw = crate::schemas::preprocess::expand_pipeline(
             py,
             path.clone(),
             None,

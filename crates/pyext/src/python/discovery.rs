@@ -2,7 +2,8 @@ use std::path::PathBuf;
 
 use pyo3::prelude::*;
 
-use crate::core::discovery;
+use crate::convert::discovery_error_to_pyerr;
+use gremlins::core::discovery;
 
 #[pyfunction]
 fn list_pipelines(project_root: PathBuf, bundled_pipeline_dir: PathBuf) -> Vec<(String, PathBuf)> {
@@ -16,7 +17,7 @@ fn resolve_pipeline_name(
     bundled_pipeline_dir: PathBuf,
 ) -> PyResult<PathBuf> {
     discovery::resolve_pipeline_name(name, project_root, bundled_pipeline_dir)
-        .map_err(pyo3::PyErr::from)
+        .map_err(discovery_error_to_pyerr)
 }
 
 #[pyfunction]
@@ -26,7 +27,7 @@ fn resolve_pipeline_path(
     bundled_pipeline_dir: PathBuf,
 ) -> PyResult<PathBuf> {
     discovery::resolve_pipeline_path(name_or_path, base_dir, bundled_pipeline_dir)
-        .map_err(pyo3::PyErr::from)
+        .map_err(discovery_error_to_pyerr)
 }
 
 pub fn register_discovery_module(m: &Bound<'_, PyModule>) -> PyResult<()> {

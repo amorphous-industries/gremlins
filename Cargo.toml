@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/gremlins-core"]
+members = ["crates/gremlins", "crates/pyext"]
 resolver = "2"
 
 # Fast CI test builds — avoids full release optimizations.

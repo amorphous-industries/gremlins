@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
-use super::error::SchemaError;
+use crate::schemas::error::SchemaError;
 
 pub const GREMLINS_PREFIX: &str = "gremlins:";
 

@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
-use crate::core::schemas;
+use crate::schemas;
 
 #[pyfunction]
 fn parse_stage(d: &Bound<'_, PyDict>, depth: usize) -> PyResult<Py<PyAny>> {

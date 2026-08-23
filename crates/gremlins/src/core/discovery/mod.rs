@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-mod error;
-use error::DiscoveryError;
+pub mod error;
+pub use error::DiscoveryError;
 
 const OVERLAY_DIRNAME: &str = ".gremlins";
 

@@ -39,6 +39,21 @@ pub enum SchemaError {
     YamlNotMapping { label: String, got: String },
 }
 
+impl From<std::io::Error> for SchemaError {
+    fn from(e: std::io::Error) -> Self {
+        SchemaError::Generic(e.to_string())
+    }
+}
+
+impl From<serde_yaml::Error> for SchemaError {
+    fn from(e: serde_yaml::Error) -> Self {
+        SchemaError::YamlParse {
+            label: "yaml".to_string(),
+            msg: e.to_string(),
+        }
+    }
+}
+
 impl From<SchemaError> for pyo3::PyErr {
     fn from(e: SchemaError) -> Self {
         use pyo3::exceptions::{PyFileNotFoundError, PyValueError};
@@ -56,21 +71,6 @@ impl From<SchemaError> for pyo3::PyErr {
             | SchemaError::YamlParse { .. }
             | SchemaError::YamlNotMapping { .. } => PyValueError::new_err(e.to_string()),
             SchemaError::Generic(_) => PyValueError::new_err(e.to_string()),
-        }
-    }
-}
-
-impl From<std::io::Error> for SchemaError {
-    fn from(e: std::io::Error) -> Self {
-        SchemaError::Generic(e.to_string())
-    }
-}
-
-impl From<serde_yaml::Error> for SchemaError {
-    fn from(e: serde_yaml::Error) -> Self {
-        SchemaError::YamlParse {
-            label: "yaml".to_string(),
-            msg: e.to_string(),
         }
     }
 }
