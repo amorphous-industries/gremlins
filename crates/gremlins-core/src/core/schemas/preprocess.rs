@@ -13,6 +13,7 @@ pub fn expand_pipeline(
     project_root: Option<PathBuf>,
     bundled_stage_def_dir: PathBuf,
     bundled_prompt_dir: PathBuf,
+    bundled_pipeline_dir: PathBuf,
     resolve_pipeline_name_fn: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyAny>> {
     let project_root = project_root.unwrap_or_else(|| {
@@ -35,6 +36,7 @@ pub fn expand_pipeline(
         &chain,
         &bundled_stage_def_dir,
         &bundled_prompt_dir,
+        &bundled_pipeline_dir,
         resolve_pipeline_name_fn,
     )
 }
@@ -94,6 +96,7 @@ fn load_bundled_recipe(
     load_yaml_file(&recipe_path)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn _expand(
     py: Python<'_>,
     yaml_path: &PathBuf,
@@ -101,6 +104,7 @@ fn _expand(
     chain: &[PathBuf],
     bundled_stage_def_dir: &PathBuf,
     bundled_prompt_dir: &PathBuf,
+    bundled_pipeline_dir: &PathBuf,
     resolve_pipeline_name_fn: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyAny>> {
     let resolved = yaml_path
@@ -129,7 +133,7 @@ fn _expand(
 
     let yaml_dir = yaml_path.parent().unwrap_or(yaml_path);
 
-    let prompt_dir = resolve_prompt_dir(raw_mapping.get("prompt_dir"), yaml_dir);
+    let prompt_dir = resolve_prompt_dir(raw_mapping.get("prompt_dir"), yaml_dir)?;
 
     let new_chain: Vec<PathBuf> = chain
         .iter()
@@ -162,6 +166,7 @@ fn _expand(
             &HashSet::new(),
             bundled_stage_def_dir,
             bundled_prompt_dir,
+            bundled_pipeline_dir,
             resolve_pipeline_name_fn,
         )?;
         expanded_stages.extend(expanded);
@@ -187,19 +192,25 @@ fn _expand(
     serde_yaml_to_py(py, &serde_yaml::Value::Mapping(result))
 }
 
-fn resolve_prompt_dir(value: Option<&serde_yaml::Value>, yaml_dir: &std::path::Path) -> PathBuf {
+fn resolve_prompt_dir(
+    value: Option<&serde_yaml::Value>,
+    yaml_dir: &std::path::Path,
+) -> Result<PathBuf, SchemaError> {
     match value {
-        None => PathBuf::from(yaml_dir),
+        None => Ok(PathBuf::from(yaml_dir)),
         Some(v) => {
             if let Some(s) = v.as_str() {
                 let p = PathBuf::from(s);
                 if p.is_absolute() {
-                    p
+                    Ok(p)
                 } else {
-                    yaml_dir.join(&p)
+                    Ok(yaml_dir.join(&p))
                 }
             } else {
-                PathBuf::from(yaml_dir)
+                Err(SchemaError::Generic(format!(
+                    "prompt_dir must be a string, got {:?}",
+                    v
+                )))
             }
         }
     }
@@ -362,6 +373,7 @@ fn _expand_entry(
     seen_defs: &HashSet<String>,
     bundled_stage_def_dir: &PathBuf,
     bundled_prompt_dir: &PathBuf,
+    bundled_pipeline_dir: &PathBuf,
     resolve_pipeline_name_fn: &Bound<'_, PyAny>,
 ) -> PyResult<Vec<serde_yaml::Value>> {
     let mapping = match entry.as_mapping() {
@@ -382,7 +394,7 @@ fn _expand_entry(
             .into());
         }
         let included_path: String = resolve_pipeline_name_fn
-            .call1((name, project_root.to_string_lossy().to_string()))?
+            .call1((name, project_root.clone(), bundled_pipeline_dir.clone()))?
             .extract()?;
         let included_path = PathBuf::from(included_path);
         let included = _expand(
@@ -392,6 +404,7 @@ fn _expand_entry(
             chain,
             bundled_stage_def_dir,
             bundled_prompt_dir,
+            bundled_pipeline_dir,
             resolve_pipeline_name_fn,
         )?;
         let included_dict: &Bound<'_, PyDict> = included.bind(py).cast()?;
@@ -422,6 +435,7 @@ fn _expand_entry(
                 seen_defs,
                 bundled_stage_def_dir,
                 bundled_prompt_dir,
+                bundled_pipeline_dir,
                 resolve_pipeline_name_fn,
             );
         }
@@ -447,6 +461,7 @@ fn _expand_entry(
                 seen_defs,
                 bundled_stage_def_dir,
                 bundled_prompt_dir,
+                bundled_pipeline_dir,
                 resolve_pipeline_name_fn,
             );
         }
@@ -469,12 +484,17 @@ fn _expand_entry(
                 seen_defs,
                 bundled_stage_def_dir,
                 bundled_prompt_dir,
+                bundled_pipeline_dir,
                 resolve_pipeline_name_fn,
             );
         }
         // Try resolving as pipeline name
         let included_path_result: Result<String, _> = resolve_pipeline_name_fn
-            .call1((stage_type, project_root.to_string_lossy().to_string()))?
+            .call1((
+                stage_type,
+                project_root.clone(),
+                bundled_pipeline_dir.clone(),
+            ))?
             .extract();
         if let Ok(included_path_str) = included_path_result {
             let included_path = PathBuf::from(included_path_str);
@@ -486,6 +506,7 @@ fn _expand_entry(
                     chain,
                     bundled_stage_def_dir,
                     bundled_prompt_dir,
+                    bundled_pipeline_dir,
                     resolve_pipeline_name_fn,
                 )?;
                 let included_dict: &Bound<'_, PyDict> = included.bind(py).cast()?;
@@ -537,6 +558,7 @@ fn _expand_entry(
                     seen_defs,
                     bundled_stage_def_dir,
                     bundled_prompt_dir,
+                    bundled_pipeline_dir,
                     resolve_pipeline_name_fn,
                 )?;
 
@@ -588,6 +610,7 @@ fn _expand_entry(
                     seen_defs,
                     bundled_stage_def_dir,
                     bundled_prompt_dir,
+                    bundled_pipeline_dir,
                     resolve_pipeline_name_fn,
                 )?;
                 expanded_body.extend(expanded);
@@ -615,6 +638,7 @@ fn _expand_stage_def(
     seen_defs: &HashSet<String>,
     bundled_stage_def_dir: &PathBuf,
     bundled_prompt_dir: &PathBuf,
+    bundled_pipeline_dir: &PathBuf,
     resolve_pipeline_name_fn: &Bound<'_, PyAny>,
 ) -> PyResult<Vec<serde_yaml::Value>> {
     if seen_defs.contains(def_name) {
@@ -745,7 +769,7 @@ fn _expand_stage_def(
 
         let mut result: Vec<serde_yaml::Value> = Vec::new();
         for (i, raw_inner) in inner_list.iter().enumerate() {
-            let substituted = substitute_recipe(raw_inner, &ctx_value);
+            let substituted = substitute_recipe(raw_inner, &ctx_value)?;
             let mut inner = substituted.clone();
             let inner_map = inner.as_mapping_mut().unwrap();
 
@@ -814,6 +838,7 @@ fn _expand_stage_def(
                 &new_seen,
                 bundled_stage_def_dir,
                 bundled_prompt_dir,
+                bundled_pipeline_dir,
                 resolve_pipeline_name_fn,
             )?;
             result.extend(expanded);
@@ -857,18 +882,22 @@ fn _expand_stage_def(
         &new_seen,
         bundled_stage_def_dir,
         bundled_prompt_dir,
+        bundled_pipeline_dir,
         resolve_pipeline_name_fn,
     )
 }
 
-fn substitute_recipe(node: &serde_yaml::Value, ctx: &serde_yaml::Value) -> serde_yaml::Value {
+fn substitute_recipe(
+    node: &serde_yaml::Value,
+    ctx: &serde_yaml::Value,
+) -> Result<serde_yaml::Value, SchemaError> {
     match node {
         serde_yaml::Value::Mapping(m) => {
             let mut out = serde_yaml::Mapping::new();
             for (k, v) in m {
-                out.insert(k.clone(), substitute_recipe(v, ctx));
+                out.insert(k.clone(), substitute_recipe(v, ctx)?);
             }
-            serde_yaml::Value::Mapping(out)
+            Ok(serde_yaml::Value::Mapping(out))
         }
         serde_yaml::Value::Sequence(seq) => {
             let mut out: Vec<serde_yaml::Value> = Vec::new();
@@ -885,29 +914,28 @@ fn substitute_recipe(node: &serde_yaml::Value, ctx: &serde_yaml::Value) -> serde
                                 }
                                 continue;
                             }
-                            Err(_) => {
-                                out.push(item.clone());
-                                continue;
+                            Err(e) => {
+                                return Err(SchemaError::Generic(e));
                             }
                         }
                     }
                 }
-                out.push(substitute_recipe(item, ctx));
+                out.push(substitute_recipe(item, ctx)?);
             }
-            serde_yaml::Value::Sequence(out)
+            Ok(serde_yaml::Value::Sequence(out))
         }
         serde_yaml::Value::String(s) => {
             if s.starts_with("{{") && s.ends_with("}}") && s.matches("{{").count() == 1 {
                 let key = s[2..s.len() - 2].trim();
                 match resolve_placeholder(key, ctx) {
-                    Ok(resolved) => resolved,
-                    Err(_) => node.clone(),
+                    Ok(resolved) => Ok(resolved),
+                    Err(e) => Err(SchemaError::Generic(e)),
                 }
             } else {
-                node.clone()
+                Ok(node.clone())
             }
         }
-        _ => node.clone(),
+        _ => Ok(node.clone()),
     }
 }
 
@@ -1056,7 +1084,7 @@ mod tests {
         let ctx = serde_yaml::Value::Mapping(ctx_map);
 
         let input = serde_yaml::Value::String("{{options.key}}".to_string());
-        let result = substitute_recipe(&input, &ctx);
+        let result = substitute_recipe(&input, &ctx).unwrap();
         assert_eq!(result.as_str().unwrap(), "value");
     }
 
@@ -1065,8 +1093,16 @@ mod tests {
         let ctx = serde_yaml::Value::Mapping(serde_yaml::Mapping::new());
         let input =
             serde_yaml::Value::String("{{options.missing | default(fallback)}}".to_string());
-        let result = substitute_recipe(&input, &ctx);
+        let result = substitute_recipe(&input, &ctx).unwrap();
         assert_eq!(result.as_str().unwrap(), "fallback");
+    }
+
+    #[test]
+    fn test_substitute_recipe_missing_placeholder_errors() {
+        let ctx = serde_yaml::Value::Mapping(serde_yaml::Mapping::new());
+        let input = serde_yaml::Value::String("{{options.missing}}".to_string());
+        let err = substitute_recipe(&input, &ctx).unwrap_err();
+        assert!(err.to_string().contains("not found in context"));
     }
 
     #[test]
