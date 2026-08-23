@@ -389,7 +389,6 @@ def launch(
     base_ref: str | None = None,
     pipeline_args: tuple[str, ...] = (),
     gremlin_id: str | None = None,
-    permissions_file: str = "",
 ) -> tuple[str, subprocess.Popen[bytes]]:
     """Set up state dir, spawn the pipeline detached, return (gremlin_id, process).
 
@@ -428,7 +427,6 @@ def launch(
             pipeline_path=inputs.pipeline_path,
             stage_inputs=inputs.stage_inputs,
             state_dir=state_dir,
-            permissions_file=permissions_file,
         )
         artifact_dir = state_dir / "artifacts"
         artifact_dir.mkdir(parents=True, exist_ok=True)

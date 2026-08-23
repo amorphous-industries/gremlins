@@ -23,8 +23,6 @@ from gremlins.executor.state import (
     StateData,
     build_state,
 )
-from gremlins.permissions.loader import load_policy
-from gremlins.permissions.validation import validate_policy_against_registry
 from gremlins.pipeline import Pipeline as _PipelineData
 from gremlins.pipeline.discovery import resolve_pipeline_path
 from gremlins.pipeline.loader import STAGE_TYPES
@@ -59,7 +57,6 @@ def write_initial_state(
     pipeline_path: str,
     stage_inputs: dict[str, Any],
     state_dir: pathlib.Path,
-    permissions_file: str = "",
 ) -> None:
     """Create and persist initial state data for a gremlin."""
     validate_gremlin_id(gremlin_id)
@@ -81,7 +78,6 @@ def write_initial_state(
         stage="starting",
         pid=None,
         stage_inputs=stage_inputs,
-        permissions_file=permissions_file,
     )
     state_data.persist(state_dir)
 
@@ -650,15 +646,7 @@ class Gremlin:
             if data.project_root
             else _paths.project_root()
         )
-        perm_file = (
-            pathlib.Path(data.permissions_file) if data.permissions_file else None
-        )
-        policy = load_policy(
-            cli_permissions_file=perm_file,
-            cwd=project_root,
-        )
-        validate_policy_against_registry(policy, set(CLIENT_FACTORIES))
-        client = Client.parse(client_label, policy=policy)
+        client = Client.parse(client_label)
 
         spec_attempt = spec.get("attempt") or ""
         if spec_attempt:

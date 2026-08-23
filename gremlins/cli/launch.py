@@ -9,10 +9,7 @@ import time
 from typing import Any
 
 from gremlins import paths as _paths
-from gremlins.clients.registry import CLIENT_FACTORIES
 from gremlins.launcher import launch
-from gremlins.permissions.loader import load_policy
-from gremlins.permissions.validation import validate_policy_against_registry
 from gremlins.pipeline import Pipeline
 from gremlins.pipeline.discovery import list_pipelines, resolve_pipeline_name
 from gremlins.utils.yaml_io import YamlLoadError
@@ -27,7 +24,6 @@ _INFRA_ARGS = frozenset(
         "client",
         "gremlin_id",
         "wait",
-        "permissions_file",
     }
 )
 _INFRA_FLAG_NAMES = frozenset(
@@ -40,7 +36,6 @@ _INFRA_FLAG_NAMES = frozenset(
         "client",
         "gremlin-id",
         "wait",
-        "permissions-file",
     }
 )
 _LAUNCH_BRIEF = "usage: gremlins launch <name> [opts]\nLaunch a background gremlin by pipeline name. Run 'gremlins launch --list' to see available pipelines.\n"
@@ -72,14 +67,6 @@ def build_launch_parser(
     )
     p.add_argument("--base-ref", default=None)
     p.add_argument("--client", default=None)
-    p.add_argument(
-        "--permissions-file",
-        dest="permissions_file",
-        type=pathlib.Path,
-        default=None,
-        metavar="PATH",
-        help="Path to a permissions YAML file to load instead of the project default.",
-    )
     if pipeline is not None and pipeline.inputs is not None:
         seen: set[str] = set()
         for path in pipeline.inputs.in_map.values():
@@ -153,19 +140,6 @@ def _self_background_main(
     pipeline_name: str, args: argparse.Namespace, stage_inputs: dict[str, Any]
 ) -> int:
     importlib.import_module("gremlins.clients")
-    try:
-        policy = load_policy(
-            cli_permissions_file=args.permissions_file,
-            cwd=_paths.project_root(),
-        )
-    except Exception as exc:
-        sys.stderr.write(f"error: failed to load permissions policy: {exc}\n")
-        return 1
-    try:
-        validate_policy_against_registry(policy, set(CLIENT_FACTORIES))
-    except ValueError as exc:
-        sys.stderr.write(f"error: {exc}\n")
-        return 1
 
     pipeline_args = ("--client", args.client) if args.client else ()
     try:
@@ -177,9 +151,6 @@ def _self_background_main(
             base_ref=args.base_ref,
             pipeline_args=pipeline_args,
             gremlin_id=args.gremlin_id,
-            permissions_file=str(args.permissions_file.resolve())
-            if args.permissions_file
-            else "",
         )
     except (ValueError, RuntimeError) as exc:
         sys.stderr.write(f"error: {exc}\n")

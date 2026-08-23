@@ -963,7 +963,6 @@ mod tests {
             "gpt-4o".into(),
             String::new(),
             None,
-            true,
         );
         let a = CancelToken::new();
         let b = CancelToken::new();
