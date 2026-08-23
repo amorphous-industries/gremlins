@@ -1,28 +1,22 @@
 [package]
-name = "gremlins-core"
+name = "gremlins-pyext"
 version = "0.0.0"
 edition = "2021"
 
 [lib]
-name = "gremlins_core"
+name = "gremlins_pyext"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+gremlins = { path = "../gremlins" }
 pyo3 = "0.29"
 pyo3-async-runtimes = { version = "0.29", features = ["tokio-runtime"] }
-libc = "0.2"
 tokio = { version = "1", features = ["process", "time", "rt", "sync", "io-util", "macros"] }
-shlex = "1"
-regex = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-async-trait = "0.1"
-futures = "0.3"
-glob = "0.3"
-rig-core = { version = "0.41", features = ["derive"] }
-rig-agent = { version = "0.41" }
 serde_yaml = "0.9"
 thiserror = "2"
+rig-core = { version = "0.41", features = ["derive"] }
 
 [dev-dependencies]
 tempfile = "3"

@@ -5,10 +5,10 @@ use std::sync::Arc;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
-use crate::clients::backend::{Backend, ClientError, RunParams};
-use crate::clients::cmd_backend::CmdBackend;
-use crate::clients::openai_backend::{OpenAiBackend, OpenAiProvider};
-use crate::clients::protocol::CompletedRun;
+use gremlins::clients::backend::{Backend, ClientError, RunParams};
+use gremlins::clients::cmd_backend::CmdBackend;
+use gremlins::clients::openai_backend::{OpenAiBackend, OpenAiProvider};
+use gremlins::clients::protocol::CompletedRun;
 use rig_core::providers::openai;
 
 /// Python-exposed RustClient.

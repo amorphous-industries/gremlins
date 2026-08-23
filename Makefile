@@ -26,7 +26,7 @@ $(TEST_FILES):
 # --- Rust ---
 
 rust-test:
-	cargo test -p gremlins-core --lib
+	cargo test -p gremlins --lib && cargo test -p gremlins-pyext --lib
 
 rust-fmt:
 	cargo fmt --all
@@ -40,7 +40,7 @@ rust-clippy:
 # --- Build ---
 
 dev: ## Build and install the native extension in dev mode
-	maturin develop
+	cd crates/pyext && maturin develop
 
 install: ## Build and install the native extension in release mode
 	maturin develop --release

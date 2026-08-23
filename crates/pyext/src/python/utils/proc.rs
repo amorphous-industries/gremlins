@@ -4,7 +4,7 @@ use pyo3::exceptions::{PyFileNotFoundError, PyOSError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyType;
 
-use crate::core::proc;
+use gremlins::core::proc;
 
 fn map_io_error(e: std::io::Error) -> PyErr {
     match e.raw_os_error() {

@@ -1,6 +1,6 @@
-mod clients;
-mod core;
+mod convert;
 mod python;
+pub mod schemas;
 
 use pyo3::prelude::*;
 

@@ -32,7 +32,7 @@ gremlins = "gremlins.cli:main"
 [tool.maturin]
 module-name = "_gremlins_core"
 python-packages = ["gremlins"]
-manifest-path = "crates/gremlins-core/Cargo.toml"
+manifest-path = "crates/pyext/Cargo.toml"
 features = ["extension-module"]
 
 [tool.pytest.ini_options]
@@ -54,7 +54,7 @@ ban-relative-imports = "all"
 [tool.pyright]
 typeCheckingMode = "strict"
 extraPaths = [
-    "crates/gremlins-core",
+    "crates/pyext",
 ]
 include = [
     "gremlins",
