@@ -10,10 +10,10 @@ from conftest import ReviewCreatingClient as _ReviewCreatingClient
 from conftest import common_local_patches as _common_patches
 
 from gremlins.clients.client import Client
-from gremlins.clients.fake import FakeClaudeClient
 from gremlins.executor.run import run_pipeline
 from gremlins.pipeline import Pipeline
 from gremlins.pipeline.discovery import resolve_pipeline_path
+from tests.fake_client import FakeClient
 
 
 def _local_pipeline_path(cwd):
@@ -94,7 +94,7 @@ def test_local_main_resume_from_review_code_requires_git_changes(
             run_pipeline(
                 _local_pipeline_path(tmp_path),
                 argv=["--resume-from", "review-code"],
-                client=FakeClaudeClient(fixtures={}),
+                client=FakeClient(fixtures={}),
             )
         )
 
@@ -149,8 +149,8 @@ def test_local_main_resume_from_review_code_allows_existing_git_changes(
     ]
 
 
-def test_local_main_client_specifier_model(tmp_path, monkeypatch):
-    """Model from --client provider:model flows into stage run() calls."""
+def test_local_main_injected_client_model(tmp_path, monkeypatch):
+    """Injected client.model flows into stage run() calls."""
     gremlin_id = "test-gr-id"
     artifact_dir = tmp_path / gremlin_id / "artifacts"
     artifact_dir.mkdir(parents=True)
@@ -168,17 +168,18 @@ def test_local_main_client_specifier_model(tmp_path, monkeypatch):
         lambda: tmp_path,
     )
     client = _ReviewCreatingClient(
+        model="gpt-4o",
         fixtures={
             "implement": MINIMAL_EVENTS,
             "review-code": MINIMAL_EVENTS,
             "address-code": MINIMAL_EVENTS,
-        }
+        },
     )
 
     result = asyncio.run(
         run_pipeline(
             _local_pipeline_path(tmp_path),
-            argv=["--client", "openai:gpt-4o"],
+            argv=[],
             gremlin_id=gremlin_id,
             client=client,
         )
@@ -412,11 +413,12 @@ def test_local_main_pipeline_default_client_model(tmp_path, monkeypatch):
     )
 
     client = _ReviewCreatingClient(
+        model="gpt-4o",
         fixtures={
             "implement": MINIMAL_EVENTS,
             "review-code": MINIMAL_EVENTS,
             "address-code": MINIMAL_EVENTS,
-        }
+        },
     )
 
     result = asyncio.run(
@@ -488,7 +490,7 @@ def test_startup_fails_in_non_git_dir(tmp_path, monkeypatch, capsys):
             run_pipeline(
                 _local_pipeline_path(tmp_path),
                 argv=[],
-                client=FakeClaudeClient(fixtures={}),
+                client=FakeClient(fixtures={}),
             )
         )
     assert "not inside a git worktree" in capsys.readouterr().err

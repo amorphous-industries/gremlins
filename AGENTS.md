@@ -94,9 +94,9 @@ These values are persisted to `state.json` and read by other writers (the fleet 
 
 ## Testing seam: clients
 
-Stages that invoke `claude` go through an injected `Client` (in `gremlins/clients/client.py`). Production passes `Client("claude", "sonnet")`; tests pass `FakeClaudeClient(fixtures={label: <jsonl-or-list>})` from `gremlins/clients/fake.py`, which records each `run(...)` call into `self.calls` for assertion. **Never have a stage spawn `claude -p` directly** — go through the injected client so tests can intercept.
+Stages that invoke `claude` go through an injected `Client` (in `gremlins/clients/client.py`). Production passes `Client.parse("xai:grok-4")` (per the pipeline's `default_client`); tests pass `FakeClient(fixtures={label: <jsonl-or-list>})` from `tests/fake_client.py`, which records each `run(...)` call into `self.calls` for assertion. **Never have a stage spawn `claude -p` directly** — go through the injected client so tests can intercept.
 
-`FakeClaudeClient` looks fixtures up by `label`. Stages that re-enter the same logical step within one process (e.g. resumed implement) must use distinct labels per phase.
+`FakeClient` looks fixtures up by `label`. Stages that re-enter the same logical step within one process (e.g. resumed implement) must use distinct labels per phase.
 
 ## State and bail bookkeeping
 

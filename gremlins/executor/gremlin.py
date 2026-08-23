@@ -102,19 +102,6 @@ def _apply_client_override(stages: Sequence[StageProtocol], cli: Client) -> None
             _apply_client_override(body, cli)
 
 
-def _collect_pipeline_model(stages: list[StageProtocol]) -> str | None:
-    """Recursively collect a non-fake model from the pipeline stages."""
-    for stage in stages:
-        if stage.client and stage.client.model and stage.client.model != "fake":
-            return stage.client.model
-        body = getattr(stage, "body", [])
-        if body:
-            m = _collect_pipeline_model(body)
-            if m:
-                return m
-    return None
-
-
 def read_stage_inputs(sf: pathlib.Path | None) -> dict[str, Any]:
     if sf is None or not sf.exists():
         return {}
@@ -541,20 +528,10 @@ class Gremlin:
         except (FileNotFoundError, _YamlLoadError) as exc:
             raise ValueError(str(exc)) from exc
         resolved_client = None
-        if client_label and client and client.provider == "fake":
-            parsed = Client.parse(client_label)
-            client.model = parsed.model
-            resolved_client = client
-        elif client_label:
+        if client_label:
             resolved_client = Client.parse(client_label)
         elif client:
-            if client.provider == "fake":
-                model_from_pipeline = _collect_pipeline_model(list(pipeline.stages))
-                if model_from_pipeline and model_from_pipeline != client.model:
-                    client.model = model_from_pipeline
-                resolved_client = client
-            else:
-                resolved_client = client
+            resolved_client = client
 
         if resolved_client:
             _apply_client_override(list(pipeline.stages), resolved_client)

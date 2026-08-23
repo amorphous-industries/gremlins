@@ -10,10 +10,10 @@ import textwrap
 import pytest
 from conftest import MockGremlin
 
-from gremlins.clients.fake import FakeClaudeClient
 from gremlins.executor.state import StateData, build_state
 from gremlins.pipeline import Pipeline
 from gremlins.stages.outcome import Bail
+from tests.fake_client import FakeClient
 
 _MINIMAL = [
     {"type": "system", "subtype": "init"},
@@ -31,7 +31,7 @@ _CHAIN_YAML = textwrap.dedent("""\
 """)
 
 
-class _SignalClient(FakeClaudeClient):
+class _SignalClient(FakeClient):
     """Writes signal.json when the handoff agent runs."""
 
     def __init__(self, signal: dict, artifact_dir: pathlib.Path) -> None:

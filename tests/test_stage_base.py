@@ -8,12 +8,12 @@ from typing import TYPE_CHECKING, Any, cast
 import pytest
 from conftest import MockGremlin
 
-from gremlins.clients.fake import FakeClaudeClient
 from gremlins.executor.state import State, StateData, build_state
 from gremlins.pipeline import Pipeline
 from gremlins.stages.agent import Agent
 from gremlins.stages.base import Stage
 from gremlins.stages.outcome import Done, Outcome
+from tests.fake_client import FakeClient
 
 if TYPE_CHECKING:
     from gremlins.executor.gremlin import Gremlin
@@ -48,7 +48,7 @@ def test_stage_run_raises_not_implemented() -> None:
     import asyncio
 
     stage = Stage("my-stage")
-    client = FakeClaudeClient(fixtures={})
+    client = FakeClient(fixtures={})
     state = build_state(
         data=StateData(gremlin_id=None),
         client=client,
@@ -94,7 +94,7 @@ def test_deleted_helpers_not_on_stage() -> None:
 def _subs_state() -> State:
     return build_state(
         data=StateData(gremlin_id=None),
-        client=FakeClaudeClient(fixtures={}),
+        client=FakeClient(fixtures={}),
         artifact_dir=pathlib.Path("/tmp/sess"),
         pipeline_data=_PIPELINE,
         repo="owner/proj",

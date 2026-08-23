@@ -48,7 +48,7 @@ Bundled stage recipes live under `gremlins/recipes/stages/`. Each recipe is a mu
 - Stages that should respect a bail marker call `run_agent` from `agent_runner`, which parses the agent's final transcript message for a `BAIL: <class>: <detail>` sentinel line and raises `Bail` if found.
 - Most stages return `None`.
 - The `label=` argument passed to `client.run(...)` is the stream-event
-  prefix and the `FakeClaudeClient` fixture key. Stages that re-enter the
+  prefix and the `FakeClient` fixture key. Stages that re-enter the
   same logical step within one process (e.g. resumed implement) must use
   distinct labels per phase so the fake's lookup doesn't collide.
 

@@ -22,7 +22,7 @@ class RecordedCall:
     cwd: pathlib.Path | None = None
 
 
-class FakeClaudeClient(Client):
+class FakeClient(Client):
     """Test double — never spawns subprocesses.
 
     Construct with ``fixtures={label: <path-to-jsonl-or-list-of-events>}``;
@@ -112,7 +112,7 @@ class FakeClaudeClient(Client):
         )
 
         if label not in self._fixtures:
-            raise KeyError(f"FakeClaudeClient: no fixture for label {label!r}")
+            raise KeyError(f"FakeClient: no fixture for label {label!r}")
         events = self._load_events(self._fixtures[label])
 
         if raw_path is not None:

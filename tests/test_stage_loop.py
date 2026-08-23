@@ -21,9 +21,9 @@ if TYPE_CHECKING:
 
 
 def _fake_client() -> Any:
-    from gremlins.clients.fake import FakeClaudeClient
+    from tests.fake_client import FakeClient
 
-    return FakeClaudeClient(fixtures={})
+    return FakeClient(fixtures={})
 
 
 def _loop_state(tmp_path: Any) -> RuntimeState:

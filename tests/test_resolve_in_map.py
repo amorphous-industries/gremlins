@@ -11,11 +11,11 @@ from conftest import MINIMAL_EVENTS, MockGremlin
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.artifacts.resolve import resolve_in_map
 from gremlins.artifacts.uri import Uri
-from gremlins.clients.fake import FakeClaudeClient
 from gremlins.executor.state import StateData, build_state
 from gremlins.stages.agent import Agent
 from gremlins.stages.exec import Exec
 from gremlins.stages.outcome import Done
+from tests.fake_client import FakeClient
 
 
 def _make_registry(tmp_path: pathlib.Path) -> ArtifactRegistry:
@@ -29,7 +29,7 @@ def _make_state(tmp_path: pathlib.Path, client=None):
     artifact_dir.mkdir(exist_ok=True)
     return build_state(
         data=StateData(),
-        client=client or FakeClaudeClient(),
+        client=client or FakeClient(),
         artifact_dir=artifact_dir,
         worktree=tmp_path,
     )
@@ -140,7 +140,7 @@ def test_exec_dotted_key_injects_env_var(tmp_path):
 
 
 def test_agent_dotted_key_substituted_into_prompt(tmp_path):
-    client = FakeClaudeClient(fixtures={"push-agent": MINIMAL_EVENTS})
+    client = FakeClient(fixtures={"push-agent": MINIMAL_EVENTS})
     state = _make_state(tmp_path, client)
     state.artifacts.write(
         "pr",

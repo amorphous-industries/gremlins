@@ -11,10 +11,10 @@ from conftest import MINIMAL_EVENTS, MockGremlin
 
 from gremlins.artifacts.registry import ArtifactRegistry, MissingArtifact
 from gremlins.artifacts.uri import Uri
-from gremlins.clients.fake import FakeClaudeClient
 from gremlins.executor.state import State, StateData, build_state
 from gremlins.stages.agent import Agent
 from gremlins.stages.outcome import Done
+from tests.fake_client import FakeClient
 
 if TYPE_CHECKING:
     from gremlins.executor.gremlin import Gremlin
@@ -22,12 +22,12 @@ if TYPE_CHECKING:
 
 def _make_state(
     tmp_path: pathlib.Path,
-    client: FakeClaudeClient | None = None,
+    client: FakeClient | None = None,
     *,
     registry: ArtifactRegistry | None = None,
 ) -> State:
     if client is None:
-        client = FakeClaudeClient(fixtures={"my-agent": MINIMAL_EVENTS})
+        client = FakeClient(fixtures={"my-agent": MINIMAL_EVENTS})
     reg = registry or ArtifactRegistry(tmp_path / "artifacts", cwd=tmp_path)
     return build_state(
         data=StateData(),
@@ -63,7 +63,7 @@ def test_in_content_substituted_into_prompt(tmp_path):
     (tmp_path / "artifacts" / "plan.md").write_bytes(b"# My Plan")
     registry.bind("plan", Uri.parse("file://session/plan.md"))
 
-    client = FakeClaudeClient(fixtures={"my-agent": MINIMAL_EVENTS})
+    client = FakeClient(fixtures={"my-agent": MINIMAL_EVENTS})
     state = _make_state(tmp_path, client, registry=registry)
     agent = _make_agent(prompts=["Process: {plan_text}"], in_map={"plan_text": "plan"})
 
@@ -82,7 +82,7 @@ def test_missing_in_key_raises_missing_artifact(tmp_path):
 
 
 def test_no_in_map_runs_prompt_unchanged(tmp_path):
-    client = FakeClaudeClient(fixtures={"my-agent": MINIMAL_EVENTS})
+    client = FakeClient(fixtures={"my-agent": MINIMAL_EVENTS})
     state = _make_state(tmp_path, client)
     agent = _make_agent(prompts=["Static prompt"], in_map=None)
 
@@ -99,7 +99,7 @@ def test_verify_produced_passes_when_out_file_written(tmp_path):
     output_file = tmp_path / "artifacts" / "output.md"
     output_file.parent.mkdir(exist_ok=True)
 
-    class WritingClient(FakeClaudeClient):
+    class WritingClient(FakeClient):
         async def run(self, prompt, *, label, **kwargs):
             output_file.write_text("# Output")
             return await super().run(prompt, label=label, **kwargs)
@@ -119,7 +119,7 @@ def test_verify_produced_passes_when_out_file_written(tmp_path):
 
 
 def test_verify_produced_fails_when_out_file_missing(tmp_path):
-    client = FakeClaudeClient(fixtures={"my-agent": MINIMAL_EVENTS})
+    client = FakeClient(fixtures={"my-agent": MINIMAL_EVENTS})
     state = _make_state(tmp_path, client)
     agent = _make_agent(
         prompts=["Write output"],
@@ -135,7 +135,7 @@ def test_out_uri_bound_in_registry_before_agent_runs(tmp_path):
     output_file.parent.mkdir(exist_ok=True)
     seen_bound_before_run: list[bool] = []
 
-    class CheckingClient(FakeClaudeClient):
+    class CheckingClient(FakeClient):
         async def run(self, prompt, *, label, **kwargs):
             # Check that the out: key is bound before the agent runs
             registry = state.artifacts

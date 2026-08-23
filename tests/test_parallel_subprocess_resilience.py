@@ -14,13 +14,13 @@ from typing import Any
 import pytest
 from conftest import make_parent_state
 
-from gremlins.clients.fake import FakeClaudeClient
 from gremlins.executor.state import State, StateData, build_state, write_state
 from gremlins.stages import parallel as _parallel_mod
 from gremlins.stages.base import Stage
 from gremlins.stages.outcome import Done, Outcome
 from gremlins.stages.parallel import ParallelStage
 from gremlins.utils import proc as _proc_mod
+from tests.fake_client import FakeClient
 
 
 class _FakeStreamReader:
@@ -111,7 +111,7 @@ def _child_state(artifact_dir: pathlib.Path) -> State:
     artifact_dir.mkdir(parents=True, exist_ok=True)
     return build_state(
         data=StateData(),
-        client=FakeClaudeClient(),
+        client=FakeClient(),
         artifact_dir=artifact_dir,
     )
 
@@ -378,7 +378,7 @@ def test_subprocess_cost_accumulated_in_state(
     )
     parent_state = build_state(
         data=parent_data,
-        client=FakeClaudeClient(),
+        client=FakeClient(),
         artifact_dir=state_dir,
     )
 
@@ -394,7 +394,7 @@ def test_subprocess_cost_accumulated_in_state(
             data=dataclasses.replace(
                 StateData(gremlin_id="test-gremlin"), state_file=sf
             ),
-            client=FakeClaudeClient(),
+            client=FakeClient(),
             artifact_dir=session,
         )
 
@@ -535,7 +535,7 @@ def test_build_child_spec_dict_base_ref_propagated(
     artifact_dir.mkdir(parents=True, exist_ok=True)
     child_st = build_state(
         data=StateData(),
-        client=FakeClaudeClient(),
+        client=FakeClient(),
         artifact_dir=artifact_dir,
         base_ref="main",
     )
