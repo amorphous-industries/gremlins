@@ -1012,10 +1012,7 @@ def test_compose_commit_message_falls_back_to_title(tmp_path):
 def test_compose_commit_message_falls_back_to_title_with_leading_blank(tmp_path):
     plan = tmp_path / "plan.md"
     plan.write_text(
-        "\n"
-        "# Title after a blank line\n\n"
-        "## Background\n\n"
-        "Some background text here.\n"
+        "\n# Title after a blank line\n\n## Background\n\nSome background text here.\n"
     )
     subject, body = _land._compose_commit_message(str(plan))
     assert "Title after a blank line" in subject
