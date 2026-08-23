@@ -1,7 +1,12 @@
 from __future__ import annotations
 
 from gremlins.clients.registry import register_client_factory
-from gremlins.permissions.policy import Policy
+
+# Default tool allowlists (moved from deleted gremlins.permissions.defaults).
+# These are the only tools each backend permits; permission enforcement is handled
+# by the worktree/cwd containment in the rig client backend.
+_DEFAULT_ALLOWED_TOOLS: list[str] = ["Bash", "Edit", "Read", "Write", "Grep", "Glob"]
+_DEFAULT_BLOCK: dict[str, list[str]] = {"allowed_tools": _DEFAULT_ALLOWED_TOOLS}
 
 
 def _openai_instructions() -> str:
@@ -10,50 +15,40 @@ def _openai_instructions() -> str:
     return load_bundled_prompt("default_openai_agents_instructions.md")
 
 
-def _make_openai_client(model: str | None, policy: Policy) -> object:
+def _make_openai_client(model: str | None) -> object:
     from _gremlins_core.clients import RustClient
-
-    from gremlins.permissions.loader import load_default_block
 
     return RustClient(
         "openai",
         model or "",
-        policy.bypass,
-        load_default_block("openai") | policy.block_for("openai"),
+        dict(_DEFAULT_BLOCK),
         instructions=_openai_instructions(),
     )
 
 
-def _make_xai_client(model: str | None, policy: Policy) -> object:
+def _make_xai_client(model: str | None) -> object:
     from _gremlins_core.clients import RustClient
-
-    from gremlins.permissions.loader import load_default_block
 
     return RustClient(
         "xai",
         model or "grok-4",
-        policy.bypass,
-        load_default_block("xai") | policy.block_for("xai"),
+        dict(_DEFAULT_BLOCK),
         instructions=_openai_instructions(),
     )
 
 
-def _make_openrouter_client(model: str | None, policy: Policy) -> object:
+def _make_openrouter_client(model: str | None) -> object:
     from _gremlins_core.clients import RustClient
-
-    from gremlins.permissions.loader import load_default_block
 
     return RustClient(
         "openrouter",
         model or "",
-        policy.bypass,
-        load_default_block("openrouter") | policy.block_for("openrouter"),
+        dict(_DEFAULT_BLOCK),
         instructions=_openai_instructions(),
     )
 
 
-def _make_cmd_client(command: str | None, policy: Policy) -> object:
-    # cmd: bypass/flags are spelled in the command template; policy is unused.
+def _make_cmd_client(command: str | None) -> object:
     if not command:
         raise ValueError("cmd: command is required")
     from _gremlins_core.clients import RustClient

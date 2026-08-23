@@ -24,8 +24,6 @@ from gremlins.env_file import load_env_file
 from gremlins.errors import die
 from gremlins.executor.gremlin import Gremlin
 from gremlins.logging_setup import configure_logging
-from gremlins.permissions.loader import load_policy
-from gremlins.permissions.policy import Policy
 from gremlins.pipeline import Pipeline as _PipelineData
 from gremlins.pipeline.discovery import resolve_pipeline_path
 from gremlins.protocols import StageProtocol
@@ -64,14 +62,6 @@ _HANDLED_SIGS = tuple(
     if hasattr(signal, name)
 )
 _atexit_log_fn: Callable[[], None] | None = None
-
-
-def _apply_policy_to_stages(stages: Sequence[StageProtocol], policy: Policy) -> None:
-    for stage in stages:
-        if stage.client is not None:
-            stage.client.set_policy(policy)
-        if stage.body:
-            _apply_policy_to_stages(stage.body, policy)
 
 
 def _load_stage_attempt(gremlin: Gremlin) -> tuple[str, str]:
@@ -272,15 +262,6 @@ async def run_pipeline(
             os.environ.update(load_env_file(_env_file, cwd=_project_root))
         except RuntimeError as exc:
             die(str(exc))
-
-    stored_bypass = bool(state_json.get("bypass", False))
-    policy = load_policy(
-        cli_bypass=stored_bypass,
-        cli_permissions_file=None,
-        env=os.environ,
-        cwd=pathlib.Path(project_root) if project_root else paths.project_root(),
-    )
-    _apply_policy_to_stages(gremlin.stages, policy)
 
     if gh:
         gremlin.state_file = gremlin.state_dir / "state.json"

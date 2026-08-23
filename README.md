@@ -136,7 +136,6 @@ Common infrastructure flags (accepted by all pipelines):
 | `-c`/`--instructions <text>` | — | Instructions string (mutually exclusive with `--plan`) |
 | `--base-ref <ref>` | `HEAD` | Git ref to branch the worktree from; ignored for gh pipelines (always anchors to origin default branch). In parallel pipelines, automatically propagated to all child processes. |
 | `--spec <path>` | — | Path to a coding-style spec file passed into stages |
-| `--bypass` | false | Skip permission checks; run in bypass mode |
 
 ## Pipeline configuration
 
@@ -541,41 +540,23 @@ The boss resumes from its child-spawn stage and proceeds with the next iteration
 
 ## What can a gremlin do to my machine?
 
-Gremlins operate in one of two permission modes:
-
-**Default mode** (no flags): The agent is restricted to an allowlist of tools
-(Read, Edit, Write, Bash, Grep, Glob) and its Bash commands are path-scoped to
-the gremlin's git worktree.  It can read and modify files inside that worktree
-and blocks direct path references outside it.  This is a best-effort token
-check, not a full sandbox — indirect references (heredocs, computed paths) may
-not be caught.
-
-**Bypass mode** (`--bypass`, `GREMLINS_BYPASS_PERMISSIONS=1`, project
-`.gremlins/permissions.yaml bypass_permissions: true`, or user config
-`~/.config/gremlins/config.toml bypass_permissions = true`): All permission
-checks are disabled.  The agent can use any tool and reference any path.  Use
-this when the task genuinely requires broader access (e.g. a pipeline that
-modifies system config).
-
-The three opt-in paths for bypass are:
-1. `gremlins launch <pipeline> --bypass` — single-launch override
-2. `GREMLINS_BYPASS_PERMISSIONS=1` in the environment
-3. `bypass_permissions: true` in `.gremlins/permissions.yaml` (project) or
-   `bypass_permissions = true` in `~/.config/gremlins/config.toml` (user)
+Gremlins are restricted to an allowlist of tools (Read, Edit, Write, Bash,
+Grep, Glob) and their Bash commands are path-scoped to the gremlin's git
+worktree. They can read and modify files inside that worktree and block direct
+path references outside it. This is a best-effort token check, not a full
+sandbox — indirect references (heredocs, computed paths) may not be caught.
 
 **Honest disclaimer**: The allowlist limits *reach* — what paths and tools the
-agent can invoke.  It does not limit *impact within reach*.  A gremlin with
-write access to your worktree can make any change inside it.  Review landed
+agent can invoke. It does not limit *impact within reach*. A gremlin with
+write access to your worktree can make any change inside it. Review landed
 commits before merging.
 
-**Backend differences**: On `openai:` and `xai:` backends, gremlins owns the
-tool layer and enforces the allowlist directly.  On the `anthropic:` backend,
-enforcement is coarser — the SDK loop uses vendor-defined tools and the path
-scoping is advisory.  On `claude:` and `copilot:` subprocess backends, the
-gremlins-layer permission block is **not** translated into CLI flags or
-settings — the underlying CLI reads the operator's ambient config and
-enforces whatever the operator has configured there.  See "Backend config
-inheritance" below.
+**Backend differences**: On `openai:`, `xai:`, and `openrouter:` backends,
+gremlins owns the tool layer and enforces worktree/cwd containment directly.
+On `claude:` subprocess backends, the gremlins-layer containment is
+**not** translated into CLI flags or settings — the underlying CLI reads
+the operator's ambient config and enforces whatever the operator has
+configured there. See "Backend config inheritance" below.
 
 ### Backend config inheritance
 
@@ -599,7 +580,7 @@ for their interactive Claude session is exactly what the subprocess sees:
   ```
 
   On Linux/macOS this is `/tmp/gremlins`; the OS reclaims orphaned
-  worktrees on reboot. A single `permissions.allow` rule in
+  worktrees on reboot. An `allow` rule in
   `~/.claude/settings.json` covers every worktree path:
 
   ```json
@@ -618,9 +599,6 @@ for their interactive Claude session is exactly what the subprocess sees:
 - **MCP servers and hooks** — inherited from the user's Claude config.
 - **Auth** — subscription auth follows `~/.claude/.credentials.json` (or the
   macOS keychain) exactly as it would for an interactive session.
-- **Permission mode** — the only thing the wrapper still controls per call:
-  `--permission-mode bypassPermissions` when bypass is enabled, otherwise
-  `default`.
 
 #### True process isolation: use an SDK backend
 

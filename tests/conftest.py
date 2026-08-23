@@ -16,7 +16,6 @@ import pytest
 from gremlins.clients.registry import register_client_factory
 from gremlins.executor.gremlin import Gremlin, State
 from gremlins.executor.state import StateData, build_state
-from gremlins.permissions.policy import Policy
 from tests.fake_client import FakeClient
 
 os.environ.setdefault("GIT_TEST_DEFAULT_INITIAL_BRANCH_NAME", "main")
@@ -41,7 +40,7 @@ def make_gremlin(
     from gremlins.pipeline import Pipeline as PipelineData
 
     if client is None:
-        client = FakeClient(fixtures={}, model="fake", bypass=False, native_block={})
+        client = FakeClient(fixtures={}, model="fake")
 
     if state_data is None:
         state_data = StateData(gremlin_id=gremlin_id)
@@ -70,12 +69,10 @@ FAKE_CLAUDE = FIXTURES_DIR / "fake_claude.py"
 
 
 def pytest_configure(config: pytest.Config) -> None:
-    def _make_fake_client(model: str | None, policy: Policy) -> object:
+    def _make_fake_client(model: str | None) -> object:
         return FakeClient(
             fixtures={},
             model=model or "fake",
-            bypass=policy.bypass,
-            native_block=policy.block_for("fake"),
         )
 
     register_client_factory("fake", _make_fake_client)

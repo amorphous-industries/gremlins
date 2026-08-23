@@ -517,7 +517,6 @@ dependencies = [
  "glob",
  "libc",
  "regex",
- "rig-agent",
  "rig-core",
  "serde",
  "serde_json",
@@ -1353,28 +1352,6 @@ dependencies = [
  "wasm-bindgen-futures",
  "wasm-streams",
  "web-sys",
-]
-
-[[package]]
-name = "rig-agent"
-version = "0.41.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b0796bbf47d7b76670401aac975bc619cf7fba3482b22dfe14992edaa9c2e04"
-dependencies = [
- "async-stream",
- "fastrand",
- "futures",
- "http",
- "indexmap",
- "rig-core",
- "rig-derive",
- "schemars",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tracing",
- "tracing-futures",
 ]
 
 [[package]]

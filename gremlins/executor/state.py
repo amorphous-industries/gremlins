@@ -106,8 +106,6 @@ class StateData:
     stage: str = ""
     pid: int | None = None
     stage_inputs: dict[str, Any] = dataclasses.field(default_factory=dict[str, Any])
-    bypass: bool = False
-    permissions_file: str = ""
     group_name: str = ""
     child_key: str = ""
     exit_code: int | None = None
@@ -137,8 +135,6 @@ class StateData:
             stage=sd.get("stage") or "",
             pid=sd.get("pid"),
             stage_inputs=dict(cast(dict[str, Any], sd.get("stage_inputs") or {})),
-            bypass=bool(sd.get("bypass", False)),
-            permissions_file=sd.get("permissions_file") or "",
             group_name=sd.get("group_name") or "",
             child_key=sd.get("child_key") or "",
             exit_code=int(sd["exit_code"]) if sd.get("exit_code") is not None else None,
@@ -167,8 +163,6 @@ class StateData:
             "stage": self.stage,
             "pid": self.pid,
             "stage_inputs": self.stage_inputs,
-            "bypass": self.bypass,
-            "permissions_file": self.permissions_file,
             "group_name": self.group_name,
             "child_key": self.child_key,
             "exit_code": self.exit_code,

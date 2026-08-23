@@ -5,18 +5,16 @@ from typing import Any
 
 from gremlins.clients.protocol import CompletedRun
 from gremlins.clients.registry import CLIENT_FACTORIES
-from gremlins.permissions.policy import Policy
 
 
 class Client:
-    def __init__(self, provider: str, model: str, policy: Policy | None = None) -> None:
+    def __init__(self, provider: str, model: str) -> None:
         self.provider = provider
         self.model = model
-        self._policy = policy if policy is not None else Policy()
         self._impl: Any = None
 
     @classmethod
-    def parse(cls, s: str, policy: Policy | None = None) -> Client:
+    def parse(cls, s: str) -> Client:
         if ":" not in s:
             raise ValueError(
                 f"invalid client specifier {s!r}: expected 'provider:model'"
@@ -30,7 +28,7 @@ class Client:
             raise ValueError(f"invalid client specifier {s!r}: model must not be empty")
         if provider not in CLIENT_FACTORIES:
             raise ValueError(f"unknown provider {provider!r} in client specifier {s!r}")
-        return cls(provider=provider, model=model, policy=policy)
+        return cls(provider=provider, model=model)
 
     def __str__(self) -> str:
         return f"{self.provider}:{self.model}"
@@ -46,15 +44,11 @@ class Client:
     def __hash__(self) -> int:
         return hash((self.provider, self.model))
 
-    def set_policy(self, policy: Policy) -> None:
-        assert self._impl is None, "set_policy called after impl was already created"
-        self._policy = policy
-
     def _get_impl(self) -> Any:
         if self._impl is None:
             if self.provider not in CLIENT_FACTORIES:
                 raise ValueError(f"unknown provider {self.provider!r}")
-            self._impl = CLIENT_FACTORIES[self.provider](self.model, self._policy)
+            self._impl = CLIENT_FACTORIES[self.provider](self.model)
         return self._impl
 
     async def run(
@@ -90,10 +84,6 @@ class Client:
     def reap_all(self) -> None:
         if self._impl is not None:
             self._impl.reap_all()
-
-    @property
-    def policy(self) -> Policy:
-        return self._policy
 
     @property
     def total_cost_usd(self) -> float | None:
