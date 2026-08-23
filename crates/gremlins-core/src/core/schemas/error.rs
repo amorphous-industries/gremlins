@@ -41,7 +41,7 @@ pub enum SchemaError {
 
 impl From<SchemaError> for pyo3::PyErr {
     fn from(e: SchemaError) -> Self {
-        use pyo3::exceptions::{PyFileNotFoundError, PyRuntimeError, PyValueError};
+        use pyo3::exceptions::{PyFileNotFoundError, PyValueError};
         match &e {
             SchemaError::PipelineFileNotFound { .. } | SchemaError::PromptFileNotFound { .. } => {
                 PyFileNotFoundError::new_err(e.to_string())
@@ -55,7 +55,7 @@ impl From<SchemaError> for pyo3::PyErr {
             | SchemaError::MissingDefaultClient
             | SchemaError::YamlParse { .. }
             | SchemaError::YamlNotMapping { .. } => PyValueError::new_err(e.to_string()),
-            SchemaError::Generic(_) => PyRuntimeError::new_err(e.to_string()),
+            SchemaError::Generic(_) => PyValueError::new_err(e.to_string()),
         }
     }
 }

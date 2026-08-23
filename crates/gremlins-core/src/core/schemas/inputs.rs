@@ -17,6 +17,7 @@ pub struct InputSource {
 #[pymethods]
 impl InputSource {
     #[new]
+    #[pyo3(signature = (name, types, optional = false))]
     fn new(name: String, types: Vec<String>, optional: bool) -> PyResult<Self> {
         if types.is_empty() {
             return Err(pyo3::exceptions::PyValueError::new_err(format!(
@@ -109,7 +110,14 @@ impl InputSources {
 
             let optional: bool = entry_dict
                 .get_item("optional")?
-                .and_then(|v| v.extract::<bool>().ok())
+                .map(|v| {
+                    v.extract::<bool>().map_err(|_| {
+                        pyo3::exceptions::PyValueError::new_err(format!(
+                            "input source {key:?}: 'optional' must be a boolean"
+                        ))
+                    })
+                })
+                .transpose()?
                 .unwrap_or(false);
 
             let valid_types: std::collections::HashSet<&str> =

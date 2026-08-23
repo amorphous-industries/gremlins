@@ -104,10 +104,19 @@ impl Pipeline {
 
         let raw_stages_val = raw_dict.get_item("stages")?;
         let empty_list = PyList::empty(py);
-        let raw_stages: &Bound<'_, PyList> = raw_stages_val
-            .as_ref()
-            .and_then(|v| v.cast::<PyList>().ok())
-            .unwrap_or(&empty_list);
+        let raw_stages: &Bound<'_, PyList> = match raw_stages_val.as_ref() {
+            None => &empty_list,
+            Some(ob) if ob.is_none() => &empty_list,
+            Some(ob) => ob.cast::<PyList>().map_err(|_| {
+                pyo3::exceptions::PyValueError::new_err(format!(
+                    "'stages' must be a list; got {} type",
+                    ob.get_type()
+                        .name()
+                        .map(|n| n.to_string_lossy().into_owned())
+                        .unwrap_or_else(|_| "?".to_string())
+                ))
+            })?,
+        };
 
         let mut stages = loader::parse_stages(py, raw_stages, 0)?;
 

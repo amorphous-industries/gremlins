@@ -8,7 +8,9 @@ const OVERLAY_DIRNAME: &str = ".gremlins";
 
 fn project_overlay_dir(project_root: &std::path::Path) -> PathBuf {
     if let Ok(ov) = std::env::var("GREMLINS_OVERLAY_DIR") {
-        return PathBuf::from(ov);
+        if !ov.is_empty() {
+            return PathBuf::from(ov);
+        }
     }
     project_root.join(OVERLAY_DIRNAME)
 }

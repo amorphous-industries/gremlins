@@ -32,10 +32,11 @@ pub fn parse_stage(py: Python<'_>, d: &Bound<'_, PyDict>, depth: usize) -> PyRes
         let cls = py
             .import("gremlins.stages.parallel")?
             .getattr("ParallelStage")?;
-        return Ok(cls
-            .call_method1("with_dict", (d, depth))?
-            .into_any()
-            .unbind());
+        let stage: Py<PyAny> = cls.call_method1("with_dict", (d, depth))?.extract()?;
+        let skip_if_exists = parse_skip_if_exists(d)?;
+        stage.setattr(py, "raw_dict", d)?;
+        stage.setattr(py, "skip_if_exists", skip_if_exists)?;
+        return Ok(stage);
     }
 
     let name: String = d
@@ -74,10 +75,25 @@ pub fn parse_stage(py: Python<'_>, d: &Bound<'_, PyDict>, depth: usize) -> PyRes
 }
 
 fn parse_skip_if_exists(d: &Bound<'_, PyDict>) -> PyResult<String> {
-    let value: Option<String> = d.get_item("skip_if_exists")?.and_then(|v| v.extract().ok());
-    match value {
-        Some(v) if !v.is_empty() => Ok(v),
-        _ => Ok(String::new()),
+    let raw = d.get_item("skip_if_exists")?;
+    match raw {
+        None => Ok(String::new()),
+        Some(v) => {
+            let s: String = v.extract().map_err(|_| {
+                pyo3::exceptions::PyValueError::new_err(format!(
+                    "'skip_if_exists' must be a string, got {} type",
+                    v.get_type()
+                        .name()
+                        .map(|n| n.to_string_lossy().into_owned())
+                        .unwrap_or_else(|_| "?".to_string())
+                ))
+            })?;
+            if s.is_empty() {
+                Ok(String::new())
+            } else {
+                Ok(s)
+            }
+        }
     }
 }
 

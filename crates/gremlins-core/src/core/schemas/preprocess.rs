@@ -148,10 +148,13 @@ fn _expand(
         parse_stage_definitions(raw_mapping.get("stage-definitions"), bundled_stage_def_dir)?;
 
     let stages_raw = raw_mapping.get("stages");
-    let stages_list: Vec<serde_yaml::Value> = stages_raw
-        .and_then(|v| v.as_sequence())
-        .cloned()
-        .unwrap_or_default();
+    let stages_list: Vec<serde_yaml::Value> = match stages_raw {
+        None | Some(serde_yaml::Value::Null) => Vec::new(),
+        Some(v) if v.is_sequence() => v.as_sequence().cloned().unwrap_or_default(),
+        Some(_v) => {
+            return Err(SchemaError::Generic("'stages' must be a list".to_string()).into());
+        }
+    };
 
     let mut expanded_stages: Vec<serde_yaml::Value> = Vec::new();
     for entry in stages_list {
@@ -241,45 +244,55 @@ fn parse_stage_definitions(
     bundled_stage_def_dir: &PathBuf,
 ) -> Result<HashMap<String, serde_yaml::Value>, SchemaError> {
     let mut defs: HashMap<String, serde_yaml::Value> = HashMap::new();
-    if let Some(mapping) = raw.and_then(|v| v.as_mapping()) {
-        for (k, v) in mapping {
-            let name = k.as_str().unwrap_or("").to_string();
-            if name.is_empty() {
-                continue;
-            }
-            if let Some(s) = v.as_str() {
-                if let Some(recipe_name) = s.strip_prefix(GREMLINS_PREFIX) {
-                    if recipe_name.is_empty() {
-                        return Err(SchemaError::StageDef {
-                            name: name.clone(),
-                            msg: format!("missing name after {GREMLINS_PREFIX:?}"),
-                        });
-                    }
-                    match load_bundled_recipe(recipe_name, bundled_stage_def_dir) {
-                        Ok(recipe) => {
-                            defs.insert(name, recipe);
-                        }
-                        Err(e) => {
+    match raw {
+        None => {}
+        Some(v) if v.is_mapping() => {
+            let mapping = v.as_mapping().unwrap();
+            for (k, v) in mapping {
+                let name = k.as_str().unwrap_or("").to_string();
+                if name.is_empty() {
+                    continue;
+                }
+                if let Some(s) = v.as_str() {
+                    if let Some(recipe_name) = s.strip_prefix(GREMLINS_PREFIX) {
+                        if recipe_name.is_empty() {
                             return Err(SchemaError::StageDef {
                                 name: name.clone(),
-                                msg: e.to_string(),
+                                msg: format!("missing name after {GREMLINS_PREFIX:?}"),
                             });
                         }
+                        match load_bundled_recipe(recipe_name, bundled_stage_def_dir) {
+                            Ok(recipe) => {
+                                defs.insert(name, recipe);
+                            }
+                            Err(e) => {
+                                return Err(SchemaError::StageDef {
+                                    name: name.clone(),
+                                    msg: e.to_string(),
+                                });
+                            }
+                        }
+                    } else {
+                        return Err(SchemaError::StageDef {
+                            name: name.clone(),
+                            msg: "must be a dict or gremlins: reference".to_string(),
+                        });
                     }
+                } else if v.is_mapping() {
+                    defs.insert(name, v.clone());
                 } else {
                     return Err(SchemaError::StageDef {
                         name: name.clone(),
                         msg: "must be a dict or gremlins: reference".to_string(),
                     });
                 }
-            } else if v.is_mapping() {
-                defs.insert(name, v.clone());
-            } else {
-                return Err(SchemaError::StageDef {
-                    name: name.clone(),
-                    msg: "must be a dict or gremlins: reference".to_string(),
-                });
             }
+        }
+        Some(v) => {
+            return Err(SchemaError::Generic(format!(
+                "stage-definitions must be a mapping, got {:?}",
+                v
+            )));
         }
     }
     Ok(defs)
@@ -489,38 +502,43 @@ fn _expand_entry(
             );
         }
         // Try resolving as pipeline name
-        let included_path_result: Result<String, _> = resolve_pipeline_name_fn
-            .call1((
-                stage_type,
-                project_root.clone(),
-                bundled_pipeline_dir.clone(),
-            ))?
-            .extract();
-        if let Ok(included_path_str) = included_path_result {
-            let included_path = PathBuf::from(included_path_str);
-            if !chain.contains(&included_path) {
-                let included = _expand(
-                    py,
-                    &included_path,
-                    project_root,
-                    chain,
-                    bundled_stage_def_dir,
-                    bundled_prompt_dir,
-                    bundled_pipeline_dir,
-                    resolve_pipeline_name_fn,
-                )?;
-                let included_dict: &Bound<'_, PyDict> = included.bind(py).cast()?;
-                let stages: Vec<serde_yaml::Value> = included_dict
-                    .get_item("stages")?
-                    .map(|v| py_to_serde_yaml(&v))
-                    .transpose()?
-                    .map(|v| match v {
-                        serde_yaml::Value::Sequence(s) => s,
-                        _ => Vec::new(),
-                    })
-                    .unwrap_or_default();
-                return Ok(stages);
+        let pipeline_result = resolve_pipeline_name_fn.call1((
+            stage_type,
+            project_root.clone(),
+            bundled_pipeline_dir.clone(),
+        ));
+        match pipeline_result {
+            Ok(result) => {
+                let path: String = result.extract()?;
+                let included_path = PathBuf::from(path);
+                if !chain.contains(&included_path) {
+                    let included = _expand(
+                        py,
+                        &included_path,
+                        project_root,
+                        chain,
+                        bundled_stage_def_dir,
+                        bundled_prompt_dir,
+                        bundled_pipeline_dir,
+                        resolve_pipeline_name_fn,
+                    )?;
+                    let included_dict: &Bound<'_, PyDict> = included.bind(py).cast()?;
+                    let stages: Vec<serde_yaml::Value> = included_dict
+                        .get_item("stages")?
+                        .map(|v| py_to_serde_yaml(&v))
+                        .transpose()?
+                        .map(|v| match v {
+                            serde_yaml::Value::Sequence(s) => s,
+                            _ => Vec::new(),
+                        })
+                        .unwrap_or_default();
+                    return Ok(stages);
+                }
             }
+            Err(err) if err.is_instance_of::<pyo3::exceptions::PyFileNotFoundError>(py) => {
+                // Not a pipeline — fall through to loader validation
+            }
+            Err(err) => return Err(err),
         }
     }
 
@@ -771,6 +789,13 @@ fn _expand_stage_def(
         for (i, raw_inner) in inner_list.iter().enumerate() {
             let substituted = substitute_recipe(raw_inner, &ctx_value)?;
             let mut inner = substituted.clone();
+            if !inner.is_mapping() {
+                return Err(SchemaError::StageDef {
+                    name: def_name.to_string(),
+                    msg: format!("inner stage {i} must be a mapping, got {:?}", inner),
+                }
+                .into());
+            }
             let inner_map = inner.as_mapping_mut().unwrap();
 
             if i == 0 {
