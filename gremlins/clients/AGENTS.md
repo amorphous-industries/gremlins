@@ -13,8 +13,6 @@ Agent backends behind the `Client` protocol. Stages talk to one of these via
 - `registry.py` — `CLIENT_FACTORIES` dict + `register_client_factory` +
   `BYPASS_REQUIRED` set. Import-time side effects in `__init__.py` wire
   the four providers.
-- `fake.py` — `FakeClaudeClient`, the recording test double. Looks up
-  scripted responses by `label=` passed into `client.run(...)`.
 - `__init__.py` — registers the `openai`, `xai`, `openrouter`, and `cmd`
   factories with `CLIENT_FACTORIES` at import time. Importing the package
   is what wires the providers up.
@@ -46,11 +44,11 @@ Shared Rust modules: `tools.rs` (tool definitions + enforcement),
   register a factory in `gremlins/clients/__init__.py`.
 - Registered providers: `openai`, `xai`, `openrouter`, `cmd`.
 - The `label=` kwarg on `run(...)` is the stream-event prefix in logs and
-  the `FakeClaudeClient` lookup key. Stages that re-enter the same logical
+  the `FakeClient` lookup key. Stages that re-enter the same logical
   step within one process must use distinct labels per phase so the fake's
   lookup doesn't collide.
 - Never spawn a model CLI directly from a stage — go through
-  `client.run(...)` so tests can substitute `FakeClaudeClient`.
+  `client.run(...)` so tests can substitute `FakeClient`.
 
 ## Load-bearing invariants
 

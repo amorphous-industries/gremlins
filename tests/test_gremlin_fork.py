@@ -7,11 +7,11 @@ import pytest
 
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.artifacts.uri import Uri
-from gremlins.clients.fake import FakeClaudeClient
 from gremlins.executor.gremlin import Gremlin
 from gremlins.executor.state import StateData, build_state
 from gremlins.pipeline import Pipeline
 from gremlins.stages.exec import Exec
+from tests.fake_client import FakeClient
 
 
 @pytest.fixture
@@ -63,7 +63,7 @@ def test_fork_without_worktree(tmp_path, tmp_repo):
         state_data = StateData(gremlin_id="gr-1")
         state = build_state(
             data=state_data,
-            client=FakeClaudeClient(),
+            client=FakeClient(),
             artifact_dir=artifact_dir,
             repo="test-repo",
             cwd=str(tmp_repo),
@@ -128,7 +128,7 @@ def test_fork_with_worktree(tmp_path, tmp_repo):
         state_data = StateData(gremlin_id="gr-1")
         state = build_state(
             data=state_data,
-            client=FakeClaudeClient(),
+            client=FakeClient(),
             artifact_dir=artifact_dir,
             repo="test-repo",
             cwd=str(worktree_path),
@@ -219,7 +219,7 @@ def test_fork_preserves_registry(tmp_path, tmp_repo):
         state_data = StateData(gremlin_id="gr-1")
         state = build_state(
             data=state_data,
-            client=FakeClaudeClient(),
+            client=FakeClient(),
             artifact_dir=artifact_dir,
             repo="test-repo",
             cwd=str(tmp_repo),
@@ -279,7 +279,7 @@ def test_fork_with_branch_pipeline_scopes_child(tmp_path, tmp_repo):
         )
         state = build_state(
             data=state_data,
-            client=FakeClaudeClient(),
+            client=FakeClient(),
             artifact_dir=artifact_dir,
             repo="test-repo",
             cwd=str(tmp_repo),

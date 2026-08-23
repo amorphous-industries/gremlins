@@ -20,9 +20,9 @@ from gremlins import paths
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.artifacts.schemes import FileArtifactResolver
 from gremlins.artifacts.uri import Uri
-from gremlins.clients.fake import FakeClaudeClient
 from gremlins.executor.state import State, StateData, build_state
 from gremlins.stages.parallel import ParallelStage
+from tests.fake_client import FakeClient
 
 # ---------------------------------------------------------------------------
 # FileArtifactResolver._path: absolute path URIs
@@ -96,7 +96,7 @@ def _make_parent_state(sandbox, gremlin_id: str) -> State:
     state_file.write_text(json.dumps({"id": gremlin_id}), encoding="utf-8")
 
     data = StateData(gremlin_id=gremlin_id, state_file=state_file)
-    return build_state(data=data, client=FakeClaudeClient(), artifact_dir=artifact_dir)
+    return build_state(data=data, client=FakeClient(), artifact_dir=artifact_dir)
 
 
 def test_parallel_run_cleans_up_child_state_dirs(sandbox) -> None:
@@ -135,7 +135,7 @@ def test_parallel_run_no_gremlin_id_uses_old_layout(sandbox) -> None:
 
     parent = build_state(
         data=StateData(),
-        client=FakeClaudeClient(),
+        client=FakeClient(),
         artifact_dir=artifact_dir,
     )
 
@@ -230,7 +230,7 @@ def test_parallel_child_artifact_dir_is_full_copy(sandbox) -> None:
 
     parent = build_state(
         data=data,
-        client=FakeClaudeClient(),
+        client=FakeClient(),
         artifact_dir=parent_artifact_dir,
         artifacts=parent_artifacts,
         cwd=str(tmp_repo),
@@ -357,7 +357,7 @@ def test_fork_uses_parent_not_child_state_as_source(sandbox) -> None:
 
     parent_state = build_state(
         data=data,
-        client=FakeClaudeClient(),
+        client=FakeClient(),
         artifact_dir=parent_artifact_dir,
         artifacts=parent_artifacts,
         cwd=str(tmp_repo),

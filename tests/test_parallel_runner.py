@@ -13,11 +13,11 @@ from typing import Any
 import pytest
 from conftest import MockGremlin, make_parent_state
 
-from gremlins.clients.fake import FakeClaudeClient
 from gremlins.executor.gremlin import run_stages
 from gremlins.executor.state import State, StateData, build_state
 from gremlins.pipeline import Pipeline
 from gremlins.stages.parallel import ParallelStage
+from tests.fake_client import FakeClient
 
 # ---------------------------------------------------------------------------
 # Fixtures helpers
@@ -39,7 +39,7 @@ def _write_yaml(path: pathlib.Path, content: str) -> pathlib.Path:
 def _make_ctx(child_key: str) -> State:
     return build_state(
         data=StateData(),
-        client=FakeClaudeClient(),
+        client=FakeClient(),
         artifact_dir=pathlib.Path("/tmp"),
         child_key=child_key,
     )
@@ -363,7 +363,7 @@ def test_parallel_sequence_child_worktree_flows() -> None:
 
     seq_ctx = build_state(
         data=StateData(),
-        client=FakeClaudeClient(),
+        client=FakeClient(),
         artifact_dir=pathlib.Path("/tmp"),
         child_key="seq",
     )
@@ -418,7 +418,7 @@ def test_make_runner_returns_async_for_any_stage() -> None:
             return Done()
 
     state = build_state(
-        data=StateData(), client=FakeClaudeClient(), artifact_dir=pathlib.Path("/tmp")
+        data=StateData(), client=FakeClient(), artifact_dir=pathlib.Path("/tmp")
     )
     gremlin = MockGremlin(state=state)
     runner = state.make_runner(AStage("a"), gremlin)
@@ -446,7 +446,7 @@ def test_stages_run_in_order_via_make_runner() -> None:
             return Done()
 
     base_state = build_state(
-        data=StateData(), client=FakeClaudeClient(), artifact_dir=pathlib.Path("/tmp")
+        data=StateData(), client=FakeClient(), artifact_dir=pathlib.Path("/tmp")
     )
     gremlin = MockGremlin(state=base_state)
     stages = [

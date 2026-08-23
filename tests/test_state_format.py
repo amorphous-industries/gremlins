@@ -5,9 +5,9 @@ from __future__ import annotations
 import dataclasses
 import pathlib
 
-from gremlins.clients.fake import FakeClaudeClient
 from gremlins.executor.state import StateData, build_state
 from gremlins.stages.base import Stage
+from tests.fake_client import FakeClient
 
 
 def _make_state(
@@ -27,7 +27,7 @@ def _make_state(
     )
     state = build_state(
         data=data,
-        client=FakeClaudeClient(),
+        client=FakeClient(),
         artifact_dir=artifact_dir,
         repo=repo,
         cwd=cwd,

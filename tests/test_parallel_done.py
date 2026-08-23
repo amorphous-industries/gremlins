@@ -9,10 +9,10 @@ import pathlib
 import pytest
 from conftest import make_parent_state
 
-from gremlins.clients.fake import FakeClaudeClient
 from gremlins.executor.state import State, StateData, build_state
 from gremlins.stages.outcome import Bail
 from gremlins.stages.parallel import ParallelStage
+from tests.fake_client import FakeClient
 
 
 def _make_state(state_root: pathlib.Path, gremlin_id: str) -> pathlib.Path:
@@ -30,7 +30,7 @@ def _read_state(sf: pathlib.Path) -> dict:
 def _ctx(gremlin_id: str, sf: pathlib.Path, child_key: str) -> State:
     return build_state(
         data=StateData(gremlin_id=gremlin_id, state_file=sf),
-        client=FakeClaudeClient(),
+        client=FakeClient(),
         artifact_dir=sf.parent,
         child_key=child_key,
     )

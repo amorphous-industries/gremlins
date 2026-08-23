@@ -120,7 +120,7 @@ def test_early_death_returns_exit_code(capsys):
 
 
 def test_self_background_main_populates_registry_before_validation(monkeypatch):
-    # conftest imports FakeClaudeClient which causes gremlins.clients.__init__ to
+    # conftest imports FakeClient which causes gremlins.clients.__init__ to
     # run and populate CLIENT_FACTORIES. Simulate the cold-import scenario by
     # clearing the dict and evicting the package so _self_background_main must
     # trigger registration itself.

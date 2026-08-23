@@ -11,11 +11,11 @@ from typing import Any
 import pytest
 
 import gremlins.run_child as _rc
-from gremlins.clients.fake import FakeClaudeClient
 from gremlins.clients.registry import CLIENT_FACTORIES, register_client_factory
 from gremlins.pipeline.loader import STAGE_TYPES
 from gremlins.stages.base import Stage
 from gremlins.stages.outcome import Bail, Done, Outcome
+from tests.fake_client import FakeClient
 
 # ---------------------------------------------------------------------------
 # Test stage stubs
@@ -74,9 +74,7 @@ def _register_test_stages(
     monkeypatch.setitem(STAGE_TYPES, "_test_artifact", _ArtifactStage)
 
     saved = dict(CLIENT_FACTORIES)
-    register_client_factory(
-        "fake", lambda _model, _policy: FakeClaudeClient(fixtures={})
-    )
+    register_client_factory("fake", lambda _model, _policy: FakeClient(fixtures={}))
     yield
     CLIENT_FACTORIES.clear()
     CLIENT_FACTORIES.update(saved)

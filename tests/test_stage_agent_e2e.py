@@ -13,10 +13,10 @@ from conftest import MINIMAL_EVENTS, MockGremlin
 
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.artifacts.uri import Uri
-from gremlins.clients.fake import FakeClaudeClient
 from gremlins.executor.state import StateData, build_state
 from gremlins.pipeline.loader import parse_stages
 from gremlins.stages.outcome import Done
+from tests.fake_client import FakeClient
 
 
 def test_agent_stage_e2e_reads_artifact_and_writes_output(tmp_path):
@@ -46,7 +46,7 @@ def test_agent_stage_e2e_reads_artifact_and_writes_output(tmp_path):
     # Client writes the expected output file when called
     summary_file = tmp_path / "summary.md"
 
-    class WritingClient(FakeClaudeClient):
+    class WritingClient(FakeClient):
         async def run(self, prompt, *, label, **kwargs):
             summary_file.write_text("# Summary\nHello World")
             return await super().run(prompt, label=label, **kwargs)

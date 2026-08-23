@@ -13,11 +13,11 @@ from typing import Any
 
 import pytest
 
-from gremlins.clients.fake import FakeClaudeClient
 from gremlins.clients.registry import register_client_factory
 from gremlins.executor.gremlin import Gremlin, State
 from gremlins.executor.state import StateData, build_state
 from gremlins.permissions.policy import Policy
+from tests.fake_client import FakeClient
 
 os.environ.setdefault("GIT_TEST_DEFAULT_INITIAL_BRANCH_NAME", "main")
 
@@ -41,9 +41,7 @@ def make_gremlin(
     from gremlins.pipeline import Pipeline as PipelineData
 
     if client is None:
-        client = FakeClaudeClient(
-            fixtures={}, model="fake", bypass=False, native_block={}
-        )
+        client = FakeClient(fixtures={}, model="fake", bypass=False, native_block={})
 
     if state_data is None:
         state_data = StateData(gremlin_id=gremlin_id)
@@ -73,7 +71,7 @@ FAKE_CLAUDE = FIXTURES_DIR / "fake_claude.py"
 
 def pytest_configure(config: pytest.Config) -> None:
     def _make_fake_client(model: str | None, policy: Policy) -> object:
-        return FakeClaudeClient(
+        return FakeClient(
             fixtures={},
             model=model or "fake",
             bypass=policy.bypass,
@@ -332,8 +330,8 @@ MINIMAL_EVENTS = [
 REVIEW_LABELS = {"review-code"}
 
 
-class ReviewCreatingClient(FakeClaudeClient):
-    """FakeClaudeClient that writes the review output file for review-code stages.
+class ReviewCreatingClient(FakeClient):
+    """FakeClient that writes the review output file for review-code stages.
     Extracts the output path from the prompt so it lands at the path the artifact
     binding expects to exist after the reviewer finishes. Shared between
     test_orchestrator_local and test_state_isolation."""
@@ -439,6 +437,6 @@ def make_parent_state(data: StateData) -> State:
         artifact_dir.mkdir(parents=True, exist_ok=True)
     return build_state(
         data=data,
-        client=FakeClaudeClient(),
+        client=FakeClient(),
         artifact_dir=artifact_dir,
     )

@@ -1,6 +1,6 @@
 """Tests for gremlins.executor.run and supporting git helpers.
 
-Uses FakeClaudeClient throughout — no real claude subprocess or gh CLI calls
+Uses FakeClient throughout — no real claude subprocess or gh CLI calls
 (gh calls are monkeypatched at the subprocess.run level).
 """
 
@@ -17,11 +17,11 @@ from typing import Any
 import pytest
 from conftest import MINIMAL_EVENTS
 
-from gremlins.clients.fake import FakeClaudeClient
 from gremlins.executor.run import _parse_args as _parse_gh_args
 from gremlins.executor.run import run_pipeline
 from gremlins.pipeline import Pipeline
 from gremlins.pipeline.discovery import resolve_pipeline_path
+from tests.fake_client import FakeClient
 
 
 def _init_git_repo(path: pathlib.Path) -> None:
@@ -371,8 +371,8 @@ def test_gh_pipeline_stage_names(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-class _CommittingClient(FakeClaudeClient):
-    """FakeClaudeClient that creates a git commit when the implement label runs.
+class _CommittingClient(FakeClient):
+    """FakeClient that creates a git commit when the implement label runs.
 
     Also writes plan.md when the plan label runs so verify_produced passes for
     the plan recipe's out: { plan_file: file://session/plan.md } binding.
@@ -697,6 +697,7 @@ def test_model_forwarded_to_all_stages(tmp_path, monkeypatch):
     client = _CommittingClient(
         git_dir=tmp_path,
         artifact_dir=artifact_dir,
+        model="gpt-4o",
         fixtures={
             "plan": MINIMAL_EVENTS,
             "implement": IMPL_EVENTS,
@@ -710,7 +711,7 @@ def test_model_forwarded_to_all_stages(tmp_path, monkeypatch):
     result = asyncio.run(
         run_pipeline(
             _gh_pipeline_path(tmp_path),
-            argv=["--client", "openai:gpt-4o"],
+            argv=[],
             gremlin_id="gr-test",
             client=client,
         )
@@ -743,6 +744,7 @@ def test_gh_main_defaults_model_to_sonnet(tmp_path, monkeypatch):
     client = _CommittingClient(
         git_dir=tmp_path,
         artifact_dir=artifact_dir,
+        model="grok-4",
         fixtures={
             "plan": MINIMAL_EVENTS,
             "implement": IMPL_EVENTS,
@@ -792,6 +794,7 @@ def test_gh_main_client_specifier_model(tmp_path, monkeypatch):
     client = _CommittingClient(
         git_dir=tmp_path,
         artifact_dir=artifact_dir,
+        model="gpt-4o",
         fixtures={
             "plan": MINIMAL_EVENTS,
             "implement": IMPL_EVENTS,
@@ -805,7 +808,7 @@ def test_gh_main_client_specifier_model(tmp_path, monkeypatch):
     result = asyncio.run(
         run_pipeline(
             _gh_pipeline_path(tmp_path),
-            argv=["--client", "openai:gpt-4o"],
+            argv=[],
             gremlin_id="gr-test",
             client=client,
         )
@@ -891,7 +894,7 @@ def test_resume_from_github_review_pull_request(tmp_path, monkeypatch):
 
     monkeypatch.setattr(subprocess, "run", _make_gh_subprocess())
 
-    client = FakeClaudeClient(
+    client = FakeClient(
         fixtures={
             "github-review-pull-request": MINIMAL_EVENTS,
             "github-address-pull-request-reviews": MINIMAL_EVENTS,
@@ -1086,7 +1089,7 @@ def test_resume_from_open_pr(tmp_path, monkeypatch):
         "gremlins.stages.loop.LoopStage.run", _async(lambda self, pipe: None)
     )
 
-    client = FakeClaudeClient(
+    client = FakeClient(
         fixtures={
             "compose-pr": MINIMAL_EVENTS,
             "github-review-pull-request": MINIMAL_EVENTS,
@@ -1150,6 +1153,7 @@ def test_github_wait_copilot_stage_argument_wiring(tmp_path, monkeypatch):
     client = _CommittingClient(
         git_dir=tmp_path,
         artifact_dir=artifact_dir,
+        model="gpt-4o",
         fixtures={
             "plan": MINIMAL_EVENTS,
             "implement": IMPL_EVENTS,
@@ -1163,7 +1167,7 @@ def test_github_wait_copilot_stage_argument_wiring(tmp_path, monkeypatch):
     result = asyncio.run(
         run_pipeline(
             _gh_pipeline_path(tmp_path),
-            argv=["--client", "openai:gpt-4o"],
+            argv=[],
             gremlin_id="gr-test",
             client=client,
         )
@@ -1210,6 +1214,7 @@ def test_github_wait_ci_stage_argument_wiring(tmp_path, monkeypatch):
     client = _CommittingClient(
         git_dir=tmp_path,
         artifact_dir=artifact_dir,
+        model="gpt-4o",
         fixtures={
             "plan": MINIMAL_EVENTS,
             "implement": IMPL_EVENTS,
@@ -1223,7 +1228,7 @@ def test_github_wait_ci_stage_argument_wiring(tmp_path, monkeypatch):
     result = asyncio.run(
         run_pipeline(
             _gh_pipeline_path(tmp_path),
-            argv=["--client", "openai:gpt-4o"],
+            argv=[],
             gremlin_id="gr-test",
             client=client,
         )
@@ -1313,7 +1318,7 @@ def test_resume_from_ci_gate(tmp_path, monkeypatch):
     monkeypatch.setattr("gremlins.stages.loop.LoopStage.run", track_loops)
     monkeypatch.setattr(subprocess, "run", _make_gh_subprocess())
 
-    client = FakeClaudeClient(fixtures={})
+    client = FakeClient(fixtures={})
 
     result = asyncio.run(
         run_pipeline(
@@ -1367,6 +1372,7 @@ def test_verify_stage_argument_wiring(tmp_path, monkeypatch):
     client = _CommittingClient(
         git_dir=tmp_path,
         artifact_dir=artifact_dir,
+        model="gpt-4o",
         fixtures={
             "plan": MINIMAL_EVENTS,
             "implement": IMPL_EVENTS,
@@ -1380,7 +1386,7 @@ def test_verify_stage_argument_wiring(tmp_path, monkeypatch):
     result = asyncio.run(
         run_pipeline(
             _gh_pipeline_path(tmp_path),
-            argv=["--client", "openai:gpt-4o"],
+            argv=[],
             gremlin_id="gr-test",
             client=client,
         )
@@ -1427,7 +1433,7 @@ def test_resume_from_verify(tmp_path, monkeypatch):
 
     monkeypatch.setattr(subprocess, "run", _make_gh_subprocess())
 
-    client = FakeClaudeClient(
+    client = FakeClient(
         fixtures={
             "compose-pr": MINIMAL_EVENTS,
             "github-review-pull-request": MINIMAL_EVENTS,
@@ -1507,6 +1513,7 @@ def test_gh_main_state_client_tracks_effective_model(tmp_path, monkeypatch):
     client = _CommittingClient(
         git_dir=tmp_path,
         artifact_dir=artifact_dir,
+        model="gpt-4o",
         fixtures={
             "plan": MINIMAL_EVENTS,
             "implement": IMPL_EVENTS,
@@ -1520,7 +1527,7 @@ def test_gh_main_state_client_tracks_effective_model(tmp_path, monkeypatch):
     result = asyncio.run(
         run_pipeline(
             _gh_pipeline_path(tmp_path),
-            argv=["--client", "openai:gpt-4o"],
+            argv=[],
             gremlin_id="gr-test",
             client=client,
         )
@@ -1577,6 +1584,7 @@ def test_gh_main_pipeline_default_client_model(tmp_path, monkeypatch):
     client = _CommittingClient(
         git_dir=tmp_path,
         artifact_dir=artifact_dir,
+        model="gpt-4o",
         fixtures={
             "plan": MINIMAL_EVENTS,
             "implement": IMPL_EVENTS,

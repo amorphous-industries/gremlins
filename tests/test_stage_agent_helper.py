@@ -9,11 +9,11 @@ import pathlib
 import pytest
 from conftest import MINIMAL_EVENTS
 
-from gremlins.clients.fake import FakeClaudeClient
 from gremlins.executor.state import State as RuntimeState
 from gremlins.executor.state import StateData, build_state
 from gremlins.stages.agent_runner import run_agent
 from gremlins.stages.outcome import Bail
+from tests.fake_client import FakeClient
 
 
 def _make_state(
@@ -24,7 +24,7 @@ def _make_state(
 ) -> RuntimeState:
     if fixtures is None:
         fixtures = {"test-label": MINIMAL_EVENTS}
-    client = FakeClaudeClient(fixtures=fixtures)
+    client = FakeClient(fixtures=fixtures)
     state_file: pathlib.Path | None = None
     if attempt:
         state_dir = tmp_path / "state"

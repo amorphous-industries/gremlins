@@ -9,17 +9,17 @@ import pathlib
 import pytest
 
 from gremlins.artifacts.uri import Uri
-from gremlins.clients.fake import FakeClaudeClient
 from gremlins.executor.state import State, StateData, build_state
 from gremlins.stages.base import Stage
 from gremlins.stages.parallel import ParallelStage, _ParallelExecutor
+from tests.fake_client import FakeClient
 
 
 def _make_parent(tmp_path: pathlib.Path, gremlin_id: str) -> State:
     artifact_dir = tmp_path / "state" / gremlin_id / "artifacts"
     artifact_dir.mkdir(parents=True, exist_ok=True)
     data = StateData(gremlin_id=gremlin_id)
-    return build_state(data=data, client=FakeClaudeClient(), artifact_dir=artifact_dir)
+    return build_state(data=data, client=FakeClient(), artifact_dir=artifact_dir)
 
 
 def _make_child_dir(

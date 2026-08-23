@@ -20,12 +20,12 @@ from conftest import MockGremlin
 
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.artifacts.uri import Uri
-from gremlins.clients.fake import FakeClaudeClient
 from gremlins.executor.state import StateData, build_state
 from gremlins.pipeline import Pipeline
 from gremlins.pipeline.discovery import resolve_pipeline_path
 from gremlins.stages.exec import Exec
 from gremlins.stages.outcome import Bail
+from tests.fake_client import FakeClient
 
 if TYPE_CHECKING:
     from gremlins.executor.gremlin import Gremlin
@@ -38,7 +38,7 @@ def _make_state(project: pathlib.Path, base_sha: str):
     registry.bind("base_sha", Uri.parse(f"git://commit/{base_sha}"))
     return build_state(
         data=StateData(),
-        client=FakeClaudeClient(),
+        client=FakeClient(),
         artifact_dir=artifact_dir,
         artifacts=registry,
         worktree=project,

@@ -10,12 +10,12 @@ from conftest import MockGremlin
 
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.artifacts.uri import Uri
-from gremlins.clients.fake import FakeClaudeClient
 from gremlins.executor.state import State, StateData, build_state
 from gremlins.pipeline import Pipeline
 from gremlins.stages.agent import Agent
 from gremlins.stages.base import Stage
 from gremlins.stages.outcome import Done, Outcome
+from tests.fake_client import FakeClient
 
 _PIPELINE = Pipeline(
     name="test",
@@ -38,7 +38,7 @@ class _CountingStage(Stage):
 
 def _make_state(tmp_path: pathlib.Path) -> tuple[State, ArtifactRegistry]:
     reg = ArtifactRegistry(artifact_dir=tmp_path)
-    client = FakeClaudeClient(fixtures={})
+    client = FakeClient(fixtures={})
     state = build_state(
         data=StateData(gremlin_id=None),
         client=client,

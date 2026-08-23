@@ -10,7 +10,6 @@ from typing import Any
 import pytest
 from conftest import MockGremlin
 
-from gremlins.clients.fake import FakeClaudeClient
 from gremlins.executor.state import State, StateData, build_state
 from gremlins.fleet.render import build_row
 from gremlins.fleet.views import _gremlin_to_json  # type: ignore[reportPrivateUsage]
@@ -19,6 +18,7 @@ from gremlins.stages.loop import LoopStage
 from gremlins.stages.outcome import Done, Outcome
 from gremlins.stages.parallel import ParallelStage
 from gremlins.stages.sequence import SequenceStage
+from tests.fake_client import FakeClient
 
 
 def _stateful(tmp_path: pathlib.Path, gid: str = "test-id") -> MockGremlin:
@@ -26,7 +26,7 @@ def _stateful(tmp_path: pathlib.Path, gid: str = "test-id") -> MockGremlin:
     sf.write_text(json.dumps({"id": gid}), encoding="utf-8")
     state = build_state(
         data=StateData(gremlin_id=gid, state_file=sf),
-        client=FakeClaudeClient(),
+        client=FakeClient(),
         artifact_dir=tmp_path,
     )
     return MockGremlin(state=state)
@@ -187,7 +187,7 @@ def _parallel_execute_stage(
             k,
             build_state(
                 data=StateData(),
-                client=FakeClaudeClient(),
+                client=FakeClient(),
                 artifact_dir=tmp_path,
                 child_key=k,
             ),
@@ -207,7 +207,7 @@ def test_parallel_active_children_set_and_cleared(tmp_path: pathlib.Path) -> Non
     parent_data = StateData(gremlin_id="test-id", state_file=sf)
     parent_state = build_state(
         data=parent_data,
-        client=FakeClaudeClient(),
+        client=FakeClient(),
         artifact_dir=sf.parent,
     )
     captured: list[list[str] | None] = []
@@ -228,7 +228,7 @@ def test_parallel_active_children_cleared_on_exception(tmp_path: pathlib.Path) -
     parent_data = StateData(gremlin_id="test-id", state_file=sf)
     parent_state = build_state(
         data=parent_data,
-        client=FakeClaudeClient(),
+        client=FakeClient(),
         artifact_dir=sf.parent,
     )
 

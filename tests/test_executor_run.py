@@ -5,11 +5,11 @@ from unittest.mock import patch
 
 import pytest
 
-from gremlins.clients.fake import FakeClaudeClient
 from gremlins.executor.run import _HANDLED_SIGS, _install_signal_handlers
+from tests.fake_client import FakeClient
 
 
-class _TrackingClient(FakeClaudeClient):
+class _TrackingClient(FakeClient):
     def __init__(self):
         super().__init__()
         self.reap_calls = 0

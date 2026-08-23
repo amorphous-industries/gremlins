@@ -16,7 +16,6 @@ review / address pipelines, the fleet manager
 - `fleet/` — fleet manager package: status listing + `stop` / `land` / `close` / `rm` / `log` ops. See [`fleet/AGENTS.md`](fleet/AGENTS.md) for the per-module breakdown.
 - `clients/protocol.py` — `CompletedRun` dataclass.
 - `clients/stream.py` — `stream_events` + `_emit_event` (stream-json parser and stderr renderer).
-- `clients/fake.py` — `FakeClaudeClient` recording test double; replays canned stream-json from fixtures keyed by `label`.
 - `pipeline/` — `Pipeline` dataclass + `Pipeline.from_yaml(path)` classmethod; `resolve_pipeline_path`; supports parallel stage groups. `pipeline/loader.py` holds `STAGE_TYPES`, the explicit dispatch table mapping type-name strings to Stage classes. `pipeline/preprocess.py` handles YAML expansion: resolves `include:`, `prompt:`, and `type: <name>` macros before the pipeline reaches the loader.
 - `pipelines/` — bundled YAML pipeline files (`local.yaml`, `gh.yaml`); lookup target for `resolve_pipeline_path`.
 - `stages/base.py` — `Stage` Protocol + `StageContext` dataclass: shared `client`, `artifact_dir`, `gremlin_id` threaded into every stage.
@@ -92,12 +91,12 @@ stages:
 Every stage that invokes a model takes an injected `client` through the
 `Client` class (in `clients/client.py`). Production code passes
 `Client.parse("openai:gpt-4o")` or `Client("openai", "gpt-4o")`;
-tests pass `FakeClaudeClient(fixtures={label: <jsonl-or-list>})`. The fake
+tests pass `FakeClient(fixtures={label: <jsonl-or-list>})`. The fake
 records each `run(...)` call into `self.calls` for assertion. **Never have a
 stage spawn a model subprocess directly** — go through the injected client so
 tests can intercept.
 
-`FakeClaudeClient` looks fixtures up by `label`. Stages that re-enter the
+`FakeClient` looks fixtures up by `label`. Stages that re-enter the
 same logical step within one process (e.g. resumed implement) must use
 distinct labels per phase.
 

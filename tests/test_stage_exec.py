@@ -10,10 +10,10 @@ from conftest import MockGremlin
 
 from gremlins.artifacts.registry import MissingArtifact
 from gremlins.artifacts.uri import Uri
-from gremlins.clients.fake import FakeClaudeClient
 from gremlins.executor.state import StateData, build_state
 from gremlins.stages.exec import Exec
 from gremlins.stages.outcome import Bail, Done
+from tests.fake_client import FakeClient
 
 
 def _make_state(tmp_path: pathlib.Path, **kw):
@@ -22,7 +22,7 @@ def _make_state(tmp_path: pathlib.Path, **kw):
     artifact_dir.mkdir(exist_ok=True)
     return build_state(
         data=StateData(),
-        client=FakeClaudeClient(),
+        client=FakeClient(),
         artifact_dir=artifact_dir,
         **kw,
     )

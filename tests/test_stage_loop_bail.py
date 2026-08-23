@@ -10,11 +10,11 @@ from typing import TYPE_CHECKING, cast
 import pytest
 from conftest import MockGremlin
 
-from gremlins.clients.fake import FakeClaudeClient
 from gremlins.executor.state import StateData, build_state
 from gremlins.stages.exec import Exec
 from gremlins.stages.loop import LoopStage
 from gremlins.stages.outcome import Bail
+from tests.fake_client import FakeClient
 
 if TYPE_CHECKING:
     from gremlins.executor.gremlin import Gremlin
@@ -47,7 +47,7 @@ def _make_state(tmp_path: pathlib.Path):
     )
     return build_state(
         data=StateData(gremlin_id=None),
-        client=FakeClaudeClient(fixtures={}),
+        client=FakeClient(fixtures={}),
         artifact_dir=artifact_dir,
         worktree=tmp_path,
     )
