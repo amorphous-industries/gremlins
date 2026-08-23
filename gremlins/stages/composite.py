@@ -14,7 +14,7 @@ def child_state(
 ) -> State:
     """Derive a child State from parent."""
     client = parent.client
-    if child.client is not None and child.client != parent.client:
+    if child.client is not None and child.client_explicit:
         client = child.client
     if not fan_out:
         return dataclasses.replace(parent, client=client)

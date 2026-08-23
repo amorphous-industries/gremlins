@@ -168,7 +168,7 @@ def test_launch_persists_pipeline_default_client(lenv):
     state = _read_state(_gremlins_state_root(lenv) / gremlin_id)
     assert (
         state["client"]
-        == "cmd:claude -p --model sonnet --verbose --output-format stream-json --permission-mode bypassPermissions"
+        == "xai:grok-4"
     )
 
 
@@ -244,7 +244,7 @@ def test_launch_ghgremlin_persists_pipeline_default_client(lenv_with_gh):
     state = _read_state(_gremlins_state_root(lenv_with_gh) / gremlin_id)
     assert (
         state["client"]
-        == "cmd:claude -p --model sonnet --verbose --output-format stream-json --permission-mode bypassPermissions"
+        == "xai:grok-4"
     )
 
 

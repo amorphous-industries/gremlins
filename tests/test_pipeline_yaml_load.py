@@ -31,10 +31,7 @@ _LOCAL_STAGE_NAMES = [
 
 def test_bundled_local_loads() -> None:
     pipeline = Pipeline.from_yaml(_BUNDLED_LOCAL)
-    expected = Client(
-        "cmd",
-        "claude -p --model sonnet --verbose --output-format stream-json --permission-mode bypassPermissions",
-    )
+    expected = Client("xai", "grok-4")
     assert pipeline.default_client == expected
     assert [s.name for s in pipeline.stages] == _LOCAL_STAGE_NAMES
     for stage in pipeline.stages:
