@@ -1025,9 +1025,7 @@ def test_compose_commit_message_prefers_context_over_goal(tmp_path):
 def test_compose_commit_message_strips_verb_prefixes(tmp_path):
     plan = tmp_path / "plan.md"
     plan.write_text(
-        "# Title\n\n"
-        "## Context\n\n"
-        "implement caching layer for database queries\n\n"
+        "# Title\n\n## Context\n\nimplement caching layer for database queries\n\n"
     )
     subject, _ = _land._compose_commit_message(str(plan))
     assert subject == "Caching layer for database queries"
@@ -1054,11 +1052,7 @@ def test_compose_commit_message_no_file_returns_fallback(tmp_path):
 def test_compose_commit_message_empty_context_paragraph_falls_back(tmp_path):
     plan = tmp_path / "plan.md"
     plan.write_text(
-        "# Final fallback title\n\n"
-        "## Context\n\n"
-        "\n\n"
-        "## Other stuff\n\n"
-        "blah\n"
+        "# Final fallback title\n\n## Context\n\n\n\n## Other stuff\n\nblah\n"
     )
     subject, body = _land._compose_commit_message(str(plan))
     assert subject == "Final fallback title"
