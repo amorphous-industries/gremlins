@@ -178,7 +178,7 @@ def test_local_main_client_specifier_model(tmp_path, monkeypatch):
     result = asyncio.run(
         run_pipeline(
             _local_pipeline_path(tmp_path),
-            argv=["--client", "copilot:gpt-4o"],
+            argv=["--client", "openai:gpt-4o"],
             gremlin_id=gremlin_id,
             client=client,
         )
@@ -370,7 +370,7 @@ def test_local_main_pipeline_default_client_model(tmp_path, monkeypatch):
 
     Regression: the model was computed before pipeline loading, so the pipeline's
     default_client_spec model was never consulted. A pipeline with
-    default_client: copilot:gpt-5.4 produced model=sonnet.
+    default_client: openai:gpt-4o produced model=gpt-4o.
     """
     gremlin_id = "test-gr-id"
     artifact_dir = tmp_path / gremlin_id / "artifacts"
@@ -388,7 +388,7 @@ def test_local_main_pipeline_default_client_model(tmp_path, monkeypatch):
         "gremlins.paths.state_root",
         lambda: tmp_path,
     )
-    # Override Pipeline.from_yaml to inject default_client: copilot:gpt-5.4 and
+    # Override Pipeline.from_yaml to inject default_client: openai:gpt-4o and
     # re-fill stage clients so every stage inherits that model.
     from gremlins.pipeline import _fill_stage_clients
 
@@ -401,7 +401,7 @@ def test_local_main_pipeline_default_client_model(tmp_path, monkeypatch):
 
     def _from_yaml_copilot_default(path):
         pipeline = _real_from_yaml(path)
-        new_default = Client("copilot", "gpt-5.4")
+        new_default = Client("openai", "gpt-4o")
         for s in pipeline.stages:
             _strip_clients(s)
         _fill_stage_clients(pipeline.stages, new_default)
@@ -429,9 +429,9 @@ def test_local_main_pipeline_default_client_model(tmp_path, monkeypatch):
     )
     assert result == 0
     assert client.calls[0].label == "implement"
-    assert client.calls[0].model == "gpt-5.4"
+    assert client.calls[0].model == "gpt-4o"
     assert client.calls[1].label == "review-code"
-    assert client.calls[1].model == "gpt-5.4"
+    assert client.calls[1].model == "gpt-4o"
 
 
 def test_plan_skip_if_exists_on_resume(tmp_path, monkeypatch):
@@ -492,52 +492,3 @@ def test_startup_fails_in_non_git_dir(tmp_path, monkeypatch, capsys):
             )
         )
     assert "not inside a git worktree" in capsys.readouterr().err
-
-
-def test_claude_probe_conditional_on_provider(tmp_path, monkeypatch, capsys):
-    """claude missing errors only for claude provider."""
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(
-        shutil,
-        "which",
-        lambda n: None if n == "claude" else f"/fake/{n}" if n == "git" else None,
-    )
-    monkeypatch.setattr(
-        "gremlins.executor.run._install_signal_handlers", lambda c, gid: None
-    )
-    monkeypatch.setattr("gremlins.executor.run.in_git_repo", lambda: True)
-
-    import gremlins.executor.run
-
-    _original_run_pipeline = gremlins.executor.run.run_pipeline
-
-    async def _test_run_pipeline(pipeline_path, *, argv, gremlin_id=None, client=None):
-        # Skip pipeline execution for non-claude providers
-        if client is not None and client.provider != "claude":
-            return 0
-        return await _original_run_pipeline(
-            pipeline_path, argv=argv, gremlin_id=gremlin_id, client=client
-        )
-
-    monkeypatch.setattr("gremlins.executor.run.run_pipeline", _test_run_pipeline)
-
-    # non-claude succeeds (shutil.which returns a path, so no error)
-    result = asyncio.run(
-        gremlins.executor.run.run_pipeline(
-            _local_pipeline_path(tmp_path),
-            argv=[],
-            client=Client("copilot", "gpt-4o"),
-        )
-    )
-    assert result == 0
-
-    # claude errors (shutil.which returns None for "claude")
-    with pytest.raises(SystemExit):
-        asyncio.run(
-            gremlins.executor.run.run_pipeline(
-                _local_pipeline_path(tmp_path),
-                argv=[],
-                client=Client("claude", "sonnet"),
-            )
-        )
-    assert "claude not found on PATH" in capsys.readouterr().err

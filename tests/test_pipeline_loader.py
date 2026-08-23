@@ -28,7 +28,7 @@ def test_valid_pipeline_parses(tmp_path: pathlib.Path) -> None:
     yaml_path = _write_yaml(
         tmp_path / "pipeline.yaml",
         f"""\
-default_client: claude:sonnet
+default_client: openai:gpt-4o
 prompt_dir: .
 stages:
   - name: plan
@@ -39,11 +39,11 @@ stages:
     pipeline = Pipeline.from_yaml(yaml_path)
     assert pipeline.name == "pipeline"
     assert pipeline.default_client is not None
-    assert str(pipeline.default_client) == "claude:sonnet"
+    assert str(pipeline.default_client) == "openai:gpt-4o"
     assert len(pipeline.stages) == 1
     assert pipeline.stages[0].name == "plan"
     assert pipeline.stages[0].type == "agent"
-    assert str(pipeline.stages[0].client) == "claude:sonnet"
+    assert str(pipeline.stages[0].client) == "openai:gpt-4o"
     assert pipeline.stages[0].prompts == ["prompt content"]
 
 
@@ -55,18 +55,18 @@ def test_per_stage_client_override(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: p
-default_client: claude:sonnet
+default_client: openai:gpt-4o
 stages:
   - name: step-a
     type: agent
   - name: step-b
     type: agent
-    client: copilot:gpt-5.4
+    client: openai:gpt-4o
 """,
     )
     pipeline = Pipeline.from_yaml(yaml_path)
-    assert str(pipeline.stages[0].client) == "claude:sonnet"
-    assert str(pipeline.stages[1].client) == "copilot:gpt-5.4"
+    assert str(pipeline.stages[0].client) == "openai:gpt-4o"
+    assert str(pipeline.stages[1].client) == "openai:gpt-4o"
 
 
 # ---- error cases -----------------------------------------------------------
@@ -457,14 +457,14 @@ def test_client_spec_inherits_from_default(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: p
-default_client: claude:sonnet
+default_client: openai:gpt-4o
 stages:
   - name: s1
     type: agent
 """,
     )
     pipeline = Pipeline.from_yaml(yaml_path)
-    assert str(pipeline.stages[0].client) == "claude:sonnet"
+    assert str(pipeline.stages[0].client) == "openai:gpt-4o"
 
 
 def test_client_spec_stage_override_wins(tmp_path: pathlib.Path) -> None:
@@ -472,15 +472,15 @@ def test_client_spec_stage_override_wins(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: p
-default_client: claude:sonnet
+default_client: openai:gpt-4o
 stages:
   - name: s1
     type: agent
-    client: copilot:gpt-5.4
+    client: openai:gpt-4o
 """,
     )
     pipeline = Pipeline.from_yaml(yaml_path)
-    assert str(pipeline.stages[0].client) == "copilot:gpt-5.4"
+    assert str(pipeline.stages[0].client) == "openai:gpt-4o"
 
 
 def test_client_spec_falls_back_to_package_default(tmp_path: pathlib.Path) -> None:
@@ -504,7 +504,7 @@ def test_client_spec_parallel_group_is_none(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: p
-default_client: claude:sonnet
+default_client: openai:gpt-4o
 stages:
   - name: reviews
     parallel:
@@ -516,7 +516,7 @@ stages:
     # parallel groups never get a client assigned
     assert pipeline.stages[0].client is None
     # children of a parallel group inherit the pipeline default
-    assert str(pipeline.stages[0].body[0].client) == "claude:sonnet"
+    assert str(pipeline.stages[0].body[0].client) == "openai:gpt-4o"
 
 
 # ---- include: directive ---------------------------------------------------

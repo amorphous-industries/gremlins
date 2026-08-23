@@ -1,4 +1,4 @@
-default_client: claude:sonnet
+default_client: 'cmd:claude -p --model sonnet --verbose --output-format stream-json --permission-mode bypassPermissions'
 
 base_ref: current
 

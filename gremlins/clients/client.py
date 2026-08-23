@@ -102,4 +102,7 @@ class Client:
         return self._impl.total_cost_usd
 
 
-PACKAGE_DEFAULT = Client("claude", "sonnet")
+PACKAGE_DEFAULT = Client(
+    "cmd",
+    "claude -p --model sonnet --verbose --output-format stream-json --permission-mode bypassPermissions",
+)

@@ -31,10 +31,14 @@ _LOCAL_STAGE_NAMES = [
 
 def test_bundled_local_loads() -> None:
     pipeline = Pipeline.from_yaml(_BUNDLED_LOCAL)
-    assert pipeline.default_client == Client("claude", "sonnet")
+    expected = Client(
+        "cmd",
+        "claude -p --model sonnet --verbose --output-format stream-json --permission-mode bypassPermissions",
+    )
+    assert pipeline.default_client == expected
     assert [s.name for s in pipeline.stages] == _LOCAL_STAGE_NAMES
     for stage in pipeline.stages:
-        assert stage.client == Client("claude", "sonnet")
+        assert stage.client == expected
 
 
 def test_bad_default_client_rejected(tmp_path: pathlib.Path) -> None:
@@ -117,7 +121,7 @@ def test_pipeline_name_optional_defaults_to_type(tmp_path: pathlib.Path) -> None
     p = _write_pipeline(
         tmp_path,
         """\
-        default_client: claude:sonnet
+        default_client: openai:gpt-4o
         prompts:
           fix: |
             Fix the issue.
@@ -137,7 +141,7 @@ def test_pipeline_duplicate_unnamed_stages_auto_numbered(
     p = _write_pipeline(
         tmp_path,
         """\
-        default_client: claude:sonnet
+        default_client: openai:gpt-4o
         stages:
           - { type: agent }
           - { type: exec, options: { cmds: ['true'] } }
@@ -158,7 +162,7 @@ def test_pipeline_explicit_name_overrides_default(tmp_path: pathlib.Path) -> Non
     p = _write_pipeline(
         tmp_path,
         """\
-        default_client: claude:sonnet
+        default_client: openai:gpt-4o
         stages:
           - { name: step-a, type: exec, options: { cmds: ['true'] } }
           - { type: exec, options: { cmds: ['true'] } }
@@ -175,7 +179,7 @@ def test_pipeline_nested_scopes_disambiguate_independently(
     p = _write_pipeline(
         tmp_path,
         """\
-        default_client: claude:sonnet
+        default_client: openai:gpt-4o
         stages:
           - { type: exec, options: { cmds: ['true'] } }
           - name: checks
@@ -198,7 +202,7 @@ def test_stage_definition_expands_to_primitive(tmp_path: pathlib.Path) -> None:
     p = _write_pipeline(
         tmp_path,
         """\
-        default_client: claude:sonnet
+        default_client: openai:gpt-4o
         stage-definitions:
           normalize:
             type: exec
@@ -220,7 +224,7 @@ def test_stage_definition_call_site_out_applied(tmp_path: pathlib.Path) -> None:
     p = _write_pipeline(
         tmp_path,
         """\
-        default_client: claude:sonnet
+        default_client: openai:gpt-4o
         stage-definitions:
           normalize:
             type: exec
@@ -246,7 +250,7 @@ def test_stage_definition_reused_twice_with_different_out(
     p = _write_pipeline(
         tmp_path,
         """\
-        default_client: claude:sonnet
+        default_client: openai:gpt-4o
         stage-definitions:
           normalize:
             type: exec
@@ -269,7 +273,7 @@ def test_stage_definition_with_out_rejected(tmp_path: pathlib.Path) -> None:
     p = _write_pipeline(
         tmp_path,
         """\
-        default_client: claude:sonnet
+        default_client: openai:gpt-4o
         stage-definitions:
           bad:
             type: exec
@@ -289,7 +293,7 @@ def test_stage_definitions_not_in_expanded_output(tmp_path: pathlib.Path) -> Non
     p = _write_pipeline(
         tmp_path,
         """\
-        default_client: claude:sonnet
+        default_client: openai:gpt-4o
         stage-definitions:
           normalize:
             type: exec
@@ -307,7 +311,7 @@ def test_stage_definition_self_cycle_raises(tmp_path: pathlib.Path) -> None:
     p = _write_pipeline(
         tmp_path,
         """\
-        default_client: claude:sonnet
+        default_client: openai:gpt-4o
         stage-definitions:
           loop:
             type: loop
@@ -323,7 +327,7 @@ def test_stage_definition_mutual_cycle_raises(tmp_path: pathlib.Path) -> None:
     p = _write_pipeline(
         tmp_path,
         """\
-        default_client: claude:sonnet
+        default_client: openai:gpt-4o
         stage-definitions:
           a:
             type: b
@@ -341,7 +345,7 @@ def test_stage_definitions_non_mapping_rejected(tmp_path: pathlib.Path) -> None:
     p = _write_pipeline(
         tmp_path,
         """\
-        default_client: claude:sonnet
+        default_client: openai:gpt-4o
         stage-definitions:
           - normalize
         stages:
@@ -356,7 +360,7 @@ def test_stage_definition_gremlins_recipe_expands(tmp_path: pathlib.Path) -> Non
     p = _write_pipeline(
         tmp_path,
         """\
-        default_client: claude:sonnet
+        default_client: openai:gpt-4o
         prompts:
           impl-prompt: |
             Do the implementation.
@@ -375,7 +379,7 @@ def test_required_prompt_missing_raises(tmp_path: pathlib.Path) -> None:
     p = _write_pipeline(
         tmp_path,
         """\
-        default_client: claude:sonnet
+        default_client: openai:gpt-4o
         stages:
           - { type: verify, options: { cmds: ['true'] } }
         """,
@@ -388,7 +392,7 @@ def test_required_prompt_empty_raises(tmp_path: pathlib.Path) -> None:
     p = _write_pipeline(
         tmp_path,
         """\
-        default_client: claude:sonnet
+        default_client: openai:gpt-4o
         stages:
           - { type: verify, options: { cmds: ['true'] }, prompt: [] }
         """,
@@ -403,7 +407,7 @@ def test_stage_definition_gremlins_recipe_missing_name_raises(
     p = _write_pipeline(
         tmp_path,
         """\
-        default_client: claude:sonnet
+        default_client: openai:gpt-4o
         stage-definitions:
           bad: "gremlins:"
         stages:
@@ -420,7 +424,7 @@ def test_stage_definition_gremlins_recipe_not_found_raises(
     p = _write_pipeline(
         tmp_path,
         """\
-        default_client: claude:sonnet
+        default_client: openai:gpt-4o
         stage-definitions:
           bad: "gremlins:no-such-recipe"
         stages:
@@ -437,7 +441,7 @@ def test_stage_definition_gremlins_recipe_path_traversal_raises(
     p = _write_pipeline(
         tmp_path,
         """\
-        default_client: claude:sonnet
+        default_client: openai:gpt-4o
         stage-definitions:
           bad: "gremlins:../../etc/passwd"
         stages:
@@ -452,7 +456,7 @@ def test_gremlins_prefix_type_resolves_directly(tmp_path: pathlib.Path) -> None:
     p = _write_pipeline(
         tmp_path,
         """\
-        default_client: claude:sonnet
+        default_client: openai:gpt-4o
         prompts:
           impl-prompt: |
             Do the implementation.
@@ -472,7 +476,7 @@ def test_gremlins_prefix_type_accepts_dashes(tmp_path: pathlib.Path) -> None:
     p = _write_pipeline(
         tmp_path,
         """\
-        default_client: claude:sonnet
+        default_client: openai:gpt-4o
         stages:
           - { type: gremlins:github-request-copilot-review }
         """,
@@ -486,7 +490,7 @@ def test_gremlins_prefix_type_unknown_raises(tmp_path: pathlib.Path) -> None:
     p = _write_pipeline(
         tmp_path,
         """\
-        default_client: claude:sonnet
+        default_client: openai:gpt-4o
         stages:
           - { type: gremlins:no-such-recipe }
         """,
@@ -499,7 +503,7 @@ def test_gremlins_prefix_type_path_traversal_raises(tmp_path: pathlib.Path) -> N
     p = _write_pipeline(
         tmp_path,
         """\
-        default_client: claude:sonnet
+        default_client: openai:gpt-4o
         stages:
           - { type: "gremlins:../../etc/passwd" }
         """,
@@ -517,7 +521,7 @@ def test_type_resolves_to_pipeline_file(tmp_path: pathlib.Path) -> None:
     sub = gremlins_dir / "sub.yaml"
     sub.write_text(
         textwrap.dedent("""\
-        default_client: claude:sonnet
+        default_client: openai:gpt-4o
         prompts:
           impl-prompt: |
             Do the implementation.
@@ -530,7 +534,7 @@ def test_type_resolves_to_pipeline_file(tmp_path: pathlib.Path) -> None:
     p = _write_pipeline(
         tmp_path,
         """\
-        default_client: claude:sonnet
+        default_client: openai:gpt-4o
         stages:
           - { type: sub }
         """,
@@ -552,7 +556,7 @@ def test_type_self_referencing_pipeline_does_not_recurse(
     p = gremlins_dir / "self-ref.yaml"
     p.write_text(
         textwrap.dedent("""\
-        default_client: claude:sonnet
+        default_client: openai:gpt-4o
         stages:
           - { type: self-ref }
         """),

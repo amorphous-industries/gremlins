@@ -288,10 +288,6 @@ async def run_pipeline(
     _stage_clients = _unique_clients(gremlin.stages)
     _signal_clients = [client] if client is not None else _stage_clients
 
-    if any(c.provider == "claude" for c in _signal_clients):
-        if shutil.which("claude") is None:
-            die("claude not found on PATH")
-
     if not gh and resume_from:
         _expanded_stage_names = [s.name for s in gremlin.stages]
 

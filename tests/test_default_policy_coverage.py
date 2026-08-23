@@ -20,14 +20,6 @@ def test_all_provider_defaults_cover_local_pipeline_tools() -> None:
         assert required <= allowed, f"{provider}: missing {required - allowed}"
 
 
-def test_anthropic_default_block_has_disallowed_tools() -> None:
-    block = load_default_block("anthropic")
-    denied = block.get("disallowed_tools", [])
-    assert denied, (
-        "anthropic default block must have at least one disallowed_tools entry"
-    )
-
-
 def test_gh_terse_pipeline_loads() -> None:
     from gremlins.pipeline.discovery import resolve_pipeline_name
 

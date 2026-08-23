@@ -710,7 +710,7 @@ def test_model_forwarded_to_all_stages(tmp_path, monkeypatch):
     result = asyncio.run(
         run_pipeline(
             _gh_pipeline_path(tmp_path),
-            argv=["--client", "claude:claude-opus-4-7"],
+            argv=["--client", "openai:gpt-4o"],
             gremlin_id="gr-test",
             client=client,
         )
@@ -718,9 +718,7 @@ def test_model_forwarded_to_all_stages(tmp_path, monkeypatch):
     assert result == 0
 
     for call in client.calls:
-        assert call.model == "claude-opus-4-7", (
-            f"stage {call.label!r} got model={call.model!r}"
-        )
+        assert call.model == "gpt-4o", f"stage {call.label!r} got model={call.model!r}"
 
 
 def test_gh_main_defaults_model_to_sonnet(tmp_path, monkeypatch):
@@ -763,11 +761,12 @@ def test_gh_main_defaults_model_to_sonnet(tmp_path, monkeypatch):
     )
     assert result == 0
 
-    # Every recorded run must have model == "sonnet". Asserting on every call
-    # (not just calls[0]) catches the case where one stage is fixed but
-    # another is overlooked.
+    # Every recorded run must have model == the cmd template (sonnet is
+    # embedded in the command). Asserting on every call (not just calls[0])
+    # catches the case where one stage is fixed but another is overlooked.
     assert client.calls, "expected at least one client call"
-    bad = [c for c in client.calls if c.model != "sonnet"]
+    expected_model = "claude -p --model sonnet --verbose --output-format stream-json --permission-mode bypassPermissions"
+    bad = [c for c in client.calls if c.model != expected_model]
     assert not bad, (
         f"{len(bad)} stage(s) ran on a non-sonnet model: "
         f"{[(c.label, c.model) for c in bad]}"
@@ -806,7 +805,7 @@ def test_gh_main_client_specifier_model(tmp_path, monkeypatch):
     result = asyncio.run(
         run_pipeline(
             _gh_pipeline_path(tmp_path),
-            argv=["--client", "copilot:gpt-4o"],
+            argv=["--client", "openai:gpt-4o"],
             gremlin_id="gr-test",
             client=client,
         )
@@ -1164,7 +1163,7 @@ def test_github_wait_copilot_stage_argument_wiring(tmp_path, monkeypatch):
     result = asyncio.run(
         run_pipeline(
             _gh_pipeline_path(tmp_path),
-            argv=["--client", "claude:claude-opus-4-7"],
+            argv=["--client", "openai:gpt-4o"],
             gremlin_id="gr-test",
             client=client,
         )
@@ -1224,7 +1223,7 @@ def test_github_wait_ci_stage_argument_wiring(tmp_path, monkeypatch):
     result = asyncio.run(
         run_pipeline(
             _gh_pipeline_path(tmp_path),
-            argv=["--client", "claude:claude-opus-4-7"],
+            argv=["--client", "openai:gpt-4o"],
             gremlin_id="gr-test",
             client=client,
         )
@@ -1232,7 +1231,7 @@ def test_github_wait_ci_stage_argument_wiring(tmp_path, monkeypatch):
     assert result == 0
 
     stage = captured_stage["stage"]
-    assert stage.client.model == "claude-opus-4-7"
+    assert stage.client.model == "gpt-4o"
     assert captured_stage["state"].artifact_dir == artifact_dir
     # pr is written to registry.json by push-and-open
     registry_path = tmp_path / "gr-test" / "registry.json"
@@ -1381,7 +1380,7 @@ def test_verify_stage_argument_wiring(tmp_path, monkeypatch):
     result = asyncio.run(
         run_pipeline(
             _gh_pipeline_path(tmp_path),
-            argv=["--client", "claude:claude-opus-4-7"],
+            argv=["--client", "openai:gpt-4o"],
             gremlin_id="gr-test",
             client=client,
         )
@@ -1389,7 +1388,7 @@ def test_verify_stage_argument_wiring(tmp_path, monkeypatch):
     assert result == 0
 
     stage = captured_stage["stage"]
-    assert stage.client.model == "claude-opus-4-7"
+    assert stage.client.model == "gpt-4o"
     # cmds are on the cmd exec stage inside the loop body; first cmd is the user cmd
     cmd_stage = stage.body[0]
     assert cmd_stage.options.get("cmds")[0] == "make check && make test"
@@ -1521,7 +1520,7 @@ def test_gh_main_state_client_tracks_effective_model(tmp_path, monkeypatch):
     result = asyncio.run(
         run_pipeline(
             _gh_pipeline_path(tmp_path),
-            argv=["--client", "copilot:gpt-5.4"],
+            argv=["--client", "openai:gpt-4o"],
             gremlin_id="gr-test",
             client=client,
         )
@@ -1536,7 +1535,7 @@ def test_gh_main_pipeline_default_client_model(tmp_path, monkeypatch):
     """pipeline.default_client model used when --client is absent.
 
     Regression: the model was extracted only from --model / --client, not from
-    the pipeline's default_client. A pipeline with default_client: copilot:gpt-5.4
+    the pipeline's default_client. A pipeline with default_client: openai:gpt-4o
     produced model=sonnet, causing the Copilot client to fail immediately.
     """
     _init_git_repo(tmp_path)
@@ -1544,7 +1543,7 @@ def test_gh_main_pipeline_default_client_model(tmp_path, monkeypatch):
 
     artifact_dir, state_file = _patch_common(monkeypatch, tmp_path)
 
-    # Override Pipeline.from_yaml to inject default_client: copilot:gpt-5.4 and
+    # Override Pipeline.from_yaml to inject default_client: openai:gpt-4o and
     # re-fill stage clients so every stage inherits that model.
     from gremlins.clients.client import Client
     from gremlins.pipeline import _fill_stage_clients
@@ -1558,7 +1557,7 @@ def test_gh_main_pipeline_default_client_model(tmp_path, monkeypatch):
 
     def _from_yaml_copilot_default(path):
         pipeline = _real_from_yaml(path)
-        new_default = Client("copilot", "gpt-5.4")
+        new_default = Client("openai", "gpt-4o")
         for s in pipeline.stages:
             _strip_clients_2(s)
         _fill_stage_clients(pipeline.stages, new_default)
@@ -1596,7 +1595,7 @@ def test_gh_main_pipeline_default_client_model(tmp_path, monkeypatch):
     assert result == 0
 
     assert client.calls, "expected at least one client call"
-    bad = [c for c in client.calls if c.model != "gpt-5.4"]
+    bad = [c for c in client.calls if c.model != "gpt-4o"]
     assert not bad, (
         f"{len(bad)} stage(s) used wrong model: {[(c.label, c.model) for c in bad]}"
     )

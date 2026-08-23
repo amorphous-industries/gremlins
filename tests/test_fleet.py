@@ -230,10 +230,10 @@ def test_build_row_client_from_state():
         "kind": "localgremlin",
         "stage": "implement",
         "started_at": "",
-        "client": "copilot:gpt-5.4",
+        "client": "openai:gpt-4o",
     }
     row = _render.build_row("g1", "/sf", "/wdir", state, "running")
-    assert row.client == "copilot:gpt-5.4"
+    assert row.client == "openai:gpt-4o"
 
 
 def test_build_row_client_missing_field_shows_dash():
@@ -243,7 +243,7 @@ def test_build_row_client_missing_field_shows_dash():
 
 
 def test_build_row_preserves_long_client_label():
-    client = "copilot:gpt-5.4-super-long-client-label"
+    client = "openai:gpt-4o-super-long-client-label"
     state = {
         "kind": "localgremlin",
         "stage": "implement",

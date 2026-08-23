@@ -16,7 +16,7 @@ def _make_pipeline(tmp_path: pathlib.Path, verify_entry: str) -> dict[str, Any]:
     p = tmp_path / "pipeline.yaml"
     p.write_text(
         textwrap.dedent(f"""\
-            default_client: claude:sonnet
+            default_client: openai:gpt-4o
             prompts:
               verify: gremlins:verify_fix.md
             stages:
@@ -105,7 +105,7 @@ def test_repeated_verify_recipe_deduplicates_names(tmp_path: pathlib.Path) -> No
     p = tmp_path / "pipeline.yaml"
     p.write_text(
         textwrap.dedent("""\
-            default_client: claude:sonnet
+            default_client: openai:gpt-4o
             prompts:
               verify: gremlins:verify_fix.md
             stages:
