@@ -1,4 +1,4 @@
-"""Recording test double for the Claude client."""
+"""Recording test double for the Client."""
 
 from __future__ import annotations
 
@@ -48,7 +48,7 @@ class FakeClaudeClient(Client):
         self._native_block: dict[str, Any] = (
             native_block if native_block is not None else {}
         )
-        # Per-task storage — see comment in SubprocessClaudeClient.__init__.
+        # Per-task storage.
         self._ctx: contextvars.ContextVar[dict[str, Any] | None] = (
             contextvars.ContextVar("fake_ctx", default=None)
         )

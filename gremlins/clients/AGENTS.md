@@ -25,13 +25,13 @@ All four providers are backed by Rust:
 
 | Provider | Backend | Mechanism |
 |---|---|---|
-| `cmd` | `CmdBackend` | Spawns an arbitrary subprocess (e.g. `claude -p --output-format stream-json`), writes prompt to stdin, parses `stream-json` events, strips optional footer |
+| `cmd` | `CmdBackend` | Spawns an arbitrary subprocess, writes prompt to stdin, parses `stream-json` events, strips optional footer |
 | `openai` | `OpenAiBackend` | `rig_core::providers::openai::CompletionsClient` agent loop with tool enforcement |
 | `xai` | `OpenAiBackend` | Same agent loop, pointed at xAI's OpenAI-compatible endpoint |
 | `openrouter` | `OpenAiBackend` | Same agent loop, pointed at OpenRouter's endpoint |
 
 The `cmd` provider accepts an arbitrary command template (including flags);
-the model field of `Client.parse("cmd:claude -p --model sonnet ...")` is
+the model field of `Client.parse("cmd:<command>")` is
 the full command string. The `openai`/`xai`/`openrouter` providers take a
 model name and optionally `instructions` (a bundled prompt loaded from
 `gremlins/prompts/`).
@@ -61,4 +61,4 @@ Shared Rust modules: `tools.rs` (tool definitions + enforcement),
   behavior.
 - The `cmd` provider's model field is the full command template. YAML
   pipelines should single-quote it:
-  `default_client: 'cmd:claude -p --model sonnet ...'`
+  `default_client: 'cmd:some-tool --flag ...'`

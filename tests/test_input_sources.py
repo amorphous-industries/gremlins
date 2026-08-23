@@ -73,7 +73,7 @@ class TestPipelineInputSources:
         p = self._write_pipeline(
             tmp_path,
             """\
-            default_client: 'cmd:claude -p --model sonnet --verbose --output-format stream-json --permission-mode bypassPermissions'
+            default_client: openai:gpt-4o
             inputs:
               in:
                 PLAN: plan-document?
@@ -99,7 +99,7 @@ class TestPipelineInputSources:
         p = self._write_pipeline(
             tmp_path,
             """\
-            default_client: 'cmd:claude -p --model sonnet --verbose --output-format stream-json --permission-mode bypassPermissions'
+            default_client: openai:gpt-4o
             inputs:
               in:
                 PLAN: plan-document?
@@ -114,7 +114,7 @@ class TestPipelineInputSources:
         p = self._write_pipeline(
             tmp_path,
             """\
-            default_client: 'cmd:claude -p --model sonnet --verbose --output-format stream-json --permission-mode bypassPermissions'
+            default_client: openai:gpt-4o
             inputs:
               sources: ["not-a-mapping"]
             stages:

@@ -41,7 +41,7 @@ Bundled stage recipes live under `gremlins/recipes/stages/`. Each recipe is a mu
 - Every stage that talks to a model takes `client: Client` from
   `gremlins.clients.client` and calls `client.run(...)`. **Never spawn
   a model subprocess directly** — that bypasses the test seam.
-- Prompt-based claude stages join `self.prompts` (already-loaded text list) with `"\n\n"`.
+- Prompt-based stages join `self.prompts` (already-loaded text list) with `"\n\n"`.
   Bundled internal prompts are loaded via `load_bundled_prompt` / `render_bundled_prompt`
   from `gremlins.utils.yaml_io`. Bundled prompt files live under `gremlins/prompts/`. See
   `gremlins/prompts/README.md` for the runtime placeholder inventory.

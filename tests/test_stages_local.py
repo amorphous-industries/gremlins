@@ -99,7 +99,7 @@ def _make_review_code_stage(client: ReviewCreatingClient) -> Agent:
 
 def test_review_code_stage_passes_worktree_cwd_to_client(tmp_path):
     """When state.worktree is set (parallel child), client.run gets cwd=worktree
-    so claude -p reads/writes the isolated worktree, not the parent process cwd."""
+    so the model reads/writes the isolated worktree, not the parent process cwd."""
     client = ReviewCreatingClient(fixtures={"review-code": MINIMAL_EVENTS})
     worktree = tmp_path / "wt"
     worktree.mkdir()

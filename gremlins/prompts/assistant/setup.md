@@ -79,17 +79,17 @@ Use a short kebab-case id per unit. Do not collapse into one command or skip the
 
 ---
 
-## Grant ambient permissions for gremlin paths (claude: backend, non-bypass)
+## Grant ambient permissions for gremlin paths (cmd: backend, non-bypass)
 
-The `claude:` subprocess backend reads only the operator's ambient `~/.claude/settings.json` — the gremlins-layer `allowed_tools` block is inert there (see README "Backend config inheritance"). This only affects the `claude:` backend; `anthropic:`, `openai:`, and `xai:` enforce `allowed_tools` themselves and do not need the ambient rule.
+The `cmd:` subprocess backend reads only the operator's ambient settings — the gremlins-layer `allowed_tools` block is inert there (see README "Backend config inheritance"). This only affects the `cmd:` backend; `openai:`, `xai:`, and `openrouter:` enforce `allowed_tools` themselves and do not need the ambient rule.
 
-Gremlin worktrees — where the `claude:` subprocess actually edits files — live under a single stable prefix in the system temp directory. Find it with:
+Gremlin worktrees — where the `cmd:` subprocess actually edits files — live under a single stable prefix in the system temp directory. Find it with:
 
 ```
 python -c "from gremlins import paths; print(paths.work_root())"
 ```
 
-On first run with the `claude:` backend in non-bypass mode, **offer** to add a `permissions.allow` rule to `~/.claude/settings.json` that covers that prefix, for example:
+On first run with the `cmd:` backend in non-bypass mode, **offer** to add a `permissions.allow` rule to `~/.claude/settings.json` that covers that prefix, for example:
 
 ```json
 {

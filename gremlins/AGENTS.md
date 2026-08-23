@@ -14,9 +14,8 @@ review / address pipelines, the fleet manager
 - `state.py` — session-dir resolution, `set_stage` / `write_bail_file` / `patch_state`.
 - `utils/git.py` — `in_git_repo`, `head_sha`, branch / worktree helpers.
 - `fleet/` — fleet manager package: status listing + `stop` / `land` / `close` / `rm` / `log` ops. See [`fleet/AGENTS.md`](fleet/AGENTS.md) for the per-module breakdown.
-- `clients/protocol.py` — `ClaudeClient` Protocol + `CompletedRun` dataclass.
+- `clients/protocol.py` — `CompletedRun` dataclass.
 - `clients/stream.py` — `stream_events` + `_emit_event` (stream-json parser and stderr renderer).
-- `clients/claude.py` — `SubprocessClaudeClient` (production subprocess runner).
 - `clients/fake.py` — `FakeClaudeClient` recording test double; replays canned stream-json from fixtures keyed by `label`.
 - `pipeline/` — `Pipeline` dataclass + `Pipeline.from_yaml(path)` classmethod; `resolve_pipeline_path`; supports parallel stage groups. `pipeline/loader.py` holds `STAGE_TYPES`, the explicit dispatch table mapping type-name strings to Stage classes. `pipeline/preprocess.py` handles YAML expansion: resolves `include:`, `prompt:`, and `type: <name>` macros before the pipeline reaches the loader.
 - `pipelines/` — bundled YAML pipeline files (`local.yaml`, `gh.yaml`); lookup target for `resolve_pipeline_path`.
@@ -92,7 +91,7 @@ stages:
 
 Every stage that invokes a model takes an injected `client` through the
 `Client` class (in `clients/client.py`). Production code passes
-`Client.parse("cmd:claude -p ...")` or `Client("openai", "gpt-4o")`;
+`Client.parse("openai:gpt-4o")` or `Client("openai", "gpt-4o")`;
 tests pass `FakeClaudeClient(fixtures={label: <jsonl-or-list>})`. The fake
 records each `run(...)` call into `self.calls` for assertion. **Never have a
 stage spawn a model subprocess directly** — go through the injected client so
