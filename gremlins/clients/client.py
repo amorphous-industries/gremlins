@@ -7,6 +7,20 @@ from gremlins.clients.protocol import CompletedRun
 from gremlins.clients.registry import CLIENT_FACTORIES
 from gremlins.permissions.policy import Policy
 
+_SYSTEM_PROMPT = """\
+<workspace-constraint>
+Your workspace is `{cwd}`. This is the ONLY directory you should read, write, or modify files in.
+
+- The shell's working directory is already `{cwd}`. Do NOT `cd` elsewhere.
+- Use Read and Bash tools directly — relative paths resolve against `{cwd}`.
+- Do NOT scan the filesystem (`find /tmp`, `ls /private/tmp`, etc.) to "discover" the project.
+  You are already inside it. The repo you need to work on is the current directory.
+- If a file or directory seems missing, look inside `{cwd}`, not outside it.
+- If you see paths like `/private/tmp/pr-NNNN-clone` or `/var/folders/.../gremlins/...` —
+  those are stale clones or other gremlins' worktrees. Ignore them.
+</workspace-constraint>
+"""
+
 
 class Client:
     def __init__(self, provider: str, model: str, policy: Policy | None = None) -> None:
@@ -71,6 +85,9 @@ class Client:
         idle_timeout: float | None = None,
         extra_env: dict[str, str] | None = None,
     ) -> CompletedRun:
+        if cwd is not None:
+            sys = _SYSTEM_PROMPT.format(cwd=cwd)
+            prompt = sys + prompt + "\n\n" + sys
         return await self._get_impl().run(
             prompt,
             label=label,
