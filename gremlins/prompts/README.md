@@ -19,7 +19,7 @@ escaped as `{{owner}}` in the template source.
 | `{instructions}` | User-supplied task instructions | `plan.py`, `ghplan.py` | Multi-line |
 | `{plan_file}` | Absolute path where the plan should be written | `plan.py` | File path string |
 | `{ref}` | Optional issue/PR reference passed to the plan stage | `ghplan.py` | May be empty string |
-| `{model}` | Model identifier extracted from the review filename | `github_address_pull_request_reviews.py` | e.g. `claude-opus-4-7` |
+| `{model}` | Model identifier extracted from the review filename | `github_address_pull_request_reviews.py` | e.g. `gpt-4o` |
 | `{text}` | Full concatenated text of one or more review files | `github_address_pull_request_reviews.py` | Multi-line |
 | `{spec_block}` | Rendered overarching chain spec block | `implement.py` | Multi-line; empty string when no spec |
 | `{plan_source_label}` | Human-readable label for where the plan came from | `implement.py` | e.g. `"from the GitHub issue"` or `"below"` |

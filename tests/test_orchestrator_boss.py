@@ -21,6 +21,7 @@ _MINIMAL = [
 ]
 
 _CHAIN_YAML = textwrap.dedent("""\
+    default_client: openai:gpt-4o
     stages:
       - name: chain
         type: loop

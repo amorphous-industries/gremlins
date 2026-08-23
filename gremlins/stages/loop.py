@@ -138,7 +138,9 @@ class LoopStage(Stage):
             max_iterations=max_iterations,
             interval=interval,
         )
-        stage.client = get_client_from_dict(d)
+        client = get_client_from_dict(d)
+        stage.client = client
+        stage.client_explicit = client is not None
         return stage
 
     def _build_runners(

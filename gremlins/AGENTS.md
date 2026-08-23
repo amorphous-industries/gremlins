@@ -10,13 +10,12 @@ review / address pipelines, the fleet manager
 - `cli/` — subcommand entry points. `__init__.py` is the top-level dispatch; one file per subcommand group: `launch.py`, `resume.py`, `fleet.py`. Bare invocation prints fleet status.
 - `spawn/pipeline.py` — `python -m gremlins.spawn.pipeline <gremlin_id> <pipeline_path> [args...]`. Spawned by the launcher; wraps `executor.run.run_pipeline` and writes terminal state on exit.
 - `spawn/child.py` — `python -m gremlins.spawn.child <spec_path>`. Spawned by the parallel runner to run a single stage in a fresh process (lands with #690).
-- `runner.py` — `run_stages` sequencer (with `resume_from`) + SIGINT/SIGTERM handlers that reap `claude -p` children.
+- `runner.py` — `run_stages` sequencer (with `resume_from`) + SIGINT/SIGTERM handlers that reap model subprocess children.
 - `state.py` — session-dir resolution, `set_stage` / `write_bail_file` / `patch_state`.
 - `utils/git.py` — `in_git_repo`, `head_sha`, branch / worktree helpers.
 - `fleet/` — fleet manager package: status listing + `stop` / `land` / `close` / `rm` / `log` ops. See [`fleet/AGENTS.md`](fleet/AGENTS.md) for the per-module breakdown.
-- `clients/protocol.py` — `ClaudeClient` Protocol + `CompletedRun` dataclass.
+- `clients/protocol.py` — `CompletedRun` dataclass.
 - `clients/stream.py` — `stream_events` + `_emit_event` (stream-json parser and stderr renderer).
-- `clients/claude.py` — `SubprocessClaudeClient` (production subprocess runner).
 - `clients/fake.py` — `FakeClaudeClient` recording test double; replays canned stream-json from fixtures keyed by `label`.
 - `pipeline/` — `Pipeline` dataclass + `Pipeline.from_yaml(path)` classmethod; `resolve_pipeline_path`; supports parallel stage groups. `pipeline/loader.py` holds `STAGE_TYPES`, the explicit dispatch table mapping type-name strings to Stage classes. `pipeline/preprocess.py` handles YAML expansion: resolves `include:`, `prompt:`, and `type: <name>` macros before the pipeline reaches the loader.
 - `pipelines/` — bundled YAML pipeline files (`local.yaml`, `gh.yaml`); lookup target for `resolve_pipeline_path`.
@@ -88,15 +87,15 @@ stages:
 | `stop` / `land` / `rm` / `close` / `log` | `cli.fleet.*_main` |
 | (bare / id-prefix) | `cli.fleet.fleet_main` |
 
-## Testability seam: `ClaudeClient`
+## Testability seam: `Client`
 
-Every stage that invokes `claude` takes an injected `client: ClaudeClient`
-(Protocol in `clients/protocol.py`). Production code passes
-`SubprocessClaudeClient()` to those stages; tests pass
-`FakeClaudeClient(fixtures={label: <jsonl-or-list>})`. The fake records each
-`run(...)` call into `self.calls` for assertion. **Never have a stage
-spawn `claude -p` directly** — go through the injected client so tests can
-intercept it.
+Every stage that invokes a model takes an injected `client` through the
+`Client` class (in `clients/client.py`). Production code passes
+`Client.parse("openai:gpt-4o")` or `Client("openai", "gpt-4o")`;
+tests pass `FakeClaudeClient(fixtures={label: <jsonl-or-list>})`. The fake
+records each `run(...)` call into `self.calls` for assertion. **Never have a
+stage spawn a model subprocess directly** — go through the injected client so
+tests can intercept.
 
 `FakeClaudeClient` looks fixtures up by `label`. Stages that re-enter the
 same logical step within one process (e.g. resumed implement) must use

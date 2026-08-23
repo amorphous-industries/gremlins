@@ -100,6 +100,3 @@ class Client:
         if self._impl is None:
             return None
         return self._impl.total_cost_usd
-
-
-PACKAGE_DEFAULT = Client("claude", "sonnet")

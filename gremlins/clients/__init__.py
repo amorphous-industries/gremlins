@@ -1,24 +1,7 @@
 from __future__ import annotations
 
-from gremlins.clients.claude import SubprocessClaudeClient
-from gremlins.clients.copilot import SubprocessCopilotClient
 from gremlins.clients.registry import register_client_factory
 from gremlins.permissions.policy import Policy
-
-
-def _make_claude_client(_model: str | None, policy: Policy) -> SubprocessClaudeClient:
-    return SubprocessClaudeClient(
-        bypass=policy.bypass,
-        native_block=policy.block_for("claude"),
-    )
-
-
-def _make_copilot_client(_model: str | None, policy: Policy) -> SubprocessCopilotClient:
-    if not policy.bypass:
-        raise ValueError(
-            "copilot: backend requires --bypass; it has no per-tool allowlist surface"
-        )
-    return SubprocessCopilotClient(bypass=True, native_block={})
 
 
 def _openai_instructions() -> str:
@@ -69,12 +52,6 @@ def _make_openrouter_client(model: str | None, policy: Policy) -> object:
     )
 
 
-def _make_anthropic_client(model: str | None, policy: Policy) -> object:
-    from gremlins.clients.providers.anthropic_sdk import make_anthropic_client
-
-    return make_anthropic_client(model, policy)
-
-
 def _make_cmd_client(command: str | None, policy: Policy) -> object:
     # cmd: bypass/flags are spelled in the command template; policy is unused.
     if not command:
@@ -84,10 +61,7 @@ def _make_cmd_client(command: str | None, policy: Policy) -> object:
     return RustClient.cmd(command)
 
 
-register_client_factory("anthropic", _make_anthropic_client)
-register_client_factory("claude", _make_claude_client)
-register_client_factory("copilot", _make_copilot_client, bypass_only=True)
 register_client_factory("openai", _make_openai_client)
-register_client_factory("openrouter", _make_openrouter_client)
 register_client_factory("xai", _make_xai_client)
+register_client_factory("openrouter", _make_openrouter_client)
 register_client_factory("cmd", _make_cmd_client)

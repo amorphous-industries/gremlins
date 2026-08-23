@@ -6,7 +6,6 @@ import pathlib
 import re
 import secrets
 import shutil
-import subprocess
 import sys
 import time
 from typing import Any, cast
@@ -15,6 +14,7 @@ import gremlins.utils.git as _git
 from gremlins import paths
 from gremlins.artifacts.registry import ArtifactRegistry, MissingArtifact
 from gremlins.artifacts.resolve import resolve_in_map
+from gremlins.clients.client import Client
 from gremlins.fleet.resolve import resolve_gremlin
 from gremlins.fleet.state import (
     liveness_of_state_file,
@@ -52,7 +52,7 @@ def _print_cost(state: dict[str, Any]) -> None:
 
 
 def _persist_land_cost(sf: str, state: dict[str, Any], additional_cost: float) -> None:
-    """Fold a land-time `claude -p` cost into state.json's total_cost_usd.
+    """Fold a land-time model cost into state.json's total_cost_usd.
 
     Writes through to disk so the value `_print_cost` reports — and any later
     fleet status reader — reflects spend that happened during land. Mutates
@@ -398,46 +398,36 @@ def _parse_commit_output(text: str) -> tuple[str, str]:
     return subject, body
 
 
-def _run_claude_p_text(prompt: str, timeout: int = 60) -> tuple[str, float]:
-    """Run `claude -p` and return (stdout text, total_cost_usd).
+def _run_client_text(
+    client: Client, prompt: str, label: str = "commit-msg"
+) -> tuple[str, float]:
+    """Run a Client prompt and return (text_result, cost_usd).
 
-    Uses `--output-format json` so the single result object carries both the
-    assistant's reply text and `total_cost_usd`. The cost is surfaced so the
-    caller can fold land-time `claude -p` spend into the gremlin's reported
-    total — without it, `gremlins land`'s commit-message synthesis would not
-    show up in the "total cost" line printed after a squash-land.
-
-    Suppresses the session-summary hook via `GREMLIN_SKIP_SUMMARY=1`; otherwise
-    the hook's "surface this verbatim" directive prepends the gremlin status
-    block to the model's reply and corrupts structured output. Any `claude -p`
-    caller in this repo that parses the reply as text should go through here.
+    Exists so land-time commit-message synthesis goes through the same
+    backend abstraction as pipeline stages.
     """
-    env = os.environ.copy()
-    env["GREMLIN_SKIP_SUMMARY"] = "1"
-    result = subprocess.run(
-        ["claude", "-p", "--output-format", "json"],
-        input=prompt,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        env=env,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"claude -p exited {result.returncode}: {result.stderr.strip()}"
+    import asyncio
+
+    completed = asyncio.run(
+        client.run(
+            prompt,
+            label=label,
+            capture_events=False,
+            idle_timeout=60.0,
+            max_retries=0,
         )
-    try:
-        data = json.loads(result.stdout)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"claude -p returned non-JSON output: {exc}")
-    text = data.get("result") if isinstance(data.get("result"), str) else ""
-    raw_cost = data.get("total_cost_usd", data.get("cost_usd"))
-    cost = float(raw_cost) if isinstance(raw_cost, (int, float)) else 0.0
+    )
+    if completed.exit_code != 0:
+        raise RuntimeError(f"client ({client}) exited {completed.exit_code}")
+    text = completed.text_result or ""
+    cost = completed.cost_usd or 0.0
     return text, cost
 
 
-def _synthesize_commit_message_ai(inputs: dict[str, Any]) -> tuple[str, str, float]:
-    """Call `claude -p` to produce a commit message from gathered inputs."""
+def _synthesize_commit_message_ai(
+    inputs: dict[str, Any], client: Client
+) -> tuple[str, str, float]:
+    """Call the configured model to produce a commit message from gathered inputs."""
     parts: list[str] = []
 
     if inputs.get("description"):
@@ -468,22 +458,27 @@ Requirements:
 
 Output only the commit message text, nothing else."""
 
-    stdout, cost = _run_claude_p_text(prompt)
+    stdout, cost = _run_client_text(client, prompt)
     subject, body = _parse_commit_output(stdout)
     if not subject:
-        raise RuntimeError("claude -p returned empty subject")
+        raise RuntimeError("model returned empty subject")
     return subject, body, cost
 
 
 def _build_commit_message(
-    wdir: str, state: dict[str, Any], branch: str, merge_base: str, cwd: str | None
+    wdir: str,
+    state: dict[str, Any],
+    branch: str,
+    merge_base: str,
+    cwd: str | None,
+    client: Client,
 ) -> tuple[str, str, float]:
     """Return (subject, body, cost_usd) using AI synthesis with fallback to regex extraction."""
     inputs = _gather_commit_inputs(wdir, state, branch, merge_base, cwd)
 
     print("Composing commit message...", flush=True)
     try:
-        subject, body, cost = _synthesize_commit_message_ai(inputs)
+        subject, body, cost = _synthesize_commit_message_ai(inputs, client)
         print(f"Commit message: {subject}", flush=True)
         return subject, body, cost
     except Exception as exc:
@@ -548,6 +543,7 @@ def _squash_land(
     source_ref: str,
     source_label: str,
     current: str,
+    client: Client,
 ) -> bool:
     """Squash all commits above the merge-base of `source_ref` and HEAD, then commit."""
     try:
@@ -590,7 +586,9 @@ def _squash_land(
         print(f"error: git merge --squash failed — {suffix}{detail}")
         return False
 
-    subject, body, land_cost = _build_commit_message(wdir, state, source_ref, base, cwd)
+    subject, body, land_cost = _build_commit_message(
+        wdir, state, source_ref, base, cwd, client
+    )
     commit_msg = f"{subject}\n\n{body}" if body else subject
 
     try:
@@ -667,7 +665,12 @@ def _ff_land(
 
 
 def _land_boss(
-    gremlin_id: str, sf: str, wdir: str, state: dict[str, Any], mode: str
+    gremlin_id: str,
+    sf: str,
+    wdir: str,
+    state: dict[str, Any],
+    mode: str,
+    client: Client,
 ) -> bool:
     """Land a boss gremlin's chain of squash commits onto the current branch."""
     workdir = state.get("workdir") or ""
@@ -701,6 +704,7 @@ def _land_boss(
             boss_head,
             label,
             current,
+            client,
         )
     return _ff_land(gremlin_id, wdir, state, cwd, boss_head, label, current)
 
@@ -947,6 +951,20 @@ def do_land(
 
     shape = landable_shape(state)
 
+    # Resolve the model client this gremlin used so commit-message synthesis
+    # goes through the same backend as the pipeline stages.
+    client_str: str = str(state.get("client") or "")
+    if not client_str:
+        print(
+            "error: state.json is missing client field — cannot determine which model to use for commit-message synthesis"
+        )
+        return False
+    try:
+        client: Client = Client.parse(client_str)
+    except Exception as exc:
+        print(f"error: cannot parse client from state.json: {exc}")
+        return False
+
     if shape in ("empty", "one_branch"):
         artifact_dir = paths.state_root() / gremlin_id / "artifacts"
         artifact_dir.mkdir(parents=True, exist_ok=True)
@@ -978,4 +996,4 @@ def do_land(
     if live != "finished":
         print(f"gremlin {gremlin_id} is not finished (liveness: {live})")
         return False
-    return _land_boss(gremlin_id, sf, wdir, state, mode or "ff")
+    return _land_boss(gremlin_id, sf, wdir, state, mode or "ff", client)

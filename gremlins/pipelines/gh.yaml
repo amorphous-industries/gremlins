@@ -1,4 +1,4 @@
-default_client: claude:sonnet
+default_client: 'xai:grok-4'
 
 base_ref: main
 

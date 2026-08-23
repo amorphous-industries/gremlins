@@ -4,23 +4,23 @@ from __future__ import annotations
 
 import pytest
 
-from gremlins.clients.client import PACKAGE_DEFAULT, Client
+from gremlins.clients.client import Client
 
 
 def test_parse_valid():
-    spec = Client.parse("claude:sonnet")
-    assert spec.provider == "claude"
-    assert spec.model == "sonnet"
+    spec = Client.parse("openai:gpt-4o")
+    assert spec.provider == "openai"
+    assert spec.model == "gpt-4o"
 
 
 def test_parse_empty_model():
     with pytest.raises(ValueError, match="model must not be empty"):
-        Client.parse("claude:")
+        Client.parse("openai:")
 
 
 def test_parse_no_colon_raises():
     with pytest.raises(ValueError, match="expected 'provider:model'"):
-        Client.parse("claude")
+        Client.parse("openai")
 
 
 def test_parse_unknown_provider_raises():
@@ -29,10 +29,5 @@ def test_parse_unknown_provider_raises():
 
 
 def test_str_round_trip():
-    for s in ("claude:sonnet", "copilot:gpt-4o"):
+    for s in ("openai:gpt-4o", "xai:grok-4"):
         assert str(Client.parse(s)) == s
-
-
-def test_package_default():
-    assert PACKAGE_DEFAULT.provider == "claude"
-    assert PACKAGE_DEFAULT.model == "sonnet"

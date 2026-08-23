@@ -6,7 +6,7 @@ You are a format-enforcement agent. Rewrite the rolling plan below to remove eve
 2. Bullet lists enumerating completed phases or items — any bullet that describes something already done. Remove them.
 3. `[x]` checkboxes or checked markers of any kind. Remove the entire line.
 4. Struck-through entries (~~text~~). Remove the entire line.
-5. An H1 title (`# ...`) that names the overall chain goal or summarizes the completed chain — e.g. `# Implement Feature X` or `# Claude Config Personal Setup`. Replace it with a short H1 scoped only to the remaining work.
+5. An H1 title (`# ...`) that names the overall chain goal or summarizes the completed chain — e.g. `# Implement Feature X` or `# Config Personal Setup`. Replace it with a short H1 scoped only to the remaining work.
 
 ## What to keep
 

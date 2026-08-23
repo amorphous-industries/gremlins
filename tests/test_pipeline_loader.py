@@ -28,7 +28,7 @@ def test_valid_pipeline_parses(tmp_path: pathlib.Path) -> None:
     yaml_path = _write_yaml(
         tmp_path / "pipeline.yaml",
         f"""\
-default_client: claude:sonnet
+default_client: openai:gpt-4o
 prompt_dir: .
 stages:
   - name: plan
@@ -39,11 +39,11 @@ stages:
     pipeline = Pipeline.from_yaml(yaml_path)
     assert pipeline.name == "pipeline"
     assert pipeline.default_client is not None
-    assert str(pipeline.default_client) == "claude:sonnet"
+    assert str(pipeline.default_client) == "openai:gpt-4o"
     assert len(pipeline.stages) == 1
     assert pipeline.stages[0].name == "plan"
     assert pipeline.stages[0].type == "agent"
-    assert str(pipeline.stages[0].client) == "claude:sonnet"
+    assert str(pipeline.stages[0].client) == "openai:gpt-4o"
     assert pipeline.stages[0].prompts == ["prompt content"]
 
 
@@ -55,18 +55,18 @@ def test_per_stage_client_override(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: p
-default_client: claude:sonnet
+default_client: openai:gpt-4o
 stages:
   - name: step-a
     type: agent
   - name: step-b
     type: agent
-    client: copilot:gpt-5.4
+    client: openai:gpt-4o
 """,
     )
     pipeline = Pipeline.from_yaml(yaml_path)
-    assert str(pipeline.stages[0].client) == "claude:sonnet"
-    assert str(pipeline.stages[1].client) == "copilot:gpt-5.4"
+    assert str(pipeline.stages[0].client) == "openai:gpt-4o"
+    assert str(pipeline.stages[1].client) == "openai:gpt-4o"
 
 
 # ---- error cases -----------------------------------------------------------
@@ -77,6 +77,7 @@ def test_unknown_stage_type_raises(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: bad
+default_client: openai:gpt-4o
 stages:
   - {name: s1, type: no-such-type}
 """,
@@ -104,6 +105,7 @@ def test_invalid_client_format_raises(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: bad
+default_client: openai:gpt-4o
 stages:
   - name: s1
     type: agent
@@ -119,6 +121,7 @@ def test_missing_prompt_file_raises(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: bad
+default_client: openai:gpt-4o
 stages:
   - {name: s1, type: agent, prompt: does_not_exist.md}
 """,
@@ -136,6 +139,7 @@ def test_bundled_prefix_resolves_to_package(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 stages:
   - name: s1
     type: agent
@@ -153,6 +157,7 @@ def test_bare_name_does_not_fall_back_to_bundled(tmp_path: pathlib.Path) -> None
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 prompt_dir: .
 stages:
   - name: s1
@@ -171,6 +176,7 @@ def test_mixed_bundled_and_local_prompts(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         f"""\
 name: p
+default_client: openai:gpt-4o
 prompt_dir: .
 stages:
   - name: s1
@@ -189,6 +195,7 @@ def test_bundled_prefix_without_name_raises(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 stages:
   - name: s1
     type: agent
@@ -208,6 +215,7 @@ def test_named_prompt_single_file(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 prompt_dir: .
 prompts:
   base: base.md
@@ -228,6 +236,7 @@ def test_named_prompt_list_of_files(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 prompt_dir: .
 prompts:
   combo: [a.md, b.md]
@@ -248,6 +257,7 @@ def test_named_prompt_mixed_with_bare_path(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 prompt_dir: .
 prompts:
   base: base.md
@@ -267,6 +277,7 @@ def test_named_prompt_mixed_with_bundled(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 prompt_dir: .
 prompts:
   local-base: local.md
@@ -288,6 +299,7 @@ def test_named_prompt_shared_across_stages(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 prompt_dir: .
 prompts:
   shared: shared.md
@@ -310,6 +322,7 @@ def test_named_prompt_bundled_value(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 prompts:
   style: gremlins:code_style.md
 stages:
@@ -329,6 +342,7 @@ def test_named_prompt_in_parallel_group(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 prompt_dir: .
 prompts:
   shared: shared.md
@@ -358,6 +372,7 @@ def test_prompt_list_resolves_both_paths(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 prompt_dir: .
 stages:
   - name: s1
@@ -377,6 +392,7 @@ def test_repeated_type_distinct_names(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 stages:
   - {name: test-pre, type: exec}
   - {name: test-post, type: exec}
@@ -398,6 +414,7 @@ def test_parallel_duplicate_child_name_raises(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 stages:
   - name: reviews
     parallel:
@@ -414,6 +431,7 @@ def test_nested_parallel_raises(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 stages:
   - name: outer
     parallel:
@@ -431,6 +449,7 @@ def test_parallel_inside_loop_body_is_allowed(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 stages:
   - name: outer
     type: loop
@@ -457,14 +476,14 @@ def test_client_spec_inherits_from_default(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: p
-default_client: claude:sonnet
+default_client: openai:gpt-4o
 stages:
   - name: s1
     type: agent
 """,
     )
     pipeline = Pipeline.from_yaml(yaml_path)
-    assert str(pipeline.stages[0].client) == "claude:sonnet"
+    assert str(pipeline.stages[0].client) == "openai:gpt-4o"
 
 
 def test_client_spec_stage_override_wins(tmp_path: pathlib.Path) -> None:
@@ -472,15 +491,15 @@ def test_client_spec_stage_override_wins(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: p
-default_client: claude:sonnet
+default_client: openai:gpt-4o
 stages:
   - name: s1
     type: agent
-    client: copilot:gpt-5.4
+    client: openai:gpt-4o
 """,
     )
     pipeline = Pipeline.from_yaml(yaml_path)
-    assert str(pipeline.stages[0].client) == "copilot:gpt-5.4"
+    assert str(pipeline.stages[0].client) == "openai:gpt-4o"
 
 
 def test_client_spec_falls_back_to_package_default(tmp_path: pathlib.Path) -> None:
@@ -488,15 +507,15 @@ def test_client_spec_falls_back_to_package_default(tmp_path: pathlib.Path) -> No
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 stages:
   - name: s1
     type: agent
 """,
     )
     pipeline = Pipeline.from_yaml(yaml_path)
-    from gremlins.clients.client import PACKAGE_DEFAULT
 
-    assert pipeline.stages[0].client == PACKAGE_DEFAULT
+    assert pipeline.stages[0].client == pipeline.default_client
 
 
 def test_client_spec_parallel_group_is_none(tmp_path: pathlib.Path) -> None:
@@ -504,7 +523,7 @@ def test_client_spec_parallel_group_is_none(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: p
-default_client: claude:sonnet
+default_client: openai:gpt-4o
 stages:
   - name: reviews
     parallel:
@@ -516,7 +535,7 @@ stages:
     # parallel groups never get a client assigned
     assert pipeline.stages[0].client is None
     # children of a parallel group inherit the pipeline default
-    assert str(pipeline.stages[0].body[0].client) == "claude:sonnet"
+    assert str(pipeline.stages[0].body[0].client) == "openai:gpt-4o"
 
 
 # ---- include: directive ---------------------------------------------------
@@ -528,6 +547,7 @@ def test_include_directive_expands_bundled_pipeline(tmp_path: pathlib.Path) -> N
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 stages:
   - { include: local }
 """,
@@ -544,6 +564,7 @@ def test_include_unknown_pipeline_raises(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 stages:
   - { include: no-such-pipeline }
 """,
@@ -558,6 +579,7 @@ def test_loop_body_with_include_expands(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 stages:
   - name: myloop
     type: loop
@@ -591,6 +613,7 @@ def test_parallel_include_multi_stage_wraps_as_sequence(
         gremlins_dir / "sub.yaml",
         """\
 name: sub
+default_client: openai:gpt-4o
 stages:
   - {name: request-x, type: exec}
   - {name: wait-x, type: exec}
@@ -600,6 +623,7 @@ stages:
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 stages:
   - name: reviews
     parallel:
@@ -630,6 +654,7 @@ def test_parallel_include_empty_expansion_raises(
         gremlins_dir / "empty.yaml",
         """\
 name: empty
+default_client: openai:gpt-4o
 stages: []
 """,
     )
@@ -637,6 +662,7 @@ stages: []
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 stages:
   - name: reviews
     parallel:
@@ -665,6 +691,7 @@ stages:
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 stages:
   - name: reviews
     parallel:
@@ -684,6 +711,7 @@ def test_toplevel_sequence_stage_loads(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 stages:
   - name: my-seq
     type: sequence
@@ -707,6 +735,7 @@ def test_duplicate_out_key_flat_raises(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 stages:
   - name: stage-a
     type: exec
@@ -728,6 +757,7 @@ def test_duplicate_out_key_same_uri_ok(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 stages:
   - name: stage-a
     type: exec
@@ -749,6 +779,7 @@ def test_duplicate_out_key_optional_ok(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 stages:
   - name: stage-a
     type: exec
@@ -770,6 +801,7 @@ def test_duplicate_out_key_skip_if_exists_ok(tmp_path: pathlib.Path) -> None:
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 stages:
   - name: plan
     type: exec
@@ -792,6 +824,7 @@ def test_duplicate_out_key_different_loop_bodies_ok(tmp_path: pathlib.Path) -> N
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 stages:
   - name: loop-one
     type: loop
@@ -819,6 +852,7 @@ def test_duplicate_out_key_within_loop_body_raises(tmp_path: pathlib.Path) -> No
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 stages:
   - name: myloop
     type: loop
@@ -845,6 +879,7 @@ def test_duplicate_out_key_in_sequence_body_raises(tmp_path: pathlib.Path) -> No
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 stages:
   - name: my-seq
     type: sequence

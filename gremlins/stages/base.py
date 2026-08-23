@@ -45,6 +45,7 @@ class Stage:
         self.name = name
         self._path: str = ""
         self.client: Client | None = None
+        self.client_explicit: bool = False
         self.raw_dict: dict[str, Any] | None = None
         self.options: dict[str, Any] = {}
         self.out_map = {}
@@ -73,7 +74,9 @@ class Stage:
     @classmethod
     def with_dict(cls, d: dict[str, Any], depth: int = 0) -> Stage:
         stage = cls(d["name"], d.get("prompt") or [], d.get("options") or {})  # type: ignore[call-arg]
-        stage.client = get_client_from_dict(d)
+        client = get_client_from_dict(d)
+        stage.client = client
+        stage.client_explicit = client is not None
         return stage
 
     @classmethod

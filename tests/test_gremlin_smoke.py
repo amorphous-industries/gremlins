@@ -18,6 +18,7 @@ from gremlins.pipeline import Pipeline
 from gremlins.stages.exec import Exec
 
 TRIVIAL_PIPELINE = """\
+default_client: openai:gpt-4o
 stages:
   - name: smoke
     type: exec

@@ -9,8 +9,6 @@ description = "Background coding-agent pipelines that plan, implement, review, a
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "claude-agent-sdk>=0.1.59",
-    "openai-agents",
     "platformdirs",
     "pyyaml",
 ]

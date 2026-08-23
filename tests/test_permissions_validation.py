@@ -25,7 +25,7 @@ def test_unknown_provider_raises() -> None:
 def test_all_real_backends_registered() -> None:
     import gremlins.clients  # noqa: F401 — ensure factories are registered
 
-    for provider in ("claude", "copilot", "openai", "xai", "anthropic"):
+    for provider in ("openai", "xai", "openrouter", "cmd"):
         block = {"allowed_tools": ["Read"]}
         policy = _policy({provider: block})
         validate_policy_against_registry(policy, set(CLIENT_FACTORIES))  # no raise

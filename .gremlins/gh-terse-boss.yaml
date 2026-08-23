@@ -1,4 +1,4 @@
-default_client: claude:sonnet
+default_client: xai:grok-4
 base_ref: current
 
 prompt_dir: prompts
@@ -24,12 +24,12 @@ stages:
                   git fetch origin "refs/heads/$branch:refs/remotes/origin/$branch" && git checkout --detach "origin/$branch"
                 fi
               fi
-      - { name: handoff, type: gremlins:handoff, client: claude:opus }
+      - { name: handoff, type: gremlins:handoff, client: xai:grok-4 }
       - { include: gh-terse }
 
   - name: review-chain
     type: review-code
-    client: claude:opus
+    client: xai:grok-4
     prompt: [code-style, gremlins:review/chain.md]
 
   - name: address-chain

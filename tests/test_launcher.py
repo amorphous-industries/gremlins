@@ -150,12 +150,12 @@ def test_launch_persists_pipeline_args(lenv):
     launcher = _launcher()
     gremlin_id, _ = launcher.launch(
         "local",
-        pipeline_args=("--client", "claude:opus"),
+        pipeline_args=("--client", "openai:gpt-4o"),
         stage_inputs={"instructions": "test"},
     )
     state = _read_state(_gremlins_state_root(lenv) / gremlin_id)
     assert state["pipeline_path"].endswith(".yaml")
-    assert state["pipeline_args"] == ["--client", "claude:opus"]
+    assert state["pipeline_args"] == ["--client", "openai:gpt-4o"]
 
 
 def test_launch_persists_pipeline_default_client(lenv):
@@ -166,7 +166,7 @@ def test_launch_persists_pipeline_default_client(lenv):
         stage_inputs={"instructions": "test default client"},
     )
     state = _read_state(_gremlins_state_root(lenv) / gremlin_id)
-    assert state["client"] == "claude:sonnet"
+    assert state["client"] == "xai:grok-4"
 
 
 def test_launch_persists_cli_client_space_form(lenv):
@@ -174,11 +174,11 @@ def test_launch_persists_cli_client_space_form(lenv):
     launcher = _launcher()
     gremlin_id, _ = launcher.launch(
         "local",
-        pipeline_args=("--client", "copilot:gpt-5.4"),
+        pipeline_args=("--client", "openai:gpt-4o"),
         stage_inputs={"instructions": "test cli client space"},
     )
     state = _read_state(_gremlins_state_root(lenv) / gremlin_id)
-    assert state["client"] == "copilot:gpt-5.4"
+    assert state["client"] == "openai:gpt-4o"
 
 
 def test_launch_persists_cli_client_equals_form(lenv):
@@ -186,11 +186,11 @@ def test_launch_persists_cli_client_equals_form(lenv):
     launcher = _launcher()
     gremlin_id, _ = launcher.launch(
         "local",
-        pipeline_args=("--client=copilot:gpt-5.4",),
+        pipeline_args=("--client=openai:gpt-4o",),
         stage_inputs={"instructions": "test cli client equals"},
     )
     state = _read_state(_gremlins_state_root(lenv) / gremlin_id)
-    assert state["client"] == "copilot:gpt-5.4"
+    assert state["client"] == "openai:gpt-4o"
 
 
 def test_launch_persists_last_repeated_cli_client(lenv):
@@ -200,13 +200,13 @@ def test_launch_persists_last_repeated_cli_client(lenv):
         "local",
         pipeline_args=(
             "--client",
-            "claude:sonnet",
-            "--client=copilot:gpt-5.4",
+            "xai:grok-4",
+            "--client=openai:gpt-4o",
         ),
         stage_inputs={"instructions": "test repeated cli client"},
     )
     state = _read_state(_gremlins_state_root(lenv) / gremlin_id)
-    assert state["client"] == "copilot:gpt-5.4"
+    assert state["client"] == "openai:gpt-4o"
 
 
 def test_launch_persists_custom_pipeline_default_client(lenv):
@@ -215,7 +215,7 @@ def test_launch_persists_custom_pipeline_default_client(lenv):
     pipeline.write_text(
         """\
 name: custom
-default_client: copilot:gpt-5.4
+default_client: openai:gpt-4o
 stages:
   - name: implement
     type: agent
@@ -229,7 +229,7 @@ stages:
         stage_inputs={"instructions": "test custom pipeline client"},
     )
     state = _read_state(_gremlins_state_root(lenv) / gremlin_id)
-    assert state["client"] == "copilot:gpt-5.4"
+    assert state["client"] == "openai:gpt-4o"
 
 
 def test_launch_ghgremlin_persists_pipeline_default_client(lenv_with_gh):
@@ -239,7 +239,7 @@ def test_launch_ghgremlin_persists_pipeline_default_client(lenv_with_gh):
         "gh", stage_inputs={"instructions": "test gh default client"}
     )
     state = _read_state(_gremlins_state_root(lenv_with_gh) / gremlin_id)
-    assert state["client"] == "claude:sonnet"
+    assert state["client"] == "xai:grok-4"
 
 
 def test_launch_ghgremlin_persists_cli_client_override(lenv_with_gh):
@@ -247,11 +247,11 @@ def test_launch_ghgremlin_persists_cli_client_override(lenv_with_gh):
     launcher = _launcher()
     gremlin_id, _ = launcher.launch(
         "gh",
-        pipeline_args=("--client", "copilot:gpt-5.4"),
+        pipeline_args=("--client", "openai:gpt-4o"),
         stage_inputs={"instructions": "test gh cli client"},
     )
     state = _read_state(_gremlins_state_root(lenv_with_gh) / gremlin_id)
-    assert state["client"] == "copilot:gpt-5.4"
+    assert state["client"] == "openai:gpt-4o"
 
 
 def test_launch_invalid_pipeline_name_raises(lenv):
@@ -343,13 +343,13 @@ def test_resume_uses_persisted_client_label(lenv, monkeypatch):
     old_pipeline.write_text(
         """\
 name: old
-default_client: copilot:gpt-5.4
+default_client: openai:gpt-4o
 stages:
   - name: plan
     type: agent
   - name: implement
     type: agent
-    client: claude:opus
+    client: openai:gpt-4o-mini
 """,
         encoding="utf-8",
     )
@@ -369,7 +369,7 @@ stages:
                 "stage": "implement",
                 "status": "stopped",
                 "exit_code": 1,
-                "client": "claude:opus",
+                "client": "openai:gpt-4o-mini",
                 "pipeline_args": ["--pipeline", str(old_pipeline)],
                 "pipeline_path": str(old_pipeline),
             }
@@ -387,7 +387,7 @@ stages:
     launcher.resume(gremlin_id)
 
     post_state = _read_state(state_dir)
-    assert post_state["client"] == "claude:opus"
+    assert post_state["client"] == "openai:gpt-4o-mini"
     assert post_state["status"] == "running"
     assert post_state["resumed_from_stage"] == "implement"
     assert post_state["pipeline_path"] == str(old_pipeline.resolve())
@@ -453,7 +453,14 @@ def test_run_pipeline_writes_terminal_state_on_success(lenv, monkeypatch):
         "# Test Plan\n\n## Tasks\n- [ ] Touch a file\n", encoding="utf-8"
     )
     launcher = _launcher()
-    gremlin_id, _ = launcher.launch("local", stage_inputs={"plan": str(plan_file)})
+    gremlin_id, _ = launcher.launch(
+        "local",
+        stage_inputs={"plan": str(plan_file)},
+        pipeline_args=(
+            "--client",
+            "cmd:claude -p --model sonnet --verbose --output-format stream-json --permission-mode bypassPermissions",
+        ),
+    )
     state_dir = _gremlins_state_root(lenv) / gremlin_id
     assert _wait_for_finished(state_dir, timeout=120), (
         f"pipeline did not finish; log:\n{(state_dir / 'log').read_text(errors='replace')[-2000:]}"
@@ -562,7 +569,12 @@ def test_full_localgremlin_pipeline(lenv, monkeypatch):
     """plan → implement → review → address all run once in order."""
     launcher = _launcher()
     gremlin_id, _ = launcher.launch(
-        "local", stage_inputs={"instructions": "test full pipeline"}
+        "local",
+        stage_inputs={"instructions": "test full pipeline"},
+        pipeline_args=(
+            "--client",
+            "cmd:claude -p --model sonnet --verbose --output-format stream-json --permission-mode bypassPermissions",
+        ),
     )
     state_dir = _gremlins_state_root(lenv) / gremlin_id
     assert _wait_for_finished(state_dir, timeout=120), (
@@ -703,7 +715,12 @@ def test_pipeline_survives_worktree_pipeline_rename(lenv, monkeypatch):
 
     launcher = _launcher()
     gremlin_id, _ = launcher.launch(
-        "local", stage_inputs={"instructions": "test gremlins rename regression"}
+        "local",
+        stage_inputs={"instructions": "test gremlins rename regression"},
+        pipeline_args=(
+            "--client",
+            "cmd:claude -p --model sonnet --verbose --output-format stream-json --permission-mode bypassPermissions",
+        ),
     )
     state_dir = _gremlins_state_root(lenv) / gremlin_id
     log_path = state_dir / "log"
@@ -728,7 +745,8 @@ def test_setup_workdir_overlay_goes_to_state_dir(lenv):
     overlay_src = lenv.repo / ".gremlins"
     overlay_src.mkdir(parents=True)
     (overlay_src / "custom-local.yaml").write_text(
-        "name: custom-local\nstages: []\n", encoding="utf-8"
+        "name: custom-local\ndefault_client: openai:gpt-4o\nstages: []\n",
+        encoding="utf-8",
     )
 
     gremlin_id = "overlay-test-aabbcc"
@@ -842,7 +860,8 @@ def test_stage_inputs_survives_resume(lenv, monkeypatch):
     saved_stage_inputs = {"instructions": "do the thing", "flag": "value"}
     pipeline_yaml = lenv.repo / "pipeline.yaml"
     pipeline_yaml.write_text(
-        "stages:\n  - name: plan\n    type: agent\n", encoding="utf-8"
+        "default_client: openai:gpt-4o\nstages:\n  - name: plan\n    type: agent\n",
+        encoding="utf-8",
     )
     (state_dir / "state.json").write_text(
         json.dumps(

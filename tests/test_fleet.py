@@ -230,10 +230,10 @@ def test_build_row_client_from_state():
         "kind": "localgremlin",
         "stage": "implement",
         "started_at": "",
-        "client": "copilot:gpt-5.4",
+        "client": "openai:gpt-4o",
     }
     row = _render.build_row("g1", "/sf", "/wdir", state, "running")
-    assert row.client == "copilot:gpt-5.4"
+    assert row.client == "openai:gpt-4o"
 
 
 def test_build_row_client_missing_field_shows_dash():
@@ -243,7 +243,7 @@ def test_build_row_client_missing_field_shows_dash():
 
 
 def test_build_row_preserves_long_client_label():
-    client = "copilot:gpt-5.4-super-long-client-label"
+    client = "openai:gpt-4o-super-long-client-label"
     state = {
         "kind": "localgremlin",
         "stage": "implement",
@@ -485,6 +485,7 @@ def test_liveness_crashed_when_pid_gone_and_no_workdir_in_state(tmp_path):
                 "kind": "bossgremlin",
                 "setup_kind": "worktree-detached",
                 "id": "x",
+                "client": "openai:gpt-4o",
             },
             [],
             "_land_boss",
@@ -494,6 +495,7 @@ def test_liveness_crashed_when_pid_gone_and_no_workdir_in_state(tmp_path):
             {
                 "kind": "ghgremlin",
                 "id": "x",
+                "client": "openai:gpt-4o",
                 "artifacts": [
                     {"type": "branch", "name": "feat"},
                     {
@@ -529,7 +531,7 @@ def test_do_land_dispatches_to_correct_helper(
 
     called = []
 
-    def fake_land_boss(gremlin_id, sf, wdir, state, mode):
+    def fake_land_boss(gremlin_id, sf, wdir, state, mode, client):
         called.append("_land_boss")
         return True
 

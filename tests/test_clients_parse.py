@@ -2,7 +2,7 @@
 
 import pytest
 
-from gremlins.clients.client import PACKAGE_DEFAULT, Client
+from gremlins.clients.client import Client
 
 
 def test_parse_xai():
@@ -19,17 +19,20 @@ def test_parse_openai():
     assert str(c) == "openai:gpt-4o-mini"
 
 
-def test_parse_claude_equals_default():
-    c = Client.parse("claude:sonnet")
-    assert c.provider == "claude"
-    assert c.model == "sonnet"
-    assert c == PACKAGE_DEFAULT
+def test_parse_cmd():
+    c = Client.parse(
+        "cmd:claude -p --model sonnet --verbose --output-format stream-json --permission-mode bypassPermissions"
+    )
+    assert c.provider == "cmd"
+    assert (
+        c.model
+        == "claude -p --model sonnet --verbose --output-format stream-json --permission-mode bypassPermissions"
+    )
 
 
 def test_parse_roundtrips():
     for spec in (
-        "claude:sonnet",
-        "copilot:gpt-4o",
+        "cmd:claude -p --model sonnet --verbose --output-format stream-json --permission-mode bypassPermissions",
         "openai:gpt-4o-mini",
         "xai:grok-4",
         "openrouter:openai/gpt-4o",

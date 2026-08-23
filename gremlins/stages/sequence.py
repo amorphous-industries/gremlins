@@ -33,7 +33,9 @@ class SequenceStage(Stage):
             raise ValueError(f"stage {name!r}: 'body' must be a list")
         children = parse_stages(cast(list[dict[str, Any]], raw_children), depth=depth)
         stage = cls(name, body=children)
-        stage.client = get_client_from_dict(d)
+        client = get_client_from_dict(d)
+        stage.client = client
+        stage.client_explicit = client is not None
         return stage
 
     async def run(self, gremlin: Gremlin) -> Outcome:
