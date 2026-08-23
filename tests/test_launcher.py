@@ -166,10 +166,7 @@ def test_launch_persists_pipeline_default_client(lenv):
         stage_inputs={"instructions": "test default client"},
     )
     state = _read_state(_gremlins_state_root(lenv) / gremlin_id)
-    assert (
-        state["client"]
-        == "xai:grok-4"
-    )
+    assert state["client"] == "xai:grok-4"
 
 
 def test_launch_persists_cli_client_space_form(lenv):
@@ -242,10 +239,7 @@ def test_launch_ghgremlin_persists_pipeline_default_client(lenv_with_gh):
         "gh", stage_inputs={"instructions": "test gh default client"}
     )
     state = _read_state(_gremlins_state_root(lenv_with_gh) / gremlin_id)
-    assert (
-        state["client"]
-        == "xai:grok-4"
-    )
+    assert state["client"] == "xai:grok-4"
 
 
 def test_launch_ghgremlin_persists_cli_client_override(lenv_with_gh):
@@ -459,7 +453,14 @@ def test_run_pipeline_writes_terminal_state_on_success(lenv, monkeypatch):
         "# Test Plan\n\n## Tasks\n- [ ] Touch a file\n", encoding="utf-8"
     )
     launcher = _launcher()
-    gremlin_id, _ = launcher.launch("local", stage_inputs={"plan": str(plan_file)})
+    gremlin_id, _ = launcher.launch(
+        "local",
+        stage_inputs={"plan": str(plan_file)},
+        pipeline_args=(
+            "--client",
+            "cmd:claude -p --model sonnet --verbose --output-format stream-json --permission-mode bypassPermissions",
+        ),
+    )
     state_dir = _gremlins_state_root(lenv) / gremlin_id
     assert _wait_for_finished(state_dir, timeout=120), (
         f"pipeline did not finish; log:\n{(state_dir / 'log').read_text(errors='replace')[-2000:]}"
@@ -568,7 +569,12 @@ def test_full_localgremlin_pipeline(lenv, monkeypatch):
     """plan → implement → review → address all run once in order."""
     launcher = _launcher()
     gremlin_id, _ = launcher.launch(
-        "local", stage_inputs={"instructions": "test full pipeline"}
+        "local",
+        stage_inputs={"instructions": "test full pipeline"},
+        pipeline_args=(
+            "--client",
+            "cmd:claude -p --model sonnet --verbose --output-format stream-json --permission-mode bypassPermissions",
+        ),
     )
     state_dir = _gremlins_state_root(lenv) / gremlin_id
     assert _wait_for_finished(state_dir, timeout=120), (
@@ -709,7 +715,12 @@ def test_pipeline_survives_worktree_pipeline_rename(lenv, monkeypatch):
 
     launcher = _launcher()
     gremlin_id, _ = launcher.launch(
-        "local", stage_inputs={"instructions": "test gremlins rename regression"}
+        "local",
+        stage_inputs={"instructions": "test gremlins rename regression"},
+        pipeline_args=(
+            "--client",
+            "cmd:claude -p --model sonnet --verbose --output-format stream-json --permission-mode bypassPermissions",
+        ),
     )
     state_dir = _gremlins_state_root(lenv) / gremlin_id
     log_path = state_dir / "log"

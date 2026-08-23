@@ -99,6 +99,7 @@ def test_pipeline_two_test_stages_both_names_present(tmp_path: pathlib.Path) -> 
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 clients: {}
 stages:
   - {name: test-pre, type: exec}
@@ -293,6 +294,7 @@ def test_pipeline_parallel_max_concurrent_parsed(tmp_path: pathlib.Path) -> None
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 clients: {}
 stages:
   - name: reviews
@@ -313,6 +315,7 @@ def test_pipeline_max_concurrent_on_leaf_stage_raises(tmp_path: pathlib.Path) ->
         tmp_path / "pipeline.yaml",
         """\
 name: p
+default_client: openai:gpt-4o
 clients: {}
 stages:
   - {name: s1, type: exec, max_concurrent: 2}

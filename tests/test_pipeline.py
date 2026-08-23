@@ -166,6 +166,7 @@ def test_pipeline_rejects_unknown_stage_type(tmp_path: pathlib.Path) -> None:
 # ---------------------------------------------------------------------------
 
 _SAMPLE_YAML = """\
+default_client: openai:gpt-4o
 stages:
   - name: plan
     type: agent

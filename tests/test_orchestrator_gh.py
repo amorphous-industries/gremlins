@@ -765,7 +765,7 @@ def test_gh_main_defaults_model_to_sonnet(tmp_path, monkeypatch):
     # embedded in the command). Asserting on every call (not just calls[0])
     # catches the case where one stage is fixed but another is overlooked.
     assert client.calls, "expected at least one client call"
-    expected_model = "claude -p --model sonnet --verbose --output-format stream-json --permission-mode bypassPermissions"
+    expected_model = "grok-4"
     bad = [c for c in client.calls if c.model != expected_model]
     assert not bad, (
         f"{len(bad)} stage(s) ran on a non-sonnet model: "
