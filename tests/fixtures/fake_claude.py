@@ -144,8 +144,8 @@ def maybe_fail_at(stage: str) -> None:
         sys.exit(1)
 
 
-def find_path_in_prompt(prompt: str, pattern: str) -> str:
-    m = re.search(pattern, prompt)
+def find_path_in_prompt(prompt: str, pattern: str, flags: int = 0) -> str:
+    m = re.search(pattern, prompt, flags)
     return m.group(1) if m else ""
 
 
@@ -172,7 +172,10 @@ def git_commit_changes(message: str) -> bool:
 
 def handle_plan(prompt: str) -> int:
     plan_file = (
-        find_path_in_prompt(prompt, r"write it to the file `([^`]+)`")
+        find_path_in_prompt(
+            prompt, r"Write your final plan to the file `([^`]+)`", re.IGNORECASE
+        )
+        or find_path_in_prompt(prompt, r"write it to the file `([^`]+)`")
         or find_path_in_prompt(prompt, r"Write the plan to `([^`]+)`")
         or find_path_in_prompt(prompt, r"(/[^\s`]+/plan\.md)")
     )

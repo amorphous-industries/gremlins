@@ -1,5 +1,15 @@
 <!-- placeholders: base_ref, instructions, out_file -->
-You are creating an implementation plan. Write the plan to `{out_file}` in the current directory.
+You are creating an implementation plan.
+
+## Where to write
+
+Write your final plan to the file `{out_file}` in the current directory. This file does not exist yet — you are creating it.
+
+## Input: pre-existing plan (if any)
+
+If the file `plan.md` already exists and is non-empty in the current directory, read it as source material. Refine its content into the plan. The file must begin with a `# Title` H1 on the very first line — if the existing content has no leading H1, derive a concise title from the content and add it as the first line.
+
+If `plan.md` does not exist, gather context from the codebase and create a plan from scratch.
 
 ## Base branch
 
@@ -13,11 +23,7 @@ This implementation targets branch `{base_ref}`. Read the existing code on this 
 
 Read any relevant source files to understand the existing code and identify what needs to change.
 
-## If plan.md already exists
-
-If `plan.md` already exists and is non-empty, read it as source material. Refine its content into a proper implementation plan following the structure below. The file must begin with a `# Title` H1 on the very first line — if the existing content has no leading H1, derive a concise title from the content and add it as the first line.
-
-## Create the plan
+## Plan structure
 
 Write a detailed implementation plan structured as:
 

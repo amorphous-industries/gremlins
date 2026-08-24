@@ -1,5 +1,9 @@
 <!-- placeholders: out_file, instructions -->
-Create a detailed implementation plan for the following task and write it to the file `{out_file}` in the current directory. Use this structure:
+Create a detailed implementation plan for the following task.
+
+## Where to write
+
+Write your final plan to the file `{out_file}` in the current directory. This file does not exist yet — you are creating it.
 
 ## Context
 What problem are we solving and why.
