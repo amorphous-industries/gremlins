@@ -35,18 +35,12 @@ stages:
         in:
           plan_text: rolling-plan
           spec_section: "boss-spec?"
-        options:
-          idle_timeout: 3600
-
-      - name: move-handoff-outputs
-        type: exec
-        options:
-          cmds:
-            - mv "{cwd}/rolling-plan.md" "{artifact_dir}/rolling-plan.md" || true
-            - mv "{cwd}/child-plan.md" "{artifact_dir}/child-plan.md" || true
-            - mv "{cwd}/signal.json" "{artifact_dir}/signal.json" || true
         out:
           rolling-plan: "file://session/rolling-plan.md"
+          child-plan:   "file://session/child-plan.md"
+          signal:       "file://session/signal.json"
+        options:
+          idle_timeout: 3600
 
       - name: translate-signal
         type: exec

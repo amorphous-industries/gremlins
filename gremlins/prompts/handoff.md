@@ -67,7 +67,7 @@ Prefer **smaller, single-purpose** child plans over bundled ones. A good child p
    - **`next-plan`**: at least one *implementation* task remains; the next gremlin should tackle it.
    - **`bail`**: something prevents safe continuation (broken state, incoherent plan, security issue, etc.). Reserved for genuine blockers. Operator-only remaining work is **not** a bail reason — it is `chain-done`.
 
-5. Write an **updated plan document** (the "rolling plan") to: `rolling-plan.md`
+5. Write an **updated plan document** (the "rolling plan") to the path for `rolling-plan.md` in `{out_files}`
 
    The rolling plan describes only **remaining** work. These forms are **never** allowed anywhere in the document, at any position:
    - Prose statements about what has landed, shipped, merged, or been completed — e.g. "Phases 0–3 have landed", "X was merged in PR #N", "the following work is complete", "all tasks in this phase are done"
@@ -85,7 +85,7 @@ Prefer **smaller, single-purpose** child plans over bundled ones. A good child p
    - **`chain-done`**: minimal output. A short note that the chain is complete is enough — no leftover task list, no carried-over context. If any pending operator follow-ups remain (under the carry-forward rule above), list them under `## Operator follow-ups` so the human sees them in the final rolling plan; otherwise omit. The signal file carries the structured outcome (including `operator_followups`).
    - **`bail`**: same pruning rules as `next-plan` (only remaining implementation tasks, surrounding sections trimmed accordingly, unresolved `## Open questions` carried forward, `## Operator follow-ups` carried forward under the conservative rule above), with a bail-reason banner added prominently at the top.
 
-6. If exit state is **`next-plan`**, write a **child plan** to: `child-plan.md`
+6. If exit state is **`next-plan`**, write a **child plan** to the path for `child-plan.md` in `{out_files}`
    - Use the standard localgremlin plan structure exactly:
 
      ```
@@ -107,13 +107,15 @@ Prefer **smaller, single-purpose** child plans over bundled ones. A good child p
    - The child plan must be self-contained — a fresh gremlin with only this file must know exactly what to implement. Do not propagate the overarching goal of the chain into the child plan; scope it to the next chunk per the **Sizing the next step** rules above. If you find yourself listing tasks that span multiple concerns or natural phases, stop and narrow the scope — push the rest back into the rolling plan for the next handoff.
    - **No operator tasks in the child plan, ever.** Before writing the child plan, re-read your own draft `## Tasks` list and ask, for each item: "Is this something a code-only gremlin in a detached worktree can do, ending in one PR?" If any task fails that test, revise — rewrite it as the underlying code change if there is one, or move it to `## Operator follow-ups` in the rolling plan and drop it from the child plan.
 
-7. Write the **signal marker** to: `signal.json`
+7. Write the **signal marker** to the path for `signal.json` in `{out_files}`
    - Valid JSON, exactly this structure:
      ```json
-     {"exit_state": "next-plan|chain-done|bail", "child_plan": "<relative path or null>", "reason": "<bail reason or null>", "operator_followups": ["<task>", ...]}
+     {"exit_state": "next-plan|chain-done|bail", "child_plan": "child-plan.md or null", "reason": "<bail reason or null>", "operator_followups": ["<task>", ...]}
      ```
-   - `child_plan`: `child-plan.md` (as a string) if exit state is `next-plan`, otherwise `null`.
+   - `child_plan`: the string `"child-plan.md"` if exit state is `next-plan`, otherwise `null`. Use the logical name, not the `{out_files}` mapped path.
    - `reason`: a short human-readable explanation if exit state is `bail`, otherwise `null`.
    - `operator_followups`: an array of one-line strings describing every pending operator task, mirroring the rolling plan's `## Operator follow-ups` section. Empty array `[]` if there are none. Required on every exit state — including `chain-done`, where this is how the boss orchestrator learns about operator tasks the human still owes after the rolling plan has been pruned to a "chain complete" note.
+
+`{out_files}` is a JSON mapping from logical name to the filename you must write. Parse it, then write each output file using the mapped filename.
 
 Write all required files before finishing. Do not explain your reasoning in stdout — the files are the output.

@@ -357,7 +357,6 @@ def test_gh_pipeline_stage_names(tmp_path):
         "verify",
         "open-pr",
         "compose-pr",
-        "move-pr-outputs",
         "push-and-open",
         "github-request-copilot-review",
         "github-review-pull-request",
