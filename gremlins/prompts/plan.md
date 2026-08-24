@@ -5,8 +5,6 @@ Create a detailed implementation plan for the following task.
 
 Write your final plan to the file `{out_file}` in the current directory. This file does not exist yet — you are creating it.
 
-## Plan structure
-
 ## Context
 What problem are we solving and why.
 
