@@ -70,8 +70,11 @@ stage-definitions:
       - { type: normalize }
       - { type: run-checks-and-fix, options: { cmds: ["make check", "make test"] } }
 
+bootstrap:
+  - uv venv .venv
+  - uv pip install --python .venv -e ".[dev]"
+
 stages:
-  - { include: bootstrap-dev-env }
   - { type: gremlins:plan-gh, prompt: [code-style, terse, gremlins:plan_gh.md] }
   - { type: gremlins:implement, prompt: [code-style, terse, dev-env, no_lint_in_implement.md, gremlins:implement_gh.md] }
   - { type: normalize-and-fix }

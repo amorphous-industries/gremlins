@@ -621,6 +621,8 @@ def _build_child_spec_dict(
     child_id: str = "",
 ) -> dict[str, Any]:
     parent_id = child_st.data.gremlin_id or ""
+    pipeline_data = child_st.pipeline_data
+    bootstrap_cmds = pipeline_data.bootstrap if pipeline_data else []
     return {
         "stage_dict": stage_obj.raw_dict,
         "client": str(child_st.client),
@@ -637,6 +639,7 @@ def _build_child_spec_dict(
         "parent_stage": child_st.parent_stage,
         "repo": child_st.repo,
         "base_ref": child_st.base_ref,
+        "bootstrap": bootstrap_cmds,
     }
 
 

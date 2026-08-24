@@ -252,6 +252,11 @@ async def run_pipeline(
 
     stage_gremlins_overlay(str(_project_root), state_dir)
 
+    if gremlin.pipeline_data.bootstrap and gremlin.worktree_dir:
+        from gremlins.executor.bootstrap import run_bootstrap as _run_bootstrap
+
+        await _run_bootstrap(gremlin.pipeline_data.bootstrap, gremlin.worktree_dir)
+
     _env_file = paths.project_overlay_dir(_project_root) / "env"
     if _env_file.is_file():
         os.environ["GREMLINS_WORKTREE_PATH"] = (

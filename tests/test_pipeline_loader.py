@@ -912,3 +912,171 @@ def test_boss_yaml_loads() -> None:
     assert chain_entry.body[0].name == "handoff"
     body_names = [b.name for b in chain_entry.body]
     assert "implement" in body_names
+
+
+# ---- bootstrap -------------------------------------------------------------
+
+
+def test_bootstrap_parsed_from_yaml(tmp_path: pathlib.Path) -> None:
+    yaml_path = _write_yaml(
+        tmp_path / "pipeline.yaml",
+        """\
+default_client: openai:gpt-4o
+bootstrap:
+  - uv venv .venv
+  - uv pip install -e ".[dev]"
+stages: []
+""",
+    )
+    pipeline = Pipeline.from_yaml(yaml_path)
+    assert pipeline.bootstrap == ["uv venv .venv", 'uv pip install -e ".[dev]"']
+
+
+def test_bootstrap_empty_when_not_declared(tmp_path: pathlib.Path) -> None:
+    yaml_path = _write_yaml(
+        tmp_path / "pipeline.yaml",
+        """\
+default_client: openai:gpt-4o
+stages: []
+""",
+    )
+    pipeline = Pipeline.from_yaml(yaml_path)
+    assert pipeline.bootstrap == []
+
+
+def test_bootstrap_rejects_non_list(tmp_path: pathlib.Path) -> None:
+    yaml_path = _write_yaml(
+        tmp_path / "pipeline.yaml",
+        """\
+default_client: openai:gpt-4o
+bootstrap: "not a list"
+stages: []
+""",
+    )
+    with pytest.raises(ValueError, match="must be a list of strings"):
+        Pipeline.from_yaml(yaml_path)
+
+
+def test_bootstrap_rejects_non_string_items(tmp_path: pathlib.Path) -> None:
+    yaml_path = _write_yaml(
+        tmp_path / "pipeline.yaml",
+        """\
+default_client: openai:gpt-4o
+bootstrap:
+  - echo ok
+  - 42
+stages: []
+""",
+    )
+    with pytest.raises(ValueError, match="must be a list of strings"):
+        Pipeline.from_yaml(yaml_path)
+
+
+def test_bootstrap_overlay_merged(tmp_path: pathlib.Path) -> None:
+    """.gremlins/bootstrap.yaml commands come before pipeline bootstrap:"""
+    overlay_dir = tmp_path / ".gremlins"
+    overlay_dir.mkdir()
+    overlay_dir.joinpath("bootstrap.yaml").write_text(
+        "- echo first\n- echo second\n", encoding="utf-8"
+    )
+    yaml_path = _write_yaml(
+        tmp_path / "pipeline.yaml",
+        """\
+default_client: openai:gpt-4o
+bootstrap:
+  - echo third
+stages: []
+""",
+    )
+    pipeline = Pipeline.from_yaml(yaml_path)
+    assert pipeline.bootstrap == ["echo first", "echo second", "echo third"]
+
+
+def test_bootstrap_overlay_only(tmp_path: pathlib.Path) -> None:
+    """Overlay file works even without pipeline bootstrap:"""
+    overlay_dir = tmp_path / ".gremlins"
+    overlay_dir.mkdir()
+    overlay_dir.joinpath("bootstrap.yaml").write_text(
+        "- echo first\n", encoding="utf-8"
+    )
+    yaml_path = _write_yaml(
+        tmp_path / "pipeline.yaml",
+        """\
+default_client: openai:gpt-4o
+stages: []
+""",
+    )
+    pipeline = Pipeline.from_yaml(yaml_path)
+    assert pipeline.bootstrap == ["echo first"]
+
+
+def test_bootstrap_overlay_pipeline_in_gremlins_dir(tmp_path: pathlib.Path) -> None:
+    """Project-local pipeline (.gremlins/gh.yaml) finds bootstrap.yaml in same dir."""
+    overlay_dir = tmp_path / ".gremlins"
+    overlay_dir.mkdir()
+    overlay_dir.joinpath("bootstrap.yaml").write_text(
+        "- uv venv .venv\n", encoding="utf-8"
+    )
+    yaml_path = _write_yaml(
+        overlay_dir / "gh.yaml",
+        """\
+default_client: openai:gpt-4o
+stages: []
+""",
+    )
+    pipeline = Pipeline.from_yaml(yaml_path)
+    assert pipeline.bootstrap == ["uv venv .venv"]
+
+
+def test_bootstrap_overlay_rejects_non_list(tmp_path: pathlib.Path) -> None:
+    overlay_dir = tmp_path / ".gremlins"
+    overlay_dir.mkdir()
+    overlay_dir.joinpath("bootstrap.yaml").write_text(
+        "not a list\n", encoding="utf-8"
+    )
+    yaml_path = _write_yaml(
+        tmp_path / "pipeline.yaml",
+        """\
+default_client: openai:gpt-4o
+stages: []
+""",
+    )
+    with pytest.raises(ValueError, match="must be a list"):
+        Pipeline.from_yaml(yaml_path)
+
+
+def test_bootstrap_overlay_rejects_non_string_items(tmp_path: pathlib.Path) -> None:
+    overlay_dir = tmp_path / ".gremlins"
+    overlay_dir.mkdir()
+    overlay_dir.joinpath("bootstrap.yaml").write_text(
+        "- echo ok\n- 42\n", encoding="utf-8"
+    )
+    yaml_path = _write_yaml(
+        tmp_path / "pipeline.yaml",
+        """\
+default_client: openai:gpt-4o
+stages: []
+""",
+    )
+    with pytest.raises(ValueError, match="must be a list of strings"):
+        Pipeline.from_yaml(yaml_path)
+
+
+def test_bootstrap_overlay_comments_only_ignored(tmp_path: pathlib.Path) -> None:
+    """Comment-only bootstrap.yaml is treated as empty."""
+    overlay_dir = tmp_path / ".gremlins"
+    overlay_dir.mkdir()
+    overlay_dir.joinpath("bootstrap.yaml").write_text(
+        "# just comments\n# no commands\n", encoding="utf-8"
+    )
+    yaml_path = _write_yaml(
+        tmp_path / "pipeline.yaml",
+        """\
+default_client: openai:gpt-4o
+bootstrap:
+  - echo from pipeline
+stages: []
+""",
+    )
+    pipeline = Pipeline.from_yaml(yaml_path)
+    assert pipeline.bootstrap == ["echo from pipeline"]
