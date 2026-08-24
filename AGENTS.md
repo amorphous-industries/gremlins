@@ -17,7 +17,7 @@ gremlins/                    Python package — see gremlins/AGENTS.md
   logging_setup.py           configure_logging — UTC timestamp formatter, stdout, GREMLINS_LOG_LEVEL
   env_file.py                .env file loading (shell-like parsing)
   protocols.py               GremlinProtocol, StageProtocol — shared protocols to avoid circular imports
-  _core.py                   Shim: from _gremlins_core import *
+  _core.py                   Shim: import _gremlins_core as _core; exports _core
   cli/                       Subcommand entry points — one file per subcommand group
   clients/                   Client classes + provider impls — see gremlins/clients/AGENTS.md
   stages/                    Stage classes: agent, exec, loop, composite, parallel, sequence — see gremlins/stages/AGENTS.md
@@ -110,7 +110,7 @@ Stages that invoke `claude` go through an injected `Client` (in `gremlins/client
 
 ## State and bail bookkeeping
 
-`State.set_stage` (in `executor/state.py`) writes stage info to `state.json` atomically via `patch_state`.
+`State.set_stage` (in `executor/state.py`) writes stage info to `state.json` atomically via `State.patch` (which uses `locked_update`).
 `State.write_bail_file` writes `bail_{attempt}.json` to the state dir. When a stage
 detects a recorded bail (via `state.json`), it raises a `Bail` exception.
 Both helpers no-op without `GREMLINS_GREMLIN_ID` and never raise —
