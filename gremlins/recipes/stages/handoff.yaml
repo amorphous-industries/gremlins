@@ -73,7 +73,7 @@ stages:
                     printf 'next-plan: child_plan not set in signal.json' > "{artifact_dir}/bail-reason.txt"
                     exit 2
                   fi
-                  [ ! -f "$child" ] && child="{artifact_dir}/$child"
+                  [ ! -f "$child" ] && { case "$child" in /*) ;; *) child="{artifact_dir}/$child";; esac; }
                   if [ ! -f "$child" ]; then
                     printf 'next-plan: child_plan not found: %s' "$child" \
                       > "{artifact_dir}/bail-reason.txt"
