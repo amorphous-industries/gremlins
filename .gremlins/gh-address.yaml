@@ -12,6 +12,7 @@ land:
 prompts:
   code-style: gremlins:code_style.md
   terse: terse_style.md
+  dev-env: dev-env-howto.md
 
 # Usage:
 #   gremlins resume --graft gh-address <gremlin_id>
@@ -20,11 +21,12 @@ prompts:
 # Use when reviewer comments on an existing PR need another pass.
 
 stages:
-  - { name: github-address-pull-request-reviews, type: agent, in: {pr: pr}, prompt: [code-style, terse, gremlins:github_address_pull_request_reviews.md, gremlins:bail_section.md] }
+  - { include: bootstrap-dev-env }
+  - { name: github-address-pull-request-reviews, type: agent, in: {pr: pr}, prompt: [code-style, terse, dev-env, gremlins:github_address_pull_request_reviews.md, gremlins:bail_section.md] }
   - type: exec
     options:
       cmds:
         - "ruff format ."
         - "git add -A"
         - "git diff --cached --quiet || git commit -m 'normalize'"
-  - { type: gremlins:github-wait-ci, prompt: [terse, gremlins:ci_fix.md, gremlins:bail_section_fix.md] }
+  - { type: gremlins:github-wait-ci, prompt: [terse, dev-env, gremlins:ci_fix.md, gremlins:bail_section_fix.md] }
