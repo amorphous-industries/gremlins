@@ -195,7 +195,9 @@ def test_out_file_moves_file_from_worktree_to_artifact_dir(tmp_path):
 
     class WritingClient(FakeClient):
         async def run(self, prompt, *, label, cwd=None, **kwargs):
-            (pathlib.Path(cwd) / output_filename).write_text("# Output", encoding="utf-8")
+            (pathlib.Path(cwd) / output_filename).write_text(
+                "# Output", encoding="utf-8"
+            )
             return await super().run(prompt, label=label, cwd=cwd, **kwargs)
 
     client = WritingClient(fixtures={"my-agent": MINIMAL_EVENTS})
@@ -208,7 +210,9 @@ def test_out_file_moves_file_from_worktree_to_artifact_dir(tmp_path):
 
     result = asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
     assert isinstance(result, Done)
-    assert (state.artifact_dir / output_filename).read_text(encoding="utf-8") == "# Output"
+    assert (state.artifact_dir / output_filename).read_text(
+        encoding="utf-8"
+    ) == "# Output"
     assert not (pathlib.Path(state.cwd) / output_filename).exists()
 
 
@@ -219,7 +223,9 @@ def test_out_file_with_substitution_expands_tokens(tmp_path):
 
     class WritingClient(FakeClient):
         async def run(self, prompt, *, label, cwd=None, **kwargs):
-            (pathlib.Path(cwd) / expected_filename).write_text("# Review", encoding="utf-8")
+            (pathlib.Path(cwd) / expected_filename).write_text(
+                "# Review", encoding="utf-8"
+            )
             return await super().run(prompt, label=label, cwd=cwd, **kwargs)
 
     client = WritingClient(fixtures={"review-code": MINIMAL_EVENTS})
@@ -233,7 +239,9 @@ def test_out_file_with_substitution_expands_tokens(tmp_path):
 
     result = asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
     assert isinstance(result, Done)
-    assert (state.artifact_dir / expected_filename).read_text(encoding="utf-8") == "# Review"
+    assert (state.artifact_dir / expected_filename).read_text(
+        encoding="utf-8"
+    ) == "# Review"
     assert not (pathlib.Path(state.cwd) / expected_filename).exists()
 
 

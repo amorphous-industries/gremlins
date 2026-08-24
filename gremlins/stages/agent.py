@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import pathlib
 import shutil
 from typing import TYPE_CHECKING, Any, cast
