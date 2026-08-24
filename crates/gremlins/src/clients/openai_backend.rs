@@ -448,13 +448,8 @@ async fn run_agent_loop_core<M: CompletionModel>(
             let args_json =
                 serde_json::to_string(&tc.function.arguments).unwrap_or_else(|_| "{}".into());
             if !nested {
-                stream::emit_tool(
-                    prefix,
-                    &tc.function.name,
-                    &key_arg(&tc.function.arguments),
-                );
-                let tool_evt =
-                    tool_use_event(&tc.id, &tc.function.name, &tc.function.arguments);
+                stream::emit_tool(prefix, &tc.function.name, &key_arg(&tc.function.arguments));
+                let tool_evt = tool_use_event(&tc.id, &tc.function.name, &tc.function.arguments);
                 write_raw(raw, &tool_evt);
                 if let Some(evts) = captured.as_mut() {
                     evts.push(tool_evt);
@@ -470,10 +465,7 @@ async fn run_agent_loop_core<M: CompletionModel>(
 
         // Phase 2: concurrent execution
         let ctx = tool_ctx.clone();
-        let results = join_all(jobs.iter().map(|j| {
-            tools::invoke(&j.name, &ctx, &j.args)
-        }))
-        .await;
+        let results = join_all(jobs.iter().map(|j| tools::invoke(&j.name, &ctx, &j.args))).await;
 
         // Phase 3: emit results in order
         let mut result_msgs = Vec::new();
@@ -486,7 +478,11 @@ async fn run_agent_loop_core<M: CompletionModel>(
                     evts.push(result_evt);
                 }
             }
-            result_msgs.push(Message::tool_result_with_call_id(job.id, job.call_id, output));
+            result_msgs.push(Message::tool_result_with_call_id(
+                job.id,
+                job.call_id,
+                output,
+            ));
         }
         turns += tool_calls.len();
         if !nested {
