@@ -235,12 +235,12 @@ fn check_ln_symlink(cmd: &str) -> Option<String> {
 fn check_cd(root: &Path, cmd: &str, cwd: Option<&Path>) -> Option<String> {
     // Split on command boundaries: ;, &&, ||
     let parts: Vec<&str> = cmd
-        .split(|c: char| c == ';')
+        .split(';')
         .flat_map(|p| p.split("&&"))
         .flat_map(|p| p.split("||"))
         .collect();
     for part in parts {
-        let tokens: Vec<&str> = part.trim().split_whitespace().collect();
+        let tokens: Vec<&str> = part.split_whitespace().collect();
         if tokens.is_empty() {
             continue;
         }
