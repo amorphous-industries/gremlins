@@ -240,6 +240,7 @@ async fn run_agent_loop<M: CompletionModel + Clone + Send + Sync + 'static>(
         audit_log,
         allowed_tools: opts.tool_filter.map(|s| s.to_vec()),
         subagent_fn: None,
+        audit_lock: Some(Arc::new(std::sync::Mutex::new(()))),
     };
     let tool_defs = tools::tool_definitions(opts.tool_filter);
 
@@ -333,6 +334,13 @@ async fn run_agent_loop_core<M: CompletionModel>(
     let mut final_text = String::new();
     let mut timed_out = false;
     let mut stream_error: Option<String> = None;
+
+    struct Job {
+        id: String,
+        call_id: Option<String>,
+        name: String,
+        args: String,
+    }
 
     for _ in 0..max_turns {
         if cancel.is_cancelled() {
@@ -437,12 +445,6 @@ async fn run_agent_loop_core<M: CompletionModel>(
         history.push(assistant_tool_message(&text, &tool_calls));
 
         // Phase 1: emit tool-start events, collect owned data for concurrent execution
-        struct Job {
-            id: String,
-            call_id: Option<String>,
-            name: String,
-            args: String,
-        }
         let mut jobs: Vec<Job> = Vec::new();
         for tc in &tool_calls {
             let args_json =
