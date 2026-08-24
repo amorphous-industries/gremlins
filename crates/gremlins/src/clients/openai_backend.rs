@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use rig_core::client::CompletionClient;
 use rig_core::completion::message::{AssistantContent, ToolCall};
-use rig_core::completion::{CompletionModel, Message};
+use rig_core::completion::{CompletionModel, Message, ToolDefinition};
 use rig_core::providers::openai;
 use rig_core::streaming::StreamedAssistantContent;
 use rig_core::OneOrMany;
@@ -55,13 +55,13 @@ impl OpenAiProvider {
     }
 }
 
-struct CancelToken {
+pub(crate) struct CancelToken {
     flag: AtomicBool,
     notify: Notify,
 }
 
 impl CancelToken {
-    fn new() -> Arc<Self> {
+    pub(crate) fn new() -> Arc<Self> {
         Arc::new(Self {
             flag: AtomicBool::new(false),
             notify: Notify::new(),
@@ -73,7 +73,7 @@ impl CancelToken {
         self.notify.notify_waiters();
     }
 
-    fn is_cancelled(&self) -> bool {
+    pub(crate) fn is_cancelled(&self) -> bool {
         self.flag.load(Ordering::Relaxed)
     }
 
@@ -144,7 +144,7 @@ impl OpenAiBackend {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let cancel = CancelToken::new();
         self.cancels.lock().unwrap().insert(id, cancel.clone());
-        let result = self.attempt_inner(prompt, ctx, &cancel).await;
+        let result = self.attempt_inner(prompt, ctx, cancel).await;
         self.cancels.lock().unwrap().remove(&id);
         result
     }
@@ -153,7 +153,7 @@ impl OpenAiBackend {
         &self,
         prompt: &str,
         ctx: &RunContext,
-        cancel: &CancelToken,
+        cancel: Arc<CancelToken>,
     ) -> Result<CompletedRun, ClientError> {
         let model_name = self.effective_model(ctx.params.model.as_deref());
         let model = self.client.completion_model(&model_name);
@@ -180,11 +180,11 @@ struct LoopOpts<'a> {
     tool_filter: Option<&'a [String]>,
 }
 
-async fn run_agent_loop<M: CompletionModel>(
+async fn run_agent_loop<M: CompletionModel + Clone + Send + Sync + 'static>(
     model: &M,
     prompt: &str,
     ctx: &RunContext,
-    cancel: &CancelToken,
+    cancel: Arc<CancelToken>,
     opts: LoopOpts<'_>,
 ) -> Result<CompletedRun, ClientError> {
     let cwd = ctx.params.cwd.clone();
@@ -231,16 +231,101 @@ async fn run_agent_loop<M: CompletionModel>(
 
     let worktree = tools::worktree_root(cwd.as_deref());
     let audit_log = raw_path.as_ref().map(|p| tools::audit_log_path(p));
-    let tool_ctx = ToolContext {
+    let max_turns = config::openai_agents_max_turns();
+    let mut tool_ctx = ToolContext {
         cwd: cwd.clone(),
         extra_env,
         worktree_root: worktree,
         audit_log,
         allowed_tools: opts.tool_filter.map(|s| s.to_vec()),
+        subagent_fn: None,
     };
     let tool_defs = tools::tool_definitions(opts.tool_filter);
-    let max_turns = config::openai_agents_max_turns();
 
+    // Wire up the subagent runner before entering the turn loop.
+    let runner = super::subagent::make_runner(
+        model.clone(),
+        opts.instructions.to_string(),
+        opts.tool_filter.map(|f| f.to_vec()),
+        cancel.clone(),
+        tool_ctx.clone(),
+        prefix.clone(),
+        idle_timeout,
+        max_turns,
+    );
+    tool_ctx.subagent_fn = Some(runner);
+
+    run_agent_loop_core(
+        model,
+        prompt,
+        &tool_ctx,
+        &tool_defs,
+        &cancel,
+        &opts,
+        &prefix,
+        max_turns,
+        idle_timeout,
+        &mut raw,
+        &mut captured,
+        false,
+    )
+    .await
+}
+
+/// Nested agent loop — same logic as the parent loop but without stream
+/// emissions, raw file writes, or event capture. Used by the subagent tool.
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn run_agent_loop_nested<M: CompletionModel + Clone + Send + Sync + 'static>(
+    model: &M,
+    prompt: &str,
+    tool_ctx: &ToolContext,
+    cancel: &CancelToken,
+    instructions: &str,
+    tool_filter: Option<&[String]>,
+    prefix: &str,
+    idle_timeout: f64,
+    max_turns: usize,
+) -> Result<CompletedRun, ClientError> {
+    let opts = LoopOpts {
+        instructions,
+        extra: None,
+        tool_filter,
+    };
+    let tool_defs = tools::tool_definitions(tool_filter);
+    let mut raw: Option<std::fs::File> = None;
+    let mut captured: Option<Vec<serde_json::Value>> = None;
+    run_agent_loop_core(
+        model,
+        prompt,
+        tool_ctx,
+        &tool_defs,
+        cancel,
+        &opts,
+        prefix,
+        max_turns,
+        idle_timeout,
+        &mut raw,
+        &mut captured,
+        true,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn run_agent_loop_core<M: CompletionModel>(
+    model: &M,
+    prompt: &str,
+    tool_ctx: &ToolContext,
+    tool_defs: &[ToolDefinition],
+    cancel: &CancelToken,
+    opts: &LoopOpts<'_>,
+    prefix: &str,
+    max_turns: usize,
+    idle_timeout: f64,
+    raw: &mut Option<std::fs::File>,
+    captured: &mut Option<Vec<serde_json::Value>>,
+    nested: bool,
+) -> Result<CompletedRun, ClientError> {
     let mut history: Vec<Message> = Vec::new();
     let mut next_prompt = Message::user(prompt.to_string());
     let mut turns: usize = 0;
@@ -259,7 +344,7 @@ async fn run_agent_loop<M: CompletionModel>(
             .completion_request(next_prompt.clone())
             .preamble(opts.instructions.to_string())
             .messages(history.clone())
-            .tools(tool_defs.clone())
+            .tools(tool_defs.to_vec())
             .temperature(DEFAULT_TEMPERATURE);
         if let Some(params) = opts.extra.clone() {
             builder = builder.additional_params(params);
@@ -318,25 +403,31 @@ async fn run_agent_loop<M: CompletionModel>(
             break;
         }
 
-        if !reasoning.is_empty() {
-            stream::emit_think(&prefix, &reasoning);
-        }
-        if !text.is_empty() {
-            stream::emit_text(&prefix, &text);
-            write_raw(&mut raw, &assistant_text_event(&text));
-            if let Some(evts) = captured.as_mut() {
-                evts.push(assistant_text_event(&text));
+        if !nested {
+            if !reasoning.is_empty() {
+                stream::emit_think(prefix, &reasoning);
             }
+            if !text.is_empty() {
+                stream::emit_text(prefix, &text);
+                write_raw(raw, &assistant_text_event(&text));
+                if let Some(evts) = captured.as_mut() {
+                    evts.push(assistant_text_event(&text));
+                }
+                final_text = text.clone();
+            }
+        } else {
             final_text = text.clone();
         }
 
         if tool_calls.is_empty() {
-            stream::flush();
-            emit_final(&prefix, turns, "");
+            if !nested {
+                stream::flush();
+                emit_final(prefix, turns, "");
+            }
             return Ok(CompletedRun {
                 exit_code: 0,
                 text_result: Some(final_text),
-                events: captured,
+                events: captured.clone(),
                 cost_usd: None,
             });
         }
@@ -348,18 +439,22 @@ async fn run_agent_loop<M: CompletionModel>(
         for tc in &tool_calls {
             let args_json =
                 serde_json::to_string(&tc.function.arguments).unwrap_or_else(|_| "{}".into());
-            stream::emit_tool(&prefix, &tc.function.name, &key_arg(&tc.function.arguments));
-            let tool_evt = tool_use_event(&tc.id, &tc.function.name, &tc.function.arguments);
-            write_raw(&mut raw, &tool_evt);
-            if let Some(evts) = captured.as_mut() {
-                evts.push(tool_evt);
+            if !nested {
+                stream::emit_tool(prefix, &tc.function.name, &key_arg(&tc.function.arguments));
+                let tool_evt = tool_use_event(&tc.id, &tc.function.name, &tc.function.arguments);
+                write_raw(raw, &tool_evt);
+                if let Some(evts) = captured.as_mut() {
+                    evts.push(tool_evt);
+                }
             }
-            let output = tools::invoke(&tc.function.name, &tool_ctx, &args_json).await;
-            stream::emit_result(&prefix, &output, false);
-            let result_evt = tool_result_event(&tc.id, &output);
-            write_raw(&mut raw, &result_evt);
-            if let Some(evts) = captured.as_mut() {
-                evts.push(result_evt);
+            let output = tools::invoke(&tc.function.name, tool_ctx, &args_json).await;
+            if !nested {
+                stream::emit_result(prefix, &output, false);
+                let result_evt = tool_result_event(&tc.id, &output);
+                write_raw(raw, &result_evt);
+                if let Some(evts) = captured.as_mut() {
+                    evts.push(result_evt);
+                }
             }
             turns += 1;
             result_msgs.push(Message::tool_result_with_call_id(
@@ -368,19 +463,23 @@ async fn run_agent_loop<M: CompletionModel>(
                 output,
             ));
         }
-        stream::flush();
+        if !nested {
+            stream::flush();
+        }
         next_prompt = result_msgs.pop().unwrap_or_else(|| Message::user(""));
         history.extend(result_msgs);
     }
 
-    let suffix = if timed_out {
-        " (timeout)"
-    } else if stream_error.is_some() {
-        " (stream-error)"
-    } else {
-        ""
-    };
-    emit_final(&prefix, turns, suffix);
+    if !nested {
+        let suffix = if timed_out {
+            " (timeout)"
+        } else if stream_error.is_some() {
+            " (stream-error)"
+        } else {
+            ""
+        };
+        emit_final(prefix, turns, suffix);
+    }
 
     if timed_out {
         return Err(ClientError::Timeout {
@@ -773,7 +872,7 @@ mod tests {
     async fn loop_idle_timeout_is_client_timeout() {
         let ctx = test_ctx(None, None);
         let cancel = CancelToken::new();
-        let err = run_agent_loop(&PendingModel, "hi", &ctx, &cancel, loop_opts(None))
+        let err = run_agent_loop(&PendingModel, "hi", &ctx, cancel, loop_opts(None))
             .await
             .unwrap_err();
         assert!(matches!(err, ClientError::Timeout { .. }));
@@ -812,7 +911,7 @@ mod tests {
         ctx.idle_timeout = 5.0;
         ctx.params.idle_timeout = Some(5.0);
         let cancel = CancelToken::new();
-        let result = run_agent_loop(&model, "write", &ctx, &cancel, loop_opts(None))
+        let result = run_agent_loop(&model, "write", &ctx, cancel, loop_opts(None))
             .await
             .unwrap();
         assert_eq!(result.exit_code, 0);
@@ -862,7 +961,7 @@ mod tests {
         ctx.idle_timeout = 5.0;
         ctx.params.idle_timeout = Some(5.0);
         let cancel = CancelToken::new();
-        let result = run_agent_loop(&model, "where am i", &ctx, &cancel, loop_opts(None))
+        let result = run_agent_loop(&model, "where am i", &ctx, cancel, loop_opts(None))
             .await
             .unwrap();
         let events = result.events.unwrap();
@@ -918,7 +1017,7 @@ mod tests {
         ctx.params.idle_timeout = Some(5.0);
         let cancel = CancelToken::new();
         let filter = vec!["Read".to_string()];
-        let result = run_agent_loop(&model, "write", &ctx, &cancel, loop_opts(Some(&filter)))
+        let result = run_agent_loop(&model, "write", &ctx, cancel, loop_opts(Some(&filter)))
             .await
             .unwrap();
         assert!(!target.exists());
@@ -1007,7 +1106,7 @@ mod tests {
         ctx.idle_timeout = 5.0;
         ctx.params.idle_timeout = Some(5.0);
         let cancel = CancelToken::new();
-        run_agent_loop(&model, "write", &ctx, &cancel, loop_opts(None))
+        run_agent_loop(&model, "write", &ctx, cancel, loop_opts(None))
             .await
             .unwrap();
         let audit = dir.join("run.audit.jsonl");

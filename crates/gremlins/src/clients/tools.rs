@@ -1,7 +1,8 @@
 use std::collections::HashMap;
-use std::ffi::OsString;
 use std::path::{Component, Path, PathBuf};
+use std::pin::Pin;
 use std::process::Stdio;
+use std::sync::Arc;
 use std::time::Duration;
 
 use regex::Regex;
@@ -12,6 +13,11 @@ const GREP_MAX_LINES: usize = 2000;
 const BASH_TIMEOUT_SECS: u64 = 120;
 const SKIP_DIRS: &[&str] = &["__pycache__", "node_modules", "target"];
 
+type SubagentFuture = Pin<Box<dyn std::future::Future<Output = String> + Send>>;
+
+/// Callback that `invoke` calls for subagent tool invocations.
+pub type SubagentFn = Arc<dyn Fn(String, Option<PathBuf>) -> SubagentFuture + Send + Sync>;
+
 #[derive(Clone)]
 pub struct ToolContext {
     pub cwd: Option<PathBuf>,
@@ -19,6 +25,7 @@ pub struct ToolContext {
     pub worktree_root: PathBuf,
     pub audit_log: Option<PathBuf>,
     pub allowed_tools: Option<Vec<String>>,
+    pub subagent_fn: Option<SubagentFn>,
 }
 
 pub fn project_root() -> PathBuf {
@@ -66,29 +73,6 @@ fn normalize_dots(p: &Path) -> PathBuf {
 }
 
 fn normalize_path(p: &Path) -> Option<PathBuf> {
-    if let Ok(c) = p.canonicalize() {
-        return Some(c);
-    }
-    let mut existing = p.to_path_buf();
-    let mut rest: Vec<OsString> = Vec::new();
-    loop {
-        if let Ok(c) = existing.canonicalize() {
-            let mut out = c;
-            for part in rest.iter().rev() {
-                out.push(part);
-            }
-            return Some(normalize_dots(&out));
-        }
-        match existing.file_name() {
-            Some(name) => {
-                rest.push(name.to_os_string());
-                if !existing.pop() {
-                    break;
-                }
-            }
-            None => break,
-        }
-    }
     let abs = if p.is_absolute() {
         p.to_path_buf()
     } else {
@@ -124,10 +108,80 @@ pub fn enforce(root: &Path, pth: &str, cwd: Option<&Path>) -> Option<String> {
     None
 }
 
+/// Symlink-aware containment check for file I/O. Resolves the path by
+/// canonicalizing its deepest *existing* ancestor (following symlinks) and
+/// re-appending the not-yet-existing tail, then rejects if the real target
+/// escapes the worktree. Returns Some(error) or None if the path is safe.
+///
+/// Canonicalizing the deepest existing ancestor — rather than bailing when
+/// the leaf doesn't exist — closes the escape where a pre-existing symlinked
+/// parent (e.g. a `.venv` linked outside the worktree) would let a Write to
+/// `worktree/link/newfile` land outside the worktree.
+pub fn io_enforce(path: &Path, root: &Path) -> Option<String> {
+    let real_root = match root.canonicalize() {
+        Ok(c) => c,
+        Err(_) => return None, // paranoid, shouldn't happen for real worktree
+    };
+    // Walk up to the deepest ancestor that exists on disk and canonicalize it.
+    let mut ancestor = path;
+    let real_ancestor = loop {
+        match ancestor.canonicalize() {
+            Ok(c) => break c,
+            Err(_) => match ancestor.parent() {
+                Some(p) if !p.as_os_str().is_empty() => ancestor = p,
+                _ => return None, // nothing resolves; leave it to the I/O call
+            },
+        }
+    };
+    let suffix = path.strip_prefix(ancestor).unwrap_or(path);
+    let real = real_ancestor.join(suffix);
+    if !real.starts_with(&real_root) {
+        return Some(format!(
+            "Error: path outside worktree (resolved): {}",
+            real.display()
+        ));
+    }
+    None
+}
+
+/// Returns Some(error) if `cmd` is an `ln` invocation that requests
+/// symbolic linking. Token-based: inspects argv[0] for `ln` and scans
+/// subsequent tokens for `-s*`, `--symbolic`, or flags containing `s`.
+///
+/// Defense-in-depth only. `io_enforce` is the real containment boundary:
+/// this misses `env ln -s`, `command ln -s`, `sh -c 'ln -s'`, and any `ln`
+/// after `;`/`&&`/`|`, since it only inspects argv[0]. It exists to give the
+/// model a clear early denial for the common `ln -s` case, not to be airtight.
+fn check_ln_symlink(cmd: &str) -> Option<String> {
+    let tokens: Vec<&str> = cmd.split_whitespace().collect();
+    let first = tokens.first()?.trim_matches(|c| c == '\'' || c == '"');
+    // Match "ln" or paths ending in "/ln" (e.g. /bin/ln).
+    if first != "ln" && !first.ends_with("/ln") {
+        return None;
+    }
+    for tok in &tokens[1..] {
+        let stripped = tok.trim_matches(|c| c == '\'' || c == '"');
+        if stripped == "--symbolic" || stripped.starts_with("-s") {
+            return Some("Error: creating symlinks is not allowed".into());
+        }
+        // Catch short-flag bundles like -sf, -fs, -sn. Any short flag
+        // containing 's' is rejected. This still has false positives
+        // (-ns, --version), but those are harmless denials in practice.
+        if stripped.starts_with('-') && stripped.len() > 1 && stripped.contains('s') {
+            return Some("Error: creating symlinks is not allowed".into());
+        }
+    }
+    None
+}
+
 pub fn bash_check(root: &Path, cmd: &str, cwd: Option<&Path>) -> Option<String> {
     let s = cmd.trim();
     if s.is_empty() {
         return None;
+    }
+    // Guard against symlink creation via ln.
+    if let Some(err) = check_ln_symlink(s) {
+        return Some(err);
     }
     for raw_tok in s.split_whitespace() {
         let tok = raw_tok.trim_matches(|c| c == '\'' || c == '"');
@@ -252,11 +306,12 @@ fn req_str<'a>(args: &'a serde_json::Value, key: &str) -> Result<&'a str, String
 
 pub async fn read_invoke(ctx: &ToolContext, args_json: &str) -> String {
     let cwd = ctx.cwd.clone();
+    let root = ctx.worktree_root.clone();
     let args_json = args_json.to_string();
-    blocking_string(move || read_sync(cwd.as_deref(), &args_json)).await
+    blocking_string(move || read_sync(cwd.as_deref(), &root, &args_json)).await
 }
 
-fn read_sync(cwd: Option<&Path>, args_json: &str) -> String {
+fn read_sync(cwd: Option<&Path>, root: &Path, args_json: &str) -> String {
     let args = match parse_args(args_json) {
         Ok(v) => v,
         Err(e) => return e,
@@ -266,6 +321,9 @@ fn read_sync(cwd: Option<&Path>, args_json: &str) -> String {
         Err(e) => return e,
     };
     let path = resolve(file_path, cwd);
+    if let Some(err) = io_enforce(&path, root) {
+        return err;
+    }
     let content = match std::fs::read_to_string(&path) {
         Ok(c) => c,
         Err(e) => return format!("Error: {e}"),
@@ -287,11 +345,12 @@ fn read_sync(cwd: Option<&Path>, args_json: &str) -> String {
 
 pub async fn edit_invoke(ctx: &ToolContext, args_json: &str) -> String {
     let cwd = ctx.cwd.clone();
+    let root = ctx.worktree_root.clone();
     let args_json = args_json.to_string();
-    blocking_string(move || edit_sync(cwd.as_deref(), &args_json)).await
+    blocking_string(move || edit_sync(cwd.as_deref(), &root, &args_json)).await
 }
 
-fn edit_sync(cwd: Option<&Path>, args_json: &str) -> String {
+fn edit_sync(cwd: Option<&Path>, root: &Path, args_json: &str) -> String {
     let args = match parse_args(args_json) {
         Ok(v) => v,
         Err(e) => return e,
@@ -309,12 +368,53 @@ fn edit_sync(cwd: Option<&Path>, args_json: &str) -> String {
         Err(e) => return e,
     };
     let path = resolve(file_path, cwd);
+    if let Some(err) = io_enforce(&path, root) {
+        return err;
+    }
     let content = match std::fs::read_to_string(&path) {
         Ok(c) => c,
         Err(e) => return format!("Error: {e}"),
     };
-    if old.is_empty() || !content.contains(old) {
-        return format!("Error: old_string not found in {file_path}");
+    if old.is_empty() {
+        return format!("Error: old_string is empty in {file_path}");
+    }
+    if !content.contains(old) {
+        let first_line = old.lines().next().unwrap_or("").trim();
+        // Char-boundary-safe truncation to 80 characters.
+        let needle: &str = if first_line.is_empty() {
+            // Don't use an empty needle — find() matches everywhere.
+            return format!(
+                "Error: old_string not found in {file_path} — first line is empty or whitespace-only"
+            );
+        } else if first_line.chars().count() > 80 {
+            let byte_idx = first_line
+                .char_indices()
+                .nth(80)
+                .map(|(i, _)| i)
+                .unwrap_or(first_line.len());
+            &first_line[..byte_idx]
+        } else {
+            first_line
+        };
+        let hint = if let Some(pos) = content.find(needle) {
+            let line_no = content[..pos].lines().count() + 1;
+            let context_start = content[..pos].rfind('\n').map_or(0, |n| n + 1);
+            let context_end = content[pos..].find('\n').map_or(content.len(), |n| pos + n);
+            // Context capped at 200 chars, clamped to a char boundary.
+            let cap_byte = content[context_start..]
+                .char_indices()
+                .nth(200)
+                .map(|(i, _)| context_start + i)
+                .unwrap_or(content.len());
+            let context_end = context_end.min(cap_byte);
+            let context = &content[context_start..context_end];
+            format!(" — did you mean to match near line {line_no}? Found:\n{context}")
+        } else {
+            String::new()
+        };
+        return format!(
+            "Error: old_string not found in {file_path} — first line: {needle:?}{hint}"
+        );
     }
     if content.matches(old).count() > 1 {
         return format!("Error: old_string is not unique in {file_path}");
@@ -374,11 +474,12 @@ pub async fn bash_invoke(ctx: &ToolContext, args_json: &str) -> String {
 
 pub async fn write_invoke(ctx: &ToolContext, args_json: &str) -> String {
     let cwd = ctx.cwd.clone();
+    let root = ctx.worktree_root.clone();
     let args_json = args_json.to_string();
-    blocking_string(move || write_sync(cwd.as_deref(), &args_json)).await
+    blocking_string(move || write_sync(cwd.as_deref(), &root, &args_json)).await
 }
 
-fn write_sync(cwd: Option<&Path>, args_json: &str) -> String {
+fn write_sync(cwd: Option<&Path>, root: &Path, args_json: &str) -> String {
     let args = match parse_args(args_json) {
         Ok(v) => v,
         Err(e) => return e,
@@ -392,6 +493,9 @@ fn write_sync(cwd: Option<&Path>, args_json: &str) -> String {
         Err(e) => return e,
     };
     let path = resolve(file_path, cwd);
+    if let Some(err) = io_enforce(&path, root) {
+        return err;
+    }
     if let Some(parent) = path.parent() {
         if let Err(e) = std::fs::create_dir_all(parent) {
             return format!("Error: {e}");
@@ -423,7 +527,17 @@ fn fnmatch_name(name: &str, pat: &str) -> bool {
         .unwrap_or(false)
 }
 
-fn scan_file(path: &Path, pattern: &Regex, matches: &mut Vec<String>, truncated: &mut bool) {
+fn scan_file(
+    path: &Path,
+    root: &Path,
+    pattern: &Regex,
+    matches: &mut Vec<String>,
+    truncated: &mut bool,
+) {
+    // Skip files that resolve outside the worktree (e.g. via a symlink).
+    if io_enforce(path, root).is_some() {
+        return;
+    }
     if is_binary_prefix(path) {
         return;
     }
@@ -444,6 +558,7 @@ fn scan_file(path: &Path, pattern: &Regex, matches: &mut Vec<String>, truncated:
 
 fn walk_grep(
     dir: &Path,
+    root: &Path,
     pattern: &Regex,
     glob_filter: Option<&str>,
     matches: &mut Vec<String>,
@@ -481,23 +596,28 @@ fn walk_grep(
                 continue;
             }
         }
-        scan_file(&path, pattern, matches, truncated);
+        scan_file(&path, root, pattern, matches, truncated);
     }
     for d in dirs {
         if *truncated {
             return;
         }
-        walk_grep(&d, pattern, glob_filter, matches, truncated);
+        // Skip directory symlinks that resolve outside the worktree.
+        if io_enforce(&d, root).is_some() {
+            continue;
+        }
+        walk_grep(&d, root, pattern, glob_filter, matches, truncated);
     }
 }
 
 pub async fn grep_invoke(ctx: &ToolContext, args_json: &str) -> String {
     let cwd = ctx.cwd.clone();
+    let root = ctx.worktree_root.clone();
     let args_json = args_json.to_string();
-    blocking_string(move || grep_sync(cwd.as_deref(), &args_json)).await
+    blocking_string(move || grep_sync(cwd.as_deref(), &root, &args_json)).await
 }
 
-fn grep_sync(cwd: Option<&Path>, args_json: &str) -> String {
+fn grep_sync(cwd: Option<&Path>, root: &Path, args_json: &str) -> String {
     let args = match parse_args(args_json) {
         Ok(v) => v,
         Err(e) => return e,
@@ -523,6 +643,9 @@ fn grep_sync(cwd: Option<&Path>, args_json: &str) -> String {
     let mut truncated = false;
     if base.is_file() {
         let name = base.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        if let Some(err) = io_enforce(&base, root) {
+            return err;
+        }
         if glob_filter.is_none_or(|g| fnmatch_name(name, g)) {
             if is_binary_prefix(&base) {
                 return "(no matches)".into();
@@ -543,7 +666,14 @@ fn grep_sync(cwd: Option<&Path>, args_json: &str) -> String {
             }
         }
     } else {
-        walk_grep(&base, &pattern, glob_filter, &mut matches, &mut truncated);
+        walk_grep(
+            &base,
+            root,
+            &pattern,
+            glob_filter,
+            &mut matches,
+            &mut truncated,
+        );
     }
     if matches.is_empty() {
         return "(no matches)".into();
@@ -557,11 +687,12 @@ fn grep_sync(cwd: Option<&Path>, args_json: &str) -> String {
 
 pub async fn glob_invoke(ctx: &ToolContext, args_json: &str) -> String {
     let cwd = ctx.cwd.clone();
+    let root = ctx.worktree_root.clone();
     let args_json = args_json.to_string();
-    blocking_string(move || glob_sync(cwd.as_deref(), &args_json)).await
+    blocking_string(move || glob_sync(cwd.as_deref(), &root, &args_json)).await
 }
 
-fn glob_sync(cwd: Option<&Path>, args_json: &str) -> String {
+fn glob_sync(cwd: Option<&Path>, root: &Path, args_json: &str) -> String {
     let args = match parse_args(args_json) {
         Ok(v) => v,
         Err(e) => return e,
@@ -580,6 +711,8 @@ fn glob_sync(cwd: Option<&Path>, args_json: &str) -> String {
     let mut matches: Vec<String> = match glob::glob(&pattern_str) {
         Ok(paths) => paths
             .filter_map(|p| p.ok())
+            // Drop matches that resolve outside the worktree (e.g. via a symlink).
+            .filter(|p| io_enforce(p, root).is_none())
             .map(|p| p.display().to_string())
             .collect(),
         Err(e) => return format!("Error: {e}"),
@@ -594,7 +727,8 @@ fn glob_sync(cwd: Option<&Path>, args_json: &str) -> String {
 
 pub async fn invoke(name: &str, ctx: &ToolContext, args_json: &str) -> String {
     if let Some(allowed) = &ctx.allowed_tools {
-        if !allowed.iter().any(|n| n == name) {
+        // subagent is always permitted regardless of tool filter.
+        if name != "subagent" && !allowed.iter().any(|n| n == name) {
             return format!("Error: unknown tool {name}");
         }
     }
@@ -617,6 +751,18 @@ pub async fn invoke(name: &str, ctx: &ToolContext, args_json: &str) -> String {
         "Write" => write_invoke(ctx, args_json).await,
         "Grep" => grep_invoke(ctx, args_json).await,
         "Glob" => glob_invoke(ctx, args_json).await,
+        "subagent" => {
+            if let Some(f) = &ctx.subagent_fn {
+                let task = args.get("task").and_then(|v| v.as_str()).unwrap_or("");
+                if task.is_empty() {
+                    return "Error: subagent task is required".to_string();
+                }
+                let cwd = args.get("cwd").and_then(|v| v.as_str()).map(PathBuf::from);
+                f(task.to_string(), cwd).await
+            } else {
+                "Error: subagent not available for this backend".to_string()
+            }
+        }
         other => format!("Error: unknown tool {other}"),
     };
     audit(ctx.audit_log.as_deref(), name, &ka, result_status(&res));
@@ -624,7 +770,7 @@ pub async fn invoke(name: &str, ctx: &ToolContext, args_json: &str) -> String {
 }
 
 pub fn tool_definitions(filter: Option<&[String]>) -> Vec<ToolDefinition> {
-    let all = [
+    let mut all = vec![
         ToolDefinition {
             name: "Read".into(),
             description: "Read a file from the filesystem.".into(),
@@ -718,12 +864,32 @@ pub fn tool_definitions(filter: Option<&[String]>) -> Vec<ToolDefinition> {
             }),
         },
     ];
+    // Subagent is always available, even when a tool filter is set.
+    all.push(ToolDefinition {
+        name: "subagent".into(),
+        description: "Delegate a single task to a nested agent that runs with a clean conversation context but the same worktree and tools as you. Provide the task in `task`. The subagent inherits your working directory by default; pass `cwd` to run it elsewhere within the worktree. Returns the subagent's final text output.".into(),
+        parameters: serde_json::json!({
+            "type": "object",
+            "properties": {
+                "task": {
+                    "type": "string",
+                    "description": "Task description for the subagent"
+                },
+                "cwd": {
+                    "type": "string",
+                    "description": "Optional working directory override"
+                }
+            },
+            "required": ["task"],
+            "additionalProperties": false
+        }),
+    });
     match filter {
         Some(names) => all
             .into_iter()
-            .filter(|t| names.iter().any(|n| n == &t.name))
+            .filter(|t| t.name == "subagent" || names.iter().any(|n| n == &t.name))
             .collect(),
-        None => all.into_iter().collect(),
+        None => all,
     }
 }
 
@@ -755,6 +921,7 @@ mod tests {
             worktree_root: cwd.to_path_buf(),
             audit_log: None,
             allowed_tools: None,
+            subagent_fn: None,
         }
     }
 
@@ -822,6 +989,7 @@ mod tests {
             worktree_root: dir.clone(),
             audit_log: None,
             allowed_tools: None,
+            subagent_fn: None,
         };
         let args = serde_json::json!({"command": "pwd; ls"}).to_string();
         let output = bash_invoke(&c, &args).await;
@@ -845,6 +1013,7 @@ mod tests {
             worktree_root: std::env::current_dir().unwrap(),
             audit_log: None,
             allowed_tools: None,
+            subagent_fn: None,
         };
         let expected = std::env::current_dir().unwrap();
         let args = serde_json::json!({"command": "pwd"}).to_string();
@@ -877,6 +1046,53 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(unix)]
+    async fn grep_and_glob_skip_symlink_escape() {
+        let root = tmp();
+        let worktree = root.join("worktree");
+        std::fs::create_dir(&worktree).unwrap();
+        let outside = root.join("outside");
+        std::fs::create_dir(&outside).unwrap();
+        std::fs::write(outside.join("secret.rs"), "fn alpha() {}\n").unwrap();
+        // Symlinked file and directory inside the worktree pointing out.
+        std::os::unix::fs::symlink(outside.join("secret.rs"), worktree.join("leak.rs")).unwrap();
+        std::os::unix::fs::symlink(&outside, worktree.join("outdir")).unwrap();
+        // A legitimate in-worktree file that should still be found.
+        std::fs::write(worktree.join("ok.rs"), "fn alpha() {}\n").unwrap();
+
+        let c = ctx(&worktree);
+        let grep_args = serde_json::json!({"pattern": "alpha"}).to_string();
+        let out = grep_invoke(&c, &grep_args).await;
+        assert!(
+            out.contains("ok.rs"),
+            "in-worktree file should match: {out}"
+        );
+        assert!(
+            !out.contains("leak.rs"),
+            "symlinked file must be skipped: {out}"
+        );
+        assert!(
+            !out.contains("secret.rs"),
+            "escaped dir must be skipped: {out}"
+        );
+
+        let glob_args = serde_json::json!({"pattern": "**/*.rs"}).to_string();
+        let found = glob_invoke(&c, &glob_args).await;
+        assert!(
+            found.contains("ok.rs"),
+            "in-worktree file should glob: {found}"
+        );
+        assert!(
+            !found.contains("leak.rs"),
+            "symlinked file must be filtered: {found}"
+        );
+        assert!(
+            !found.contains("secret.rs"),
+            "escaped dir must be filtered: {found}"
+        );
+    }
+
+    #[tokio::test]
     async fn grep_no_matches_and_bad_regex() {
         let dir = tmp();
         let c = ctx(&dir);
@@ -892,10 +1108,10 @@ mod tests {
     #[test]
     fn tool_definitions_filter() {
         let all = tool_definitions(None);
-        assert_eq!(all.len(), 6);
+        assert_eq!(all.len(), 7);
         let filtered = tool_definitions(Some(&["Read".into(), "Bash".into()]));
         let names: Vec<_> = filtered.iter().map(|t| t.name.as_str()).collect();
-        assert_eq!(names, ["Read", "Bash"]);
+        assert_eq!(names, ["Read", "Bash", "subagent"]);
     }
 
     #[test]
@@ -943,7 +1159,8 @@ mod tests {
         std::fs::create_dir(&outside).unwrap();
         let link = worktree.join("link");
         std::os::unix::fs::symlink(&outside, &link).unwrap();
-        assert!(!within_worktree(&link, &worktree));
+        // Lexical containment: symlink is lexically inside the worktree.
+        assert!(within_worktree(&link, &worktree));
     }
 
     #[test]
@@ -1146,6 +1363,7 @@ mod tests {
             worktree_root: dir.clone(),
             audit_log: None,
             allowed_tools: Some(vec!["Read".into()]),
+            subagent_fn: None,
         };
         let write_args =
             serde_json::json!({"file_path": target.to_str().unwrap(), "content": "nope"})
@@ -1168,5 +1386,321 @@ mod tests {
     fn audit_log_path_sibling() {
         let raw = PathBuf::from("/tmp/run.jsonl");
         assert_eq!(audit_log_path(&raw), PathBuf::from("/tmp/run.audit.jsonl"));
+    }
+
+    // --- Part 1: Lexical containment tests ---
+
+    #[test]
+    fn bash_check_blocks_ln_s_flag() {
+        let dir = tmp();
+        let err = bash_check(&dir, "ln -s /tmp/foo bar", Some(&dir)).unwrap();
+        assert!(err.contains("symlinks is not allowed"));
+    }
+
+    #[test]
+    fn bash_check_blocks_ln_sf_flag() {
+        let dir = tmp();
+        let err = bash_check(&dir, "ln -sf /tmp/foo bar", Some(&dir)).unwrap();
+        assert!(err.contains("symlinks is not allowed"));
+    }
+
+    #[test]
+    fn bash_check_blocks_ln_symbolic_flag() {
+        let dir = tmp();
+        let err = bash_check(&dir, "ln --symbolic foo bar", Some(&dir)).unwrap();
+        assert!(err.contains("symlinks is not allowed"));
+    }
+
+    #[test]
+    fn bash_check_blocks_bin_ln_s() {
+        let dir = tmp();
+        let err = bash_check(&dir, "/bin/ln -s foo bar", Some(&dir)).unwrap();
+        assert!(err.contains("symlinks is not allowed"));
+    }
+
+    #[test]
+    fn bash_check_allows_column_s() {
+        let dir = tmp();
+        // "column -s , file.csv" is not an ln invocation.
+        assert!(bash_check(&dir, "column -s , file.csv", Some(&dir)).is_none());
+    }
+
+    #[test]
+    fn bash_check_allows_echo_ln_s() {
+        let dir = tmp();
+        // echo "ln -s" is an echo, not ln.
+        assert!(bash_check(&dir, "echo \"ln -s\"", Some(&dir)).is_none());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn enforce_allows_venv_symlink_in_cwd() {
+        let dir = tmp();
+        let worktree = dir.join("worktree");
+        std::fs::create_dir(&worktree).unwrap();
+        let outside = dir.join("outside");
+        std::fs::create_dir(&outside).unwrap();
+        let link = worktree.join("link");
+        std::os::unix::fs::symlink(&outside, &link).unwrap();
+        // Lexical containment: a symlink inside the worktree is allowed.
+        assert!(enforce(&worktree, link.to_str().unwrap(), None).is_none());
+    }
+
+    #[test]
+    fn within_worktree_lexical_child() {
+        let dir = tmp();
+        let child = dir.join("sub").join("file.txt");
+        std::fs::create_dir_all(dir.join("sub")).unwrap();
+        std::fs::write(&child, "x").unwrap();
+        assert!(within_worktree(&child, &dir));
+    }
+
+    // --- Part 2: Edit diagnostics tests ---
+
+    #[test]
+    fn edit_not_found_shows_first_line() {
+        let dir = tmp();
+        std::fs::write(dir.join("f.txt"), "hello\nworld\n").unwrap();
+        let args = serde_json::json!({
+            "file_path": "f.txt",
+            "old_string": "fn alpha() {}",
+            "new_string": ""
+        })
+        .to_string();
+        let result = edit_sync(Some(&dir), &dir, &args);
+        assert!(result.contains("Error: old_string not found"));
+        assert!(result.contains("fn alpha() {}"));
+    }
+
+    #[test]
+    fn edit_not_found_shows_line_hint() {
+        let dir = tmp();
+        std::fs::write(dir.join("f.txt"), "hello world\nfn alpha() {}\n").unwrap();
+        let args = serde_json::json!({
+            "file_path": "f.txt",
+            "old_string": "fn alpha() {\n  x = 1\n}",
+            "new_string": ""
+        })
+        .to_string();
+        let result = edit_sync(Some(&dir), &dir, &args);
+        assert!(result.contains("did you mean to match"));
+        assert!(result.contains("fn alpha"));
+    }
+
+    #[test]
+    fn edit_empty_old_string() {
+        let dir = tmp();
+        std::fs::write(dir.join("f.txt"), "hello\n").unwrap();
+        let args = serde_json::json!({
+            "file_path": "f.txt",
+            "old_string": "",
+            "new_string": ""
+        })
+        .to_string();
+        let result = edit_sync(Some(&dir), &dir, &args);
+        assert!(result.contains("old_string is empty"));
+    }
+
+    #[test]
+    fn edit_not_found_whitespace_only_first_line() {
+        let dir = tmp();
+        std::fs::write(dir.join("f.txt"), "hello\n").unwrap();
+        // old_string starts with a blank line, so first_line trims to empty.
+        let args = serde_json::json!({
+            "file_path": "f.txt",
+            "old_string": "\n  fn alpha() {}",
+            "new_string": ""
+        })
+        .to_string();
+        let result = edit_sync(Some(&dir), &dir, &args);
+        assert!(result.contains("first line is empty"));
+    }
+
+    #[test]
+    fn edit_not_found_multibyte_truncation() {
+        let dir = tmp();
+        std::fs::write(dir.join("f.txt"), "hello\n").unwrap();
+        // First line > 80 chars with multibyte content — must not panic.
+        let long_line = "é".repeat(100);
+        let old = format!("{long_line}\nbody");
+        let args = serde_json::json!({
+            "file_path": "f.txt",
+            "old_string": old,
+            "new_string": ""
+        })
+        .to_string();
+        let result = edit_sync(Some(&dir), &dir, &args);
+        assert!(result.contains("old_string not found"));
+        // The needle should be truncated to 80 chars, not 80 bytes.
+        // 100 é's is 200 bytes, so untruncated needle would be 200 bytes.
+        assert!(!result.contains(&long_line));
+    }
+
+    #[test]
+    fn edit_not_found_multibyte_context() {
+        let dir = tmp();
+        // File content with multibyte characters near the match.
+        let content = "é".repeat(300) + "\nfn alpha() {}\nbar";
+        std::fs::write(dir.join("f.txt"), &content).unwrap();
+        let args = serde_json::json!({
+            "file_path": "f.txt",
+            "old_string": "fn alpha() {\n  x = 1\n}",
+            "new_string": ""
+        })
+        .to_string();
+        let result = edit_sync(Some(&dir), &dir, &args);
+        assert!(result.contains("did you mean to match"));
+        // Must not panic on byte-slice boundary.
+    }
+
+    // --- Part 3: Subagent tests ---
+
+    #[tokio::test]
+    async fn subagent_no_callback_returns_error() {
+        let dir = tmp();
+        let c = ToolContext {
+            cwd: Some(dir.clone()),
+            extra_env: None,
+            worktree_root: dir.clone(),
+            audit_log: None,
+            allowed_tools: None,
+            subagent_fn: None,
+        };
+        let args = serde_json::json!({"task": "do something"}).to_string();
+        let result = invoke("subagent", &c, &args).await;
+        assert!(result.contains("subagent not available"));
+    }
+
+    #[tokio::test]
+    async fn subagent_callback_called_when_set() {
+        let dir = tmp();
+        let called = Arc::new(std::sync::Mutex::new(false));
+        let called2 = called.clone();
+        let subagent_fn: SubagentFn = Arc::new(move |task, cwd| {
+            *called2.lock().unwrap() = true;
+            Box::pin(async move { format!("subagent result: {task} cwd={cwd:?}") })
+        });
+        let c = ToolContext {
+            cwd: Some(dir.clone()),
+            extra_env: None,
+            worktree_root: dir.clone(),
+            audit_log: None,
+            allowed_tools: None,
+            subagent_fn: Some(subagent_fn),
+        };
+        let args = serde_json::json!({"task": "do something", "cwd": "/tmp/x"}).to_string();
+        let result = invoke("subagent", &c, &args).await;
+        assert!(*called.lock().unwrap());
+        assert!(result.contains("subagent result"));
+        assert!(result.contains("/tmp/x"));
+    }
+
+    #[tokio::test]
+    async fn subagent_empty_task_returns_error() {
+        let dir = tmp();
+        let subagent_fn: SubagentFn =
+            Arc::new(|_task, _cwd| Box::pin(async move { "should not be called".to_string() }));
+        let c = ToolContext {
+            cwd: Some(dir.clone()),
+            extra_env: None,
+            worktree_root: dir,
+            audit_log: None,
+            allowed_tools: None,
+            subagent_fn: Some(subagent_fn),
+        };
+        // Empty task string.
+        let args = serde_json::json!({"task": ""}).to_string();
+        let result = invoke("subagent", &c, &args).await;
+        assert!(result.contains("subagent task is required"));
+
+        // Missing task key entirely.
+        let args2 = serde_json::json!({}).to_string();
+        let result2 = invoke("subagent", &c, &args2).await;
+        assert!(result2.contains("subagent task is required"));
+    }
+
+    // --- Part 4: IO containment tests (symlink-aware) ---
+
+    #[test]
+    fn io_enforce_passes_for_lexical_child() {
+        let dir = tmp();
+        let f = dir.join("a.txt");
+        std::fs::write(&f, "hi").unwrap();
+        assert!(io_enforce(&f, &dir).is_none());
+    }
+
+    #[test]
+    fn io_enforce_passes_for_new_file() {
+        let dir = tmp();
+        let f = dir.join("new.txt");
+        // Non-existent file passes — can't be a bad symlink if it doesn't exist.
+        assert!(io_enforce(&f, &dir).is_none());
+    }
+
+    #[test]
+    fn io_enforce_passes_for_lexical_sibling() {
+        let dir = tmp();
+        let sibling = dir.parent().unwrap().join(format!(
+            "gremlins-io-sibling-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&sibling).unwrap();
+        let target = sibling.join("out.txt");
+        std::fs::write(&target, "x").unwrap();
+        // target is outside the worktree (sibling, not child).
+        let err = io_enforce(&target, &dir).unwrap();
+        assert!(err.contains("outside worktree"), "got: {err}");
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn io_enforce_blocks_symlink_escape() {
+        let dir = tmp();
+        let worktree = dir.join("worktree");
+        std::fs::create_dir(&worktree).unwrap();
+        let outside = dir.join("outside");
+        std::fs::create_dir(&outside).unwrap();
+        std::fs::write(outside.join("secret.txt"), "sensitive").unwrap();
+        let link = worktree.join("link.txt");
+        std::os::unix::fs::symlink(outside.join("secret.txt"), &link).unwrap();
+        // Lexically inside the worktree, but symlink resolves outside.
+        let err = io_enforce(&link, &worktree).unwrap();
+        assert!(err.contains("outside worktree"), "got: {err}");
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn io_enforce_blocks_write_through_symlinked_parent() {
+        let dir = tmp();
+        let worktree = dir.join("worktree");
+        std::fs::create_dir(&worktree).unwrap();
+        let outside = dir.join("outside");
+        std::fs::create_dir(&outside).unwrap();
+        // A pre-existing symlinked directory inside the worktree pointing out.
+        let link_dir = worktree.join("venv-link");
+        std::os::unix::fs::symlink(&outside, &link_dir).unwrap();
+        // The leaf doesn't exist yet, but its parent resolves outside.
+        let target = link_dir.join("newfile.txt");
+        let err = io_enforce(&target, &worktree).unwrap();
+        assert!(err.contains("outside worktree"), "got: {err}");
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn io_enforce_allows_new_file_under_in_worktree_symlink() {
+        let dir = tmp();
+        let worktree = dir.join("worktree");
+        std::fs::create_dir(&worktree).unwrap();
+        let real = worktree.join("real");
+        std::fs::create_dir(&real).unwrap();
+        // A symlink that stays inside the worktree is fine.
+        let link_dir = worktree.join("link");
+        std::os::unix::fs::symlink(&real, &link_dir).unwrap();
+        let target = link_dir.join("newfile.txt");
+        assert!(io_enforce(&target, &worktree).is_none());
     }
 }

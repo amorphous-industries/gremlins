@@ -6,4 +6,5 @@ pub mod protocol;
 pub mod retry;
 pub mod stream;
 pub mod stream_json;
+pub mod subagent;
 pub mod tools;
