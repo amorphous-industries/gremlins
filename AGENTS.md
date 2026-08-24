@@ -11,7 +11,6 @@ gremlins/                    Python package — see gremlins/AGENTS.md
   __init__.py                PACKAGE_ROOT only
   __main__.py                Entry: from gremlins.cli import main; raise SystemExit(main())
   launcher.py                Sets up state dir, spawns pipeline subprocess
-  run_child.py               Subprocess entry: executes one pipeline stage in a fresh process
   errors.py                  die(msg) helper
   paths.py                   Single source of truth for filesystem locations (state dir, worktree, etc.)
   logging_setup.py           configure_logging — UTC timestamp formatter, stdout, GREMLINS_LOG_LEVEL

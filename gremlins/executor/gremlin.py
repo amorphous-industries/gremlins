@@ -615,7 +615,7 @@ class Gremlin:
 
     @classmethod
     def from_subprocess(cls, spec: dict[str, Any]) -> Gremlin:
-        """Create a Gremlin from a subprocess spec (run_child or spawn/child schema)."""
+        """Create a Gremlin from a subprocess spec (spawn/child schema)."""
         importlib.import_module("gremlins.clients")
 
         client_label = spec.get("client")
