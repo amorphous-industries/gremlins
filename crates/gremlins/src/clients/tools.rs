@@ -73,13 +73,38 @@ fn normalize_dots(p: &Path) -> PathBuf {
     out
 }
 
+/// Resolve the real path by canonicalizing the deepest ancestor that exists
+/// on disk, then re-appending the non-existent suffix. Falls back to the
+/// original path if even the filesystem root can't be canonicalized.
+fn canonicalize_or_ancestor(p: &Path) -> PathBuf {
+    match p.canonicalize() {
+        Ok(c) => c,
+        Err(_) => {
+            let mut ancestor = p;
+            loop {
+                match ancestor.canonicalize() {
+                    Ok(c) => {
+                        let suffix = p.strip_prefix(ancestor).unwrap_or(p);
+                        return c.join(suffix);
+                    }
+                    Err(_) => match ancestor.parent() {
+                        Some(parent) if !parent.as_os_str().is_empty() => ancestor = parent,
+                        _ => return p.to_path_buf(),
+                    },
+                }
+            }
+        }
+    }
+}
+
 fn normalize_path(p: &Path) -> Option<PathBuf> {
     let abs = if p.is_absolute() {
         p.to_path_buf()
     } else {
         std::env::current_dir().ok()?.join(p)
     };
-    Some(normalize_dots(&abs))
+    let canonical = canonicalize_or_ancestor(&abs);
+    Some(normalize_dots(&canonical))
 }
 
 pub fn within_worktree(p: &Path, root: &Path) -> bool {
@@ -1199,8 +1224,8 @@ mod tests {
         std::fs::create_dir(&outside).unwrap();
         let link = worktree.join("link");
         std::os::unix::fs::symlink(&outside, &link).unwrap();
-        // Lexical containment: symlink is lexically inside the worktree.
-        assert!(within_worktree(&link, &worktree));
+        // Canonical containment: symlink resolves outside the worktree.
+        assert!(!within_worktree(&link, &worktree));
     }
 
     #[test]
@@ -1475,7 +1500,7 @@ mod tests {
 
     #[test]
     #[cfg(unix)]
-    fn enforce_allows_venv_symlink_in_cwd() {
+    fn enforce_rejects_symlink_escape() {
         let dir = tmp();
         let worktree = dir.join("worktree");
         std::fs::create_dir(&worktree).unwrap();
@@ -1483,8 +1508,9 @@ mod tests {
         std::fs::create_dir(&outside).unwrap();
         let link = worktree.join("link");
         std::os::unix::fs::symlink(&outside, &link).unwrap();
-        // Lexical containment: a symlink inside the worktree is allowed.
-        assert!(enforce(&worktree, link.to_str().unwrap(), None).is_none());
+        // Canonical containment: symlink resolves outside the worktree.
+        let err = enforce(&worktree, link.to_str().unwrap(), None).unwrap();
+        assert!(err.contains("outside worktree"));
     }
 
     #[test]
