@@ -128,6 +128,7 @@ mod tests {
             audit_log: None,
             allowed_tools: None,
             subagent_fn: None,
+            audit_lock: None,
         };
 
         // Model that returns a single text response in one turn.
@@ -212,6 +213,7 @@ mod tests {
             audit_log: None,
             allowed_tools: None,
             subagent_fn: None,
+            audit_lock: None,
         }
     }
 

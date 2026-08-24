@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use async_trait::async_trait;
+use futures::future::join_all;
 use futures::StreamExt;
 use rig_core::client::CompletionClient;
 use rig_core::completion::message::{AssistantContent, ToolCall};
@@ -239,6 +240,7 @@ async fn run_agent_loop<M: CompletionModel + Clone + Send + Sync + 'static>(
         audit_log,
         allowed_tools: opts.tool_filter.map(|s| s.to_vec()),
         subagent_fn: None,
+        audit_lock: Some(Arc::new(std::sync::Mutex::new(()))),
     };
     let tool_defs = tools::tool_definitions(opts.tool_filter);
 
@@ -332,6 +334,13 @@ async fn run_agent_loop_core<M: CompletionModel>(
     let mut final_text = String::new();
     let mut timed_out = false;
     let mut stream_error: Option<String> = None;
+
+    struct Job {
+        id: String,
+        call_id: Option<String>,
+        name: String,
+        args: String,
+    }
 
     for _ in 0..max_turns {
         if cancel.is_cancelled() {
@@ -435,7 +444,8 @@ async fn run_agent_loop_core<M: CompletionModel>(
         history.push(next_prompt);
         history.push(assistant_tool_message(&text, &tool_calls));
 
-        let mut result_msgs = Vec::new();
+        // Phase 1: emit tool-start events, collect owned data for concurrent execution
+        let mut jobs: Vec<Job> = Vec::new();
         for tc in &tool_calls {
             let args_json =
                 serde_json::to_string(&tc.function.arguments).unwrap_or_else(|_| "{}".into());
@@ -447,22 +457,36 @@ async fn run_agent_loop_core<M: CompletionModel>(
                     evts.push(tool_evt);
                 }
             }
-            let output = tools::invoke(&tc.function.name, tool_ctx, &args_json).await;
+            jobs.push(Job {
+                id: tc.id.clone(),
+                call_id: tc.call_id.clone(),
+                name: tc.function.name.clone(),
+                args: args_json,
+            });
+        }
+
+        // Phase 2: concurrent execution
+        let ctx = tool_ctx.clone();
+        let results = join_all(jobs.iter().map(|j| tools::invoke(&j.name, &ctx, &j.args))).await;
+
+        // Phase 3: emit results in order
+        let mut result_msgs = Vec::new();
+        for (job, output) in jobs.into_iter().zip(results) {
             if !nested {
                 stream::emit_result(prefix, &output, false);
-                let result_evt = tool_result_event(&tc.id, &output);
+                let result_evt = tool_result_event(&job.id, &output);
                 write_raw(raw, &result_evt);
                 if let Some(evts) = captured.as_mut() {
                     evts.push(result_evt);
                 }
             }
-            turns += 1;
             result_msgs.push(Message::tool_result_with_call_id(
-                tc.id.clone(),
-                tc.call_id.clone(),
+                job.id,
+                job.call_id,
                 output,
             ));
         }
+        turns += tool_calls.len();
         if !nested {
             stream::flush();
         }
@@ -1115,5 +1139,164 @@ mod tests {
             serde_json::from_str(&std::fs::read_to_string(&audit).unwrap()).unwrap();
         assert_eq!(entry["tool"], "Write");
         assert_eq!(entry["status"], "ok");
+    }
+
+    #[tokio::test]
+    async fn loop_concurrent_multi_tool_in_one_turn() {
+        let dir = std::env::temp_dir().join(format!(
+            "gremlins-oa-conc-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let f1 = dir.join("a.txt");
+        let f2 = dir.join("b.txt");
+        std::fs::write(&f1, "alpha").unwrap();
+        std::fs::write(&f2, "beta").unwrap();
+
+        let model = rig_core::test_utils::MockCompletionModel::from_stream_turns([
+            vec![
+                rig_core::test_utils::MockStreamEvent::tool_call(
+                    "c1",
+                    "Read",
+                    serde_json::json!({"file_path": f1.to_str().unwrap()}),
+                ),
+                rig_core::test_utils::MockStreamEvent::tool_call(
+                    "c2",
+                    "Read",
+                    serde_json::json!({"file_path": f2.to_str().unwrap()}),
+                ),
+                rig_core::test_utils::MockStreamEvent::final_response_with_default_usage(),
+            ],
+            vec![
+                rig_core::test_utils::MockStreamEvent::text("both read"),
+                rig_core::test_utils::MockStreamEvent::final_response_with_default_usage(),
+            ],
+        ]);
+        let mut ctx = test_ctx(Some(dir.clone()), None);
+        ctx.idle_timeout = 5.0;
+        ctx.params.idle_timeout = Some(5.0);
+        let cancel = CancelToken::new();
+        let result = run_agent_loop(&model, "read both", &ctx, cancel, loop_opts(None))
+            .await
+            .unwrap();
+        assert_eq!(result.text_result.as_deref(), Some("both read"));
+        let events = result.events.unwrap();
+        // Two tool_use events, then two tool_result events, in order
+        let tool_uses: Vec<_> = events
+            .iter()
+            .filter(|e| e["message"]["content"][0]["type"] == "tool_use")
+            .collect();
+        assert_eq!(tool_uses.len(), 2);
+        assert_eq!(tool_uses[0]["message"]["content"][0]["id"], "c1");
+        assert_eq!(tool_uses[1]["message"]["content"][0]["id"], "c2");
+        let results: Vec<_> = events
+            .iter()
+            .filter(|e| e["message"]["content"][0]["type"] == "tool_result")
+            .collect();
+        assert_eq!(results.len(), 2);
+        assert!(results[0]["message"]["content"][0]["content"]
+            .as_str()
+            .unwrap()
+            .contains("alpha"));
+        assert!(results[1]["message"]["content"][0]["content"]
+            .as_str()
+            .unwrap()
+            .contains("beta"));
+    }
+
+    #[tokio::test]
+    async fn loop_concurrent_mixed_tools_with_failure() {
+        let dir = std::env::temp_dir().join(format!(
+            "gremlins-oa-mixed-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let read_file = dir.join("readme.txt");
+        let write_file = dir.join("out.txt");
+        std::fs::write(&read_file, "before").unwrap();
+
+        let model = rig_core::test_utils::MockCompletionModel::from_stream_turns([
+            vec![
+                rig_core::test_utils::MockStreamEvent::tool_call(
+                    "r1",
+                    "Read",
+                    serde_json::json!({"file_path": read_file.to_str().unwrap()}),
+                ),
+                rig_core::test_utils::MockStreamEvent::tool_call(
+                    "w1",
+                    "Write",
+                    serde_json::json!({
+                        "file_path": write_file.to_str().unwrap(),
+                        "content": "mixed"
+                    }),
+                ),
+                rig_core::test_utils::MockStreamEvent::tool_call(
+                    "b1",
+                    "Bash",
+                    serde_json::json!({"command": "exit 1"}),
+                ),
+                rig_core::test_utils::MockStreamEvent::final_response_with_default_usage(),
+            ],
+            vec![
+                rig_core::test_utils::MockStreamEvent::text("done"),
+                rig_core::test_utils::MockStreamEvent::final_response_with_default_usage(),
+            ],
+        ]);
+        let mut ctx = test_ctx(Some(dir.clone()), None);
+        ctx.idle_timeout = 5.0;
+        ctx.params.idle_timeout = Some(5.0);
+        let cancel = CancelToken::new();
+        let result = run_agent_loop(&model, "mix", &ctx, cancel, loop_opts(None))
+            .await
+            .unwrap();
+        assert_eq!(result.text_result.as_deref(), Some("done"));
+        let events = result.events.unwrap();
+        let tool_uses: Vec<_> = events
+            .iter()
+            .filter(|e| e["message"]["content"][0]["type"] == "tool_use")
+            .collect();
+        assert_eq!(tool_uses.len(), 3);
+        assert_eq!(tool_uses[0]["message"]["content"][0]["name"], "Read");
+        assert_eq!(tool_uses[1]["message"]["content"][0]["name"], "Write");
+        assert_eq!(tool_uses[2]["message"]["content"][0]["name"], "Bash");
+        let results: Vec<_> = events
+            .iter()
+            .filter(|e| e["message"]["content"][0]["type"] == "tool_result")
+            .collect();
+        assert_eq!(results.len(), 3);
+        // Read result contains "before"
+        assert!(results[0]["message"]["content"][0]["content"]
+            .as_str()
+            .unwrap()
+            .contains("before"));
+        // Write result confirms write
+        assert_eq!(
+            results[1]["message"]["content"][0]["content"]
+                .as_str()
+                .unwrap(),
+            "OK"
+        );
+        // Bash result contains exit failure info
+        let bash_content = results[2]["message"]["content"][0]["content"]
+            .as_str()
+            .unwrap();
+        assert!(
+            bash_content.contains("[exit 1]"),
+            "bash failure not as expected: {bash_content}"
+        );
+        // All three tool_results map to their ids
+        assert_eq!(results[0]["message"]["content"][0]["tool_use_id"], "r1");
+        assert_eq!(results[1]["message"]["content"][0]["tool_use_id"], "w1");
+        assert_eq!(results[2]["message"]["content"][0]["tool_use_id"], "b1");
+        // Write actually happened
+        assert_eq!(std::fs::read_to_string(&write_file).unwrap(), "mixed");
     }
 }

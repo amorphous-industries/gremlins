@@ -26,6 +26,7 @@ pub struct ToolContext {
     pub audit_log: Option<PathBuf>,
     pub allowed_tools: Option<Vec<String>>,
     pub subagent_fn: Option<SubagentFn>,
+    pub audit_lock: Option<Arc<std::sync::Mutex<()>>>,
 }
 
 pub fn project_root() -> PathBuf {
@@ -224,7 +225,13 @@ fn audit_key_arg(args_json: &str) -> String {
     String::new()
 }
 
-fn audit(log: Option<&Path>, tool: &str, key_arg: &str, status: &str) {
+fn audit(
+    log: Option<&Path>,
+    lock: Option<&std::sync::Mutex<()>>,
+    tool: &str,
+    key_arg: &str,
+    status: &str,
+) {
     let Some(log) = log else {
         return;
     };
@@ -238,6 +245,18 @@ fn audit(log: Option<&Path>, tool: &str, key_arg: &str, status: &str) {
     let Ok(line) = serde_json::to_string(&entry) else {
         return;
     };
+    if let Some(lock) = lock {
+        // audit is best-effort; skip write if the mutex is poisoned rather
+        // than panicking and crashing the tool invocation.
+        if let Ok(_guard) = lock.lock() {
+            audit_write(log, &line);
+        }
+    } else {
+        audit_write(log, &line);
+    }
+}
+
+fn audit_write(log: &Path, line: &str) {
     let _ = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -736,12 +755,24 @@ pub async fn invoke(name: &str, ctx: &ToolContext, args_json: &str) -> String {
     let args = match parse_args(args_json) {
         Ok(v) => v,
         Err(_) => {
-            audit(ctx.audit_log.as_deref(), name, &ka, "error");
+            audit(
+                ctx.audit_log.as_deref(),
+                ctx.audit_lock.as_deref(),
+                name,
+                &ka,
+                "error",
+            );
             return "Error: invalid arguments".into();
         }
     };
     if let Some(err) = check_tool(name, ctx, &args) {
-        audit(ctx.audit_log.as_deref(), name, &ka, "denied");
+        audit(
+            ctx.audit_log.as_deref(),
+            ctx.audit_lock.as_deref(),
+            name,
+            &ka,
+            "denied",
+        );
         return err;
     }
     let res = match name {
@@ -765,7 +796,13 @@ pub async fn invoke(name: &str, ctx: &ToolContext, args_json: &str) -> String {
         }
         other => format!("Error: unknown tool {other}"),
     };
-    audit(ctx.audit_log.as_deref(), name, &ka, result_status(&res));
+    audit(
+        ctx.audit_log.as_deref(),
+        ctx.audit_lock.as_deref(),
+        name,
+        &ka,
+        result_status(&res),
+    );
     res
 }
 
@@ -922,6 +959,7 @@ mod tests {
             audit_log: None,
             allowed_tools: None,
             subagent_fn: None,
+            audit_lock: None,
         }
     }
 
@@ -990,6 +1028,7 @@ mod tests {
             audit_log: None,
             allowed_tools: None,
             subagent_fn: None,
+            audit_lock: None,
         };
         let args = serde_json::json!({"command": "pwd; ls"}).to_string();
         let output = bash_invoke(&c, &args).await;
@@ -1014,6 +1053,7 @@ mod tests {
             audit_log: None,
             allowed_tools: None,
             subagent_fn: None,
+            audit_lock: None,
         };
         let expected = std::env::current_dir().unwrap();
         let args = serde_json::json!({"command": "pwd"}).to_string();
@@ -1250,7 +1290,7 @@ mod tests {
     fn audit_writes_jsonl() {
         let dir = tmp();
         let log = dir.join("audit.jsonl");
-        audit(Some(&log), "Read", "/some/file", "ok");
+        audit(Some(&log), None, "Read", "/some/file", "ok");
         let lines: Vec<_> = std::fs::read_to_string(&log)
             .unwrap()
             .lines()
@@ -1268,8 +1308,8 @@ mod tests {
     fn audit_appends_multiple() {
         let dir = tmp();
         let log = dir.join("audit.jsonl");
-        audit(Some(&log), "Read", "a", "ok");
-        audit(Some(&log), "Bash", "b", "denied");
+        audit(Some(&log), None, "Read", "a", "ok");
+        audit(Some(&log), None, "Bash", "b", "denied");
         let text = std::fs::read_to_string(&log).unwrap();
         let lines: Vec<_> = text.lines().collect();
         assert_eq!(lines.len(), 2);
@@ -1279,7 +1319,7 @@ mod tests {
 
     #[test]
     fn audit_none_log_is_noop() {
-        audit(None, "Read", "/file", "ok");
+        audit(None, None, "Read", "/file", "ok");
     }
 
     #[test]
@@ -1287,7 +1327,7 @@ mod tests {
         let dir = tmp();
         let log = dir.join("audit.jsonl");
         let long_arg = "x".repeat(300);
-        audit(Some(&log), "Read", &long_arg, "ok");
+        audit(Some(&log), None, "Read", &long_arg, "ok");
         let entry: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&log).unwrap()).unwrap();
         assert_eq!(entry["key_arg"].as_str().unwrap().len(), 200);
@@ -1364,6 +1404,7 @@ mod tests {
             audit_log: None,
             allowed_tools: Some(vec!["Read".into()]),
             subagent_fn: None,
+            audit_lock: None,
         };
         let write_args =
             serde_json::json!({"file_path": target.to_str().unwrap(), "content": "nope"})
@@ -1565,6 +1606,7 @@ mod tests {
             audit_log: None,
             allowed_tools: None,
             subagent_fn: None,
+            audit_lock: None,
         };
         let args = serde_json::json!({"task": "do something"}).to_string();
         let result = invoke("subagent", &c, &args).await;
@@ -1587,6 +1629,7 @@ mod tests {
             audit_log: None,
             allowed_tools: None,
             subagent_fn: Some(subagent_fn),
+            audit_lock: None,
         };
         let args = serde_json::json!({"task": "do something", "cwd": "/tmp/x"}).to_string();
         let result = invoke("subagent", &c, &args).await;
@@ -1607,6 +1650,7 @@ mod tests {
             audit_log: None,
             allowed_tools: None,
             subagent_fn: Some(subagent_fn),
+            audit_lock: None,
         };
         // Empty task string.
         let args = serde_json::json!({"task": ""}).to_string();
