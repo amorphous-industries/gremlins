@@ -4,6 +4,8 @@ import functools
 import pathlib
 from typing import Any, cast
 
+import yaml
+
 from gremlins.pipeline import GREMLINS_PREFIX
 from gremlins.pipeline.discovery import resolve_pipeline_name
 from gremlins.prompts import BUNDLED_PROMPT_DIR
@@ -52,6 +54,7 @@ def _expand(
         result.pop("__gremlins_expanded__", None)
         return result
     yaml_dir = yaml_path.parent
+    top_level = len(chain) == 0
     prompt_dir = _resolve_prompt_dir(raw.get("prompt_dir"), yaml_dir)
     new_chain = chain + [resolved]
 
@@ -98,6 +101,8 @@ def _expand(
         if k not in ("stages", "prompt_dir", "prompts", "stage-definitions")
     }
     result["stages"] = expanded_stages
+    if top_level:
+        _merge_overlay_bootstrap(result, project_root)
     return result
 
 
@@ -434,3 +439,52 @@ def _read_prompts(
             texts.append(_read_prompt_file(path))
 
     return texts
+
+
+# ------------------------------------------------------------------
+# Overlay bootstrap merge
+# ------------------------------------------------------------------
+
+
+def _merge_overlay_bootstrap(
+    result: dict[str, Any], project_root: pathlib.Path
+) -> None:
+    overlay_file = (project_root / ".gremlins" / "bootstrap.yaml").resolve()
+    if not overlay_file.is_file():
+        return
+    overlay_cmds = _read_bootstrap_file(overlay_file)
+    existing_raw = result.get("bootstrap")
+    if existing_raw is not None:
+        if not isinstance(existing_raw, list) or not all(
+            isinstance(c, str) for c in cast(list[object], existing_raw)
+        ):
+            raise ValueError("'bootstrap' must be a list of strings")
+        existing_cmds: list[str] = list(cast(list[str], existing_raw))
+    else:
+        existing_cmds = []
+    result["bootstrap"] = overlay_cmds + existing_cmds
+
+
+def _read_bootstrap_file(path: pathlib.Path) -> list[str]:
+    from gremlins.utils.yaml_io import YamlLoadError
+
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (FileNotFoundError, OSError, UnicodeDecodeError) as exc:
+        raise YamlLoadError(f"could not read bootstrap file {path}: {exc}") from exc
+    try:
+        raw = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        raise YamlLoadError(f"YAML parse error in {path}: {exc}") from exc
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ValueError(f"bootstrap file must be a list of strings: {path}")
+    cmds: list[str] = []
+    for item in cast(list[object], raw):
+        if not isinstance(item, str):
+            raise ValueError(
+                f"bootstrap file must be a list of strings, got {type(item).__name__!r}: {path}"
+            )
+        cmds.append(item)
+    return cmds

@@ -252,6 +252,7 @@ async def run_pipeline(
 
     stage_gremlins_overlay(str(_project_root), state_dir)
 
+    # Load .gremlins/env before bootstrap so commands can use env vars.
     _env_file = paths.project_overlay_dir(_project_root) / "env"
     if _env_file.is_file():
         os.environ["GREMLINS_WORKTREE_PATH"] = (
@@ -262,6 +263,20 @@ async def run_pipeline(
             os.environ.update(load_env_file(_env_file, cwd=_project_root))
         except RuntimeError as exc:
             die(str(exc))
+
+    if gremlin.pipeline_data.bootstrap and gremlin.worktree_dir and not resume_from:
+        from gremlins.executor.bootstrap import run_bootstrap as _run_bootstrap
+
+        try:
+            await _run_bootstrap(gremlin.pipeline_data.bootstrap, gremlin.worktree_dir)
+        except Exception as exc:
+            if gremlin.state:
+                gremlin.state.data.write_bail_file(
+                    "other",
+                    f"bootstrap failed: {exc}"[:200],
+                    attempt=gremlin.state.data.attempt,
+                )
+            return 1
 
     if gh:
         gremlin.state_file = gremlin.state_dir / "state.json"

@@ -195,6 +195,7 @@ class Gremlin:
         self.fetch_worktree = fetch_worktree
         self.pipeline_path = pipeline_path
         self.pipeline_args = pipeline_args or []
+        self.bootstrap_cmds: list[str] = []
         self.state = None
 
     @property
@@ -704,4 +705,16 @@ class Gremlin:
         )
         gremlin.state = state
         gremlin.registry = state.artifacts
+        gremlin.bootstrap_cmds = _extract_bootstrap_cmds(spec, pipeline_data)
         return gremlin
+
+
+def _extract_bootstrap_cmds(
+    spec: dict[str, Any], pipeline_data: _PipelineData | None
+) -> list[str]:
+    spec_bootstrap = spec.get("bootstrap")
+    if isinstance(spec_bootstrap, list):
+        return list(cast(list[str], spec_bootstrap))
+    if pipeline_data is not None:
+        return pipeline_data.bootstrap
+    return []

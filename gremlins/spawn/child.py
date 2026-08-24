@@ -102,6 +102,23 @@ async def _run(spec_path: pathlib.Path) -> int:
         )
         return 2
 
+    if gremlin.bootstrap_cmds and gremlin.worktree_dir:
+        from gremlins.executor.bootstrap import run_bootstrap as _run_bootstrap
+
+        try:
+            await _run_bootstrap(gremlin.bootstrap_cmds, gremlin.worktree_dir)
+        except Exception as exc:
+            _write_result(
+                result_path,
+                {
+                    "status": "error",
+                    "detail": f"bootstrap failed: {exc}",
+                    "returncode": None,
+                    "cost_usd": 0.0,
+                },
+            )
+            return 2
+
     state = gremlin.state
     if state is None:
         _write_result(

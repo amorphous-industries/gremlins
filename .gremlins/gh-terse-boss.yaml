@@ -8,8 +8,11 @@ prompts:
   small-diffs: small_diffs.md
   dev-env: dev-env-howto.md
 
+bootstrap:
+  - uv venv .venv
+  - uv pip install --python .venv -e ".[dev]"
+
 stages:
-  - { include: bootstrap-dev-env }
   - name: chain
     type: loop
     options:

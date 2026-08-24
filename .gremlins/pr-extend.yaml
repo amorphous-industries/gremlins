@@ -36,8 +36,11 @@ prompts:
 # the PR's branch (no rebase, no history rewrite — additive only). Same-repo
 # PRs only; fork PRs would need push access to the fork.
 
+bootstrap:
+  - uv venv .venv
+  - uv pip install --python .venv -e ".[dev]"
+
 stages:
-  - { include: bootstrap-dev-env }
   - name: fetch-pr-info
     type: exec
     in:

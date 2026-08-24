@@ -30,6 +30,7 @@ class Pipeline:
     stages: list[Stage]
     default_client: Client | None = None
     base_ref: str = "current"
+    bootstrap: list[str] = dataclasses.field(default_factory=list[str])
     inputs: Exec | None = None
     input_sources: InputSources | None = None
     land: Exec | None = None
@@ -97,6 +98,17 @@ class Pipeline:
                 )
             inputs_stage = Exec.with_dict({"name": "inputs", **inputs_raw})
 
+        bootstrap_cmds: list[str] = []
+        bootstrap_raw = raw.get("bootstrap")
+        if bootstrap_raw is not None:
+            if isinstance(bootstrap_raw, list):
+                for item in cast(list[object], bootstrap_raw):
+                    if not isinstance(item, str):
+                        raise ValueError("'bootstrap' must be a list of strings")
+                    bootstrap_cmds.append(item)
+            else:
+                raise ValueError("'bootstrap' must be a list of strings")
+
         land_stage: Exec | None = None
         land_raw = raw.get("land")
         if land_raw is not None:
@@ -121,6 +133,7 @@ class Pipeline:
             stages=stages,
             default_client=default_client,
             base_ref=pipeline_base_ref,
+            bootstrap=bootstrap_cmds,
             inputs=inputs_stage,
             input_sources=input_sources,
             land=land_stage,
