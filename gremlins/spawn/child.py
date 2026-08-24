@@ -117,6 +117,8 @@ async def _run(spec_path: pathlib.Path) -> int:
     if stage.client is None:
         stage.client = state.client
 
+    state.record_stage_progress(stage.name)
+
     try:
         await stage.run(gremlin)
     except Bail as b:
