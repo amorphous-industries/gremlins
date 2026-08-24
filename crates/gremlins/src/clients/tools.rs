@@ -246,25 +246,25 @@ fn audit(
         return;
     };
     if let Some(lock) = lock {
-        let _guard = lock.lock().unwrap();
-        let _ = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(log)
-            .and_then(|mut f| {
-                use std::io::Write;
-                writeln!(f, "{line}")
-            });
+        // audit is best-effort; skip write if the mutex is poisoned rather
+        // than panicking and crashing the tool invocation.
+        if let Ok(_guard) = lock.lock() {
+            audit_write(log, &line);
+        }
     } else {
-        let _ = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(log)
-            .and_then(|mut f| {
-                use std::io::Write;
-                writeln!(f, "{line}")
-            });
+        audit_write(log, &line);
     }
+}
+
+fn audit_write(log: &Path, line: &str) {
+    let _ = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log)
+        .and_then(|mut f| {
+            use std::io::Write;
+            writeln!(f, "{line}")
+        });
 }
 
 fn result_status(res: &str) -> &'static str {
