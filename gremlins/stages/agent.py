@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import pathlib
 import secrets
 import shutil
@@ -27,11 +28,19 @@ class Agent(Stage):
     Options:
         model: override the pipeline-default model for this stage.
 
-    When out: declares a single file://session/<name> binding, the agent is
-    instructed via the {out_file} prompt variable to write that file to
-    <uuid-slug>_<name> in the worktree; after the agent completes, the file is
-    moved to {artifact_dir}/<name>. The uuid-slug keeps sibling/parallel agents
-    from colliding on the same worktree path.
+    When out: declares file://session/<name> bindings, the agent is instructed
+    via the {out_file} prompt variable (single output) or the {out_files} JSON
+    mapping (multiple outputs) to write each file to <uuid-slug>_<name> in the
+    worktree. After the agent completes, each written file is moved to
+    {artifact_dir}/<name>.
+
+    A single-output stage is strict: verification raises if the file is
+    missing or empty. Multi-output stages are best-effort — the agent may
+    write any subset, so files it did not write are skipped without error
+    (they stay bound but read back empty downstream).
+
+    The uuid-slug keeps sibling/parallel agents from colliding on the same
+    worktree path.
 
     Unknown {keys} pass through unchanged (so code examples with braces work),
     but this also means typos like {plann} produce no error.
@@ -100,10 +109,13 @@ class Agent(Stage):
             if not state.artifacts.produced(key):
                 state.artifacts.bind(key, Uri.parse(uri_str))
 
-        final_name = self._single_file_output(out_map)
-        worktree_name = f"{secrets.token_hex(4)}_{final_name}" if final_name else None
-        if worktree_name:
-            resolved["out_file"] = worktree_name
+        file_names = self._file_outputs(out_map)
+        slug = secrets.token_hex(4)
+        worktree_names = {name: f"{slug}_{name}" for name in file_names}
+        if len(file_names) == 1:
+            resolved["out_file"] = worktree_names[file_names[0]]
+        elif len(file_names) > 1:
+            resolved["out_files"] = json.dumps(worktree_names)
 
         template = "\n\n".join(self.prompts).rstrip()
         prompt = self.substitute_vars(template, state, resolved)
@@ -114,22 +126,29 @@ class Agent(Stage):
             state, prompt, label=self.name, raw_path=raw_path, model=model, **opts
         )
 
-        if worktree_name and final_name:
-            src = pathlib.Path(state.cwd) / worktree_name
-            dst = state.artifact_dir / final_name
+        for name in file_names:
+            src = pathlib.Path(state.cwd) / worktree_names[name]
+            dst = state.artifact_dir / name
             if src.exists():
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 shutil.move(src, dst)
 
+        single = len(file_names) == 1
         for key, uri_str in out_map.items():
             uri = Uri.parse(uri_str)
+            if not single and uri.scheme == "file" and uri.path.startswith("session/"):
+                # Multi-output stages are best-effort: the agent may have
+                # written only a subset of the declared files, so a missing
+                # file is not an error here. It stays bound and reads back
+                # empty downstream.
+                continue
             state.artifacts.resolver(uri.scheme).verify_produced(uri)
 
         return Done()
 
     @staticmethod
-    def _single_file_output(out_map: dict[str, str]) -> str | None:
-        """Return the file://session/<name> filename when out: declares exactly one."""
+    def _file_outputs(out_map: dict[str, str]) -> list[str]:
+        """Return the file://session/<name> filenames declared in out:, in order."""
         names: list[str] = []
         for uri_str in out_map.values():
             try:
@@ -138,4 +157,4 @@ class Agent(Stage):
                 continue
             if uri.scheme == "file" and uri.path.startswith("session/"):
                 names.append(uri.path[len("session/") :])
-        return names[0] if len(names) == 1 else None
+        return names
