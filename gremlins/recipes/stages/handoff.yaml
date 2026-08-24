@@ -108,7 +108,6 @@ stages:
           rolling_plan_text: rolling-plan
         options:
           model: haiku
-          out_file: rolling-plan.md
         out:
           rolling-plan: "file://session/rolling-plan.md"
 

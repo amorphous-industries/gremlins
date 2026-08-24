@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import pathlib
+import re
 from typing import TYPE_CHECKING, Any, cast
 
 import pytest
@@ -187,71 +188,81 @@ def test_with_dict_rejects_non_dict_out(tmp_path):
 # --- registry always required ---
 
 
-# --- out_file option ---
+# --- single-file out: auto-management ---
 
 
-def test_out_file_moves_file_from_worktree_to_artifact_dir(tmp_path):
-    output_filename = "output.md"
-
+def test_single_file_out_prompt_gets_slug_prefixed_name(tmp_path):
     class WritingClient(FakeClient):
         async def run(self, prompt, *, label, cwd=None, **kwargs):
-            (pathlib.Path(cwd) / output_filename).write_text(
-                "# Output", encoding="utf-8"
-            )
+            m = re.search(r"`([0-9a-f]+_output\.md)`", prompt)
+            assert m, prompt
+            (pathlib.Path(cwd) / m.group(1)).write_text("# Output", encoding="utf-8")
             return await super().run(prompt, label=label, cwd=cwd, **kwargs)
 
     client = WritingClient(fixtures={"my-agent": MINIMAL_EVENTS})
     state = _make_state(tmp_path, client)
     agent = _make_agent(
-        prompts=["Write output"],
+        prompts=["Write to `{out_file}`"],
         out_map={"result": "file://session/output.md"},
-        options={"out_file": output_filename},
+    )
+
+    asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
+
+    assert len(client.calls) == 1
+    m = re.fullmatch(r"Write to `([0-9a-f]{8})_output\.md`", client.calls[0].prompt)
+    assert m, client.calls[0].prompt
+
+
+def test_single_file_out_moves_worktree_file_to_artifact_dir(tmp_path):
+    class WritingClient(FakeClient):
+        async def run(self, prompt, *, label, cwd=None, **kwargs):
+            m = re.search(r"`([0-9a-f]+_output\.md)`", prompt)
+            assert m, prompt
+            (pathlib.Path(cwd) / m.group(1)).write_text("# Output", encoding="utf-8")
+            return await super().run(prompt, label=label, cwd=cwd, **kwargs)
+
+    client = WritingClient(fixtures={"my-agent": MINIMAL_EVENTS})
+    state = _make_state(tmp_path, client)
+    agent = _make_agent(
+        prompts=["Write to `{out_file}`"],
+        out_map={"result": "file://session/output.md"},
     )
 
     result = asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
     assert isinstance(result, Done)
-    assert (state.artifact_dir / output_filename).read_text(
-        encoding="utf-8"
-    ) == "# Output"
-    assert not (pathlib.Path(state.cwd) / output_filename).exists()
+    assert (state.artifact_dir / "output.md").read_text(encoding="utf-8") == "# Output"
+    assert list(pathlib.Path(state.cwd).glob("*_output.md")) == []
 
 
-def test_out_file_with_substitution_expands_tokens(tmp_path):
-    agent_name = "review-code"
-    output_filename = "{name}.md"
-    expected_filename = f"{agent_name}.md"
-
+def test_single_file_out_uses_substituted_out_map_name(tmp_path):
     class WritingClient(FakeClient):
         async def run(self, prompt, *, label, cwd=None, **kwargs):
-            (pathlib.Path(cwd) / expected_filename).write_text(
-                "# Review", encoding="utf-8"
-            )
+            m = re.search(r"`([0-9a-f]+_review-code\.md)`", prompt)
+            assert m, prompt
+            (pathlib.Path(cwd) / m.group(1)).write_text("# Review", encoding="utf-8")
             return await super().run(prompt, label=label, cwd=cwd, **kwargs)
 
     client = WritingClient(fixtures={"review-code": MINIMAL_EVENTS})
     state = _make_state(tmp_path, client)
     agent = _make_agent(
-        prompts=["Review"],
+        name="review-code",
+        prompts=["Write review to `{out_file}`"],
         out_map={"{name}": "file://session/{name}.md"},
-        options={"out_file": output_filename},
-        name=agent_name,
     )
 
     result = asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
     assert isinstance(result, Done)
-    assert (state.artifact_dir / expected_filename).read_text(
+    assert (state.artifact_dir / "review-code.md").read_text(
         encoding="utf-8"
     ) == "# Review"
-    assert not (pathlib.Path(state.cwd) / expected_filename).exists()
 
 
-def test_out_file_missing_source_does_not_crash(tmp_path):
+def test_single_file_out_missing_source_raises(tmp_path):
     client = FakeClient(fixtures={"my-agent": MINIMAL_EVENTS})
     state = _make_state(tmp_path, client)
     agent = _make_agent(
         prompts=["Write nothing"],
         out_map={"result": "file://session/never-written.md"},
-        options={"out_file": "never-written.md"},
     )
 
     with pytest.raises(FileNotFoundError):

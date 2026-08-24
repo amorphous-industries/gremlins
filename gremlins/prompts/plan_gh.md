@@ -1,5 +1,5 @@
-<!-- placeholders: base_ref, instructions, artifact_dir -->
-You are creating an implementation plan. Write the plan to `plan.md` in the current directory.
+<!-- placeholders: base_ref, instructions, out_file -->
+You are creating an implementation plan. Write the plan to `{out_file}` in the current directory.
 
 ## Base branch
 

@@ -4,7 +4,5 @@ stages:
     in: { plan: plan-document }
     out:
       "{name}": "file://session/{name}-{model}.md"
-    options:
-      out_file: "{name}-{model}.md"
     prompt:
       - gremlins:review/recipe.md

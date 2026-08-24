@@ -40,7 +40,6 @@ stages:
     out:
       plan-document: "file://session/plan.md"
     options:
-      out_file: plan.md
       idle_timeout: 600
 
   - name: publish-as-issue

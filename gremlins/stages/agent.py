@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pathlib
+import secrets
 import shutil
 from typing import TYPE_CHECKING, Any, cast
 
@@ -25,10 +26,12 @@ class Agent(Stage):
 
     Options:
         model: override the pipeline-default model for this stage.
-        out_file: relative filename the agent writes in the worktree.
-            After the agent completes, the file is moved from
-            {cwd}/{out_file} to {artifact_dir}/{out_file} so downstream
-            file://session/ out: bindings can verify it exists.
+
+    When out: declares a single file://session/<name> binding, the agent is
+    instructed via the {out_file} prompt variable to write that file to
+    <uuid-slug>_<name> in the worktree; after the agent completes, the file is
+    moved to {artifact_dir}/<name>. The uuid-slug keeps sibling/parallel agents
+    from colliding on the same worktree path.
 
     Unknown {keys} pass through unchanged (so code examples with braces work),
     but this also means typos like {plann} produce no error.
@@ -81,15 +84,11 @@ class Agent(Stage):
             raise RuntimeError("agent stage requires gremlin.state to be initialized")
         opts = dict(self.options)
         raw_model = cast(str | None, opts.pop("model", None))
-        out_file = cast(str | None, opts.pop("out_file", None))
 
         try:
             resolved = resolve_in_map(state.artifacts, self.in_map)
         except ValueError as exc:
             raise Bail(f"agent {self.name}: {exc}") from exc
-
-        if out_file:
-            out_file = self.substitute_vars(out_file, state, resolved)
 
         out_map = {
             self.substitute_vars(k, state, resolved): self.substitute_vars(
@@ -101,6 +100,11 @@ class Agent(Stage):
             if not state.artifacts.produced(key):
                 state.artifacts.bind(key, Uri.parse(uri_str))
 
+        final_name = self._single_file_output(out_map)
+        worktree_name = f"{secrets.token_hex(4)}_{final_name}" if final_name else None
+        if worktree_name:
+            resolved["out_file"] = worktree_name
+
         template = "\n\n".join(self.prompts).rstrip()
         prompt = self.substitute_vars(template, state, resolved)
 
@@ -110,9 +114,9 @@ class Agent(Stage):
             state, prompt, label=self.name, raw_path=raw_path, model=model, **opts
         )
 
-        if out_file:
-            src = pathlib.Path(state.cwd) / out_file
-            dst = state.artifact_dir / out_file
+        if worktree_name and final_name:
+            src = pathlib.Path(state.cwd) / worktree_name
+            dst = state.artifact_dir / final_name
             if src.exists():
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 shutil.move(src, dst)
@@ -122,3 +126,16 @@ class Agent(Stage):
             state.artifacts.resolver(uri.scheme).verify_produced(uri)
 
         return Done()
+
+    @staticmethod
+    def _single_file_output(out_map: dict[str, str]) -> str | None:
+        """Return the file://session/<name> filename when out: declares exactly one."""
+        names: list[str] = []
+        for uri_str in out_map.values():
+            try:
+                uri = Uri.parse(uri_str)
+            except ValueError:
+                continue
+            if uri.scheme == "file" and uri.path.startswith("session/"):
+                names.append(uri.path[len("session/") :])
+        return names[0] if len(names) == 1 else None
