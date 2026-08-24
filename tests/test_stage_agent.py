@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import pathlib
-from typing import TYPE_CHECKING, cast
+import re
+from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 from conftest import MINIMAL_EVENTS, MockGremlin
@@ -43,12 +45,13 @@ def _make_agent(
     prompts: list[str] | None = None,
     in_map: dict[str, str] | None = None,
     out_map: dict[str, str] | None = None,
+    options: dict[str, Any] | None = None,
     name: str = "my-agent",
 ) -> Agent:
     return Agent(
         name,
         prompts or ["Hello {content}"],
-        {},
+        options or {},
         in_map=in_map,
         out_map=out_map,
     )
@@ -184,3 +187,155 @@ def test_with_dict_rejects_non_dict_out(tmp_path):
 
 
 # --- registry always required ---
+
+
+# --- single-file out: auto-management ---
+
+
+def test_single_file_out_prompt_gets_slug_prefixed_name(tmp_path):
+    class WritingClient(FakeClient):
+        async def run(self, prompt, *, label, cwd=None, **kwargs):
+            m = re.search(r"`([0-9a-f]+_output\.md)`", prompt)
+            assert m, prompt
+            (pathlib.Path(cwd) / m.group(1)).write_text("# Output", encoding="utf-8")
+            return await super().run(prompt, label=label, cwd=cwd, **kwargs)
+
+    client = WritingClient(fixtures={"my-agent": MINIMAL_EVENTS})
+    state = _make_state(tmp_path, client)
+    agent = _make_agent(
+        prompts=["Write to `{out_file}`"],
+        out_map={"result": "file://session/output.md"},
+    )
+
+    asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
+
+    assert len(client.calls) == 1
+    m = re.fullmatch(r"Write to `([0-9a-f]{8})_output\.md`", client.calls[0].prompt)
+    assert m, client.calls[0].prompt
+
+
+def test_single_file_out_moves_worktree_file_to_artifact_dir(tmp_path):
+    class WritingClient(FakeClient):
+        async def run(self, prompt, *, label, cwd=None, **kwargs):
+            m = re.search(r"`([0-9a-f]+_output\.md)`", prompt)
+            assert m, prompt
+            (pathlib.Path(cwd) / m.group(1)).write_text("# Output", encoding="utf-8")
+            return await super().run(prompt, label=label, cwd=cwd, **kwargs)
+
+    client = WritingClient(fixtures={"my-agent": MINIMAL_EVENTS})
+    state = _make_state(tmp_path, client)
+    agent = _make_agent(
+        prompts=["Write to `{out_file}`"],
+        out_map={"result": "file://session/output.md"},
+    )
+
+    result = asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
+    assert isinstance(result, Done)
+    assert (state.artifact_dir / "output.md").read_text(encoding="utf-8") == "# Output"
+    assert list(pathlib.Path(state.cwd).glob("*_output.md")) == []
+
+
+def test_single_file_out_uses_substituted_out_map_name(tmp_path):
+    class WritingClient(FakeClient):
+        async def run(self, prompt, *, label, cwd=None, **kwargs):
+            m = re.search(r"`([0-9a-f]+_review-code\.md)`", prompt)
+            assert m, prompt
+            (pathlib.Path(cwd) / m.group(1)).write_text("# Review", encoding="utf-8")
+            return await super().run(prompt, label=label, cwd=cwd, **kwargs)
+
+    client = WritingClient(fixtures={"review-code": MINIMAL_EVENTS})
+    state = _make_state(tmp_path, client)
+    agent = _make_agent(
+        name="review-code",
+        prompts=["Write review to `{out_file}`"],
+        out_map={"{name}": "file://session/{name}.md"},
+    )
+
+    result = asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
+    assert isinstance(result, Done)
+    assert (state.artifact_dir / "review-code.md").read_text(
+        encoding="utf-8"
+    ) == "# Review"
+
+
+def test_single_file_out_missing_source_raises(tmp_path):
+    client = FakeClient(fixtures={"my-agent": MINIMAL_EVENTS})
+    state = _make_state(tmp_path, client)
+    agent = _make_agent(
+        prompts=["Write nothing"],
+        out_map={"result": "file://session/never-written.md"},
+    )
+
+    with pytest.raises(FileNotFoundError):
+        asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
+
+
+# --- multi-file out: auto-management (best-effort) ---
+
+
+def test_multi_file_out_prompt_gets_json_mapping(tmp_path):
+    client = FakeClient(fixtures={"my-agent": MINIMAL_EVENTS})
+    state = _make_state(tmp_path, client)
+    agent = _make_agent(
+        prompts=["Write to {out_files}"],
+        out_map={
+            "blah": "file://session/blah.md",
+            "foo": "file://session/foo.md",
+            "biz": "file://session/biz.md",
+        },
+    )
+
+    asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
+
+    assert len(client.calls) == 1
+    m = re.fullmatch(r"Write to (\{.*\})", client.calls[0].prompt)
+    assert m, client.calls[0].prompt
+    mapping = json.loads(m.group(1))
+    assert set(mapping) == {"blah.md", "foo.md", "biz.md"}
+    for name, actual in mapping.items():
+        assert re.fullmatch(rf"[0-9a-f]{{8}}_{re.escape(name)}", actual)
+
+
+def test_multi_file_out_moves_only_written_files(tmp_path):
+    class WritingClient(FakeClient):
+        async def run(self, prompt, *, label, cwd=None, **kwargs):
+            # Write two of the three declared files; biz.md is skipped.
+            m = re.search(r"\{.*\}", prompt)
+            mapping = json.loads(m.group(0))
+            for name in ("blah.md", "foo.md"):
+                (pathlib.Path(cwd) / mapping[name]).write_text(
+                    f"# {name}", encoding="utf-8"
+                )
+            return await super().run(prompt, label=label, cwd=cwd, **kwargs)
+
+    client = WritingClient(fixtures={"my-agent": MINIMAL_EVENTS})
+    state = _make_state(tmp_path, client)
+    agent = _make_agent(
+        prompts=["Write to {out_files}"],
+        out_map={
+            "blah": "file://session/blah.md",
+            "foo": "file://session/foo.md",
+            "biz": "file://session/biz.md",
+        },
+    )
+
+    result = asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
+    assert isinstance(result, Done)
+    assert (state.artifact_dir / "blah.md").read_text(encoding="utf-8") == "# blah.md"
+    assert (state.artifact_dir / "foo.md").read_text(encoding="utf-8") == "# foo.md"
+    assert not (state.artifact_dir / "biz.md").exists()
+
+
+def test_multi_file_out_missing_files_do_not_raise(tmp_path):
+    client = FakeClient(fixtures={"my-agent": MINIMAL_EVENTS})
+    state = _make_state(tmp_path, client)
+    agent = _make_agent(
+        prompts=["Write nothing"],
+        out_map={
+            "blah": "file://session/blah.md",
+            "foo": "file://session/foo.md",
+        },
+    )
+
+    result = asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
+    assert isinstance(result, Done)

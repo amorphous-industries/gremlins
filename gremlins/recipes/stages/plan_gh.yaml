@@ -8,7 +8,10 @@ stages:
     options:
       cmds:
         - |
-          if [ -s "{artifact_dir}/plan.md" ]; then exit 0; fi
+          if [ -s "{artifact_dir}/plan.md" ]; then
+              cp "{artifact_dir}/plan.md" "{cwd}/plan.md" 2>/dev/null || true
+              exit 0
+          fi
           if [ -z "$plan" ]; then exit 0; fi
           if [ -f "$plan" ]; then
               cp "$plan" "{artifact_dir}/plan.md"
@@ -26,9 +29,9 @@ stages:
               printf 'resolve-plan-input: unrecognized plan: %s\n' "$plan" >&2
               exit 1
           fi
+          cp "{artifact_dir}/plan.md" "{cwd}/plan.md" 2>/dev/null || true
     out:
       plan-issue-number?: "file://session/plan-issue-number.txt"
-      plan-document?: "gh://issue/{read:plan-issue-number}"  # must follow plan-issue-number? — {read:plan-issue-number} interpolates it
 
   - name: plan
     type: agent

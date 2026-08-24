@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import json
+import pathlib
+import secrets
+import shutil
 from typing import TYPE_CHECKING, Any, cast
 
 from gremlins.artifacts.resolve import resolve_in_map
@@ -20,6 +24,23 @@ class Agent(Stage):
 
     in:  var_name -> registry_key   (resolved content substituted into prompt)
     out: registry_key -> uri_string (bound before run, verified after)
+
+    Options:
+        model: override the pipeline-default model for this stage.
+
+    When out: declares file://session/<name> bindings, the agent is instructed
+    via the {out_file} prompt variable (single output) or the {out_files} JSON
+    mapping (multiple outputs) to write each file to <uuid-slug>_<name> in the
+    worktree. After the agent completes, each written file is moved to
+    {artifact_dir}/<name>.
+
+    A single-output stage is strict: verification raises if the file is
+    missing or empty. Multi-output stages are best-effort — the agent may
+    write any subset, so files it did not write are skipped without error
+    (they stay bound but read back empty downstream).
+
+    The uuid-slug keeps sibling/parallel agents from colliding on the same
+    worktree path.
 
     Unknown {keys} pass through unchanged (so code examples with braces work),
     but this also means typos like {plann} produce no error.
@@ -88,6 +109,14 @@ class Agent(Stage):
             if not state.artifacts.produced(key):
                 state.artifacts.bind(key, Uri.parse(uri_str))
 
+        file_names = self._file_outputs(out_map)
+        slug = secrets.token_hex(4)
+        worktree_names = {name: f"{slug}_{name}" for name in file_names}
+        if len(file_names) == 1:
+            resolved["out_file"] = worktree_names[file_names[0]]
+        elif len(file_names) > 1:
+            resolved["out_files"] = json.dumps(worktree_names)
+
         template = "\n\n".join(self.prompts).rstrip()
         prompt = self.substitute_vars(template, state, resolved)
 
@@ -97,8 +126,45 @@ class Agent(Stage):
             state, prompt, label=self.name, raw_path=raw_path, model=model, **opts
         )
 
+        for name in file_names:
+            src = pathlib.Path(state.cwd) / worktree_names[name]
+            dst = state.artifact_dir / name
+            if src.exists():
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(src, dst)
+
+        single = len(file_names) == 1
         for key, uri_str in out_map.items():
             uri = Uri.parse(uri_str)
+            if not single and uri.scheme == "file" and uri.path.startswith("session/"):
+                # Multi-output stages are best-effort: the agent may have
+                # written only a subset of the declared files, so a missing
+                # file is not an error here. It stays bound and reads back
+                # empty downstream.
+                continue
             state.artifacts.resolver(uri.scheme).verify_produced(uri)
 
         return Done()
+
+    @staticmethod
+    def _file_outputs(out_map: dict[str, str]) -> list[str]:
+        """Return the file://session/<name> filenames declared in out:, in order.
+
+        Rejects names containing '/' or '..' to prevent path-traversal
+        escapes when constructing {cwd}/<name> and {artifact_dir}/<name>.
+        """
+        names: list[str] = []
+        for key, uri_str in out_map.items():
+            try:
+                uri = Uri.parse(uri_str)
+            except ValueError:
+                continue
+            if uri.scheme == "file" and uri.path.startswith("session/"):
+                name = uri.path[len("session/") :]
+                if "/" in name or ".." in name:
+                    raise ValueError(
+                        f"out key {key!r}: file://session/<name> must be a plain "
+                        f"filename (no path separators or '..'), got {name!r}"
+                    )
+                names.append(name)
+        return names
