@@ -455,9 +455,11 @@ def _merge_overlay_bootstrap(
     overlay_cmds = _read_bootstrap_file(overlay_file)
     existing_raw = result.get("bootstrap")
     if existing_raw is not None:
-        if not isinstance(existing_raw, list) or not all(isinstance(c, str) for c in existing_raw):
+        if not isinstance(existing_raw, list) or not all(
+            isinstance(c, str) for c in cast(list[object], existing_raw)
+        ):
             raise ValueError("'bootstrap' must be a list of strings")
-        existing_cmds: list[str] = list(existing_raw)
+        existing_cmds: list[str] = list(cast(list[str], existing_raw))
     else:
         existing_cmds = []
     result["bootstrap"] = overlay_cmds + existing_cmds

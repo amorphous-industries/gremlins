@@ -268,9 +268,7 @@ async def run_pipeline(
         from gremlins.executor.bootstrap import run_bootstrap as _run_bootstrap
 
         try:
-            await _run_bootstrap(
-                gremlin.pipeline_data.bootstrap, gremlin.worktree_dir
-            )
+            await _run_bootstrap(gremlin.pipeline_data.bootstrap, gremlin.worktree_dir)
         except Exception as exc:
             if gremlin.state:
                 gremlin.state.data.write_bail_file(
