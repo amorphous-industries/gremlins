@@ -221,6 +221,51 @@ fn check_ln_symlink(cmd: &str) -> Option<String> {
     None
 }
 
+/// Defense-in-depth `cd` containment check. Scans for `cd` commands
+/// (possibly after `;`, `&&`, `||`) and resolves the target directory
+/// through [`within_worktree_precanon`]. Catches the escape where a
+/// bare symlink name like `link -> /tmp/outside` is not flagged by the
+/// path-heuristic loop (no `/`, no `~`, no `..`).
+///
+/// Like [`check_ln_symlink`], this is heuristic — it doesn't handle
+/// `env cd`, `sh -c 'cd link'`, or `cd` buried in subshells. The real
+/// defense is the per-token path check and the later `io_enforce` at
+/// I/O time; this just provides an earlier, clearer denial for the
+/// common `cd`-through-symlink pattern.
+fn check_cd(root: &Path, cmd: &str, cwd: Option<&Path>) -> Option<String> {
+    // Split on command boundaries: ;, &&, ||
+    let parts: Vec<&str> = cmd
+        .split(|c: char| c == ';')
+        .flat_map(|p| p.split("&&"))
+        .flat_map(|p| p.split("||"))
+        .collect();
+    for part in parts {
+        let tokens: Vec<&str> = part.trim().split_whitespace().collect();
+        if tokens.is_empty() {
+            continue;
+        }
+        let first = tokens[0].trim_matches(|c| c == '\'' || c == '"');
+        if first != "cd" && !first.ends_with("/cd") {
+            continue;
+        }
+        // cd with no arg (goes HOME) or cd - (previous dir) —
+        // can't statically resolve, skip.
+        if tokens.len() < 2 {
+            continue;
+        }
+        let arg = tokens[1].trim_matches(|c| c == '\'' || c == '"');
+        if arg == "-" {
+            continue;
+        }
+        let expanded = expand_user(arg);
+        let p = resolve(&expanded, cwd);
+        if !within_worktree(&p, root) {
+            return Some(format!("Error: cd target outside worktree: {arg}"));
+        }
+    }
+    None
+}
+
 pub fn bash_check(root: &Path, cmd: &str, cwd: Option<&Path>) -> Option<String> {
     let s = cmd.trim();
     if s.is_empty() {
@@ -228,6 +273,10 @@ pub fn bash_check(root: &Path, cmd: &str, cwd: Option<&Path>) -> Option<String> 
     }
     // Guard against symlink creation via ln.
     if let Some(err) = check_ln_symlink(s) {
+        return Some(err);
+    }
+    // Guard against cd into symlinked directories outside worktree.
+    if let Some(err) = check_cd(root, s, cwd) {
         return Some(err);
     }
     // Canonicalize root once — avoid re-resolving per token.
@@ -1522,6 +1571,57 @@ mod tests {
         let dir = tmp();
         // echo "ln -s" is an echo, not ln.
         assert!(bash_check(&dir, "echo \"ln -s\"", Some(&dir)).is_none());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn bash_check_blocks_cd_through_symlink_directory() {
+        let dir = tmp();
+        let worktree = dir.join("worktree");
+        std::fs::create_dir(&worktree).unwrap();
+        let outside = dir.join("outside");
+        std::fs::create_dir(&outside).unwrap();
+        let link = worktree.join("link");
+        std::os::unix::fs::symlink(&outside, &link).unwrap();
+        // cd link — bare name, no /, caught by check_cd.
+        let err = bash_check(&worktree, "cd link; cat secret", Some(&worktree)).unwrap();
+        assert!(err.contains("cd target outside worktree"), "got: {err}");
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn bash_check_blocks_cd_through_dangling_symlink() {
+        let dir = tmp();
+        let worktree = dir.join("worktree");
+        std::fs::create_dir(&worktree).unwrap();
+        let outside = dir.join("outside");
+        std::fs::create_dir(&outside).unwrap();
+        // Dangling symlink to outside/new — target doesn't exist yet.
+        let link = worktree.join("link");
+        std::os::unix::fs::symlink(outside.join("new"), &link).unwrap();
+        let err = bash_check(&worktree, "cd link; cat secret", Some(&worktree)).unwrap();
+        assert!(err.contains("cd target outside worktree"), "got: {err}");
+    }
+
+    #[test]
+    fn bash_check_cd_no_arg_passes() {
+        let dir = tmp();
+        // cd with no argument (goes HOME) — can't statically check, skip.
+        assert!(bash_check(&dir, "cd", Some(&dir)).is_none());
+    }
+
+    #[test]
+    fn bash_check_cd_dash_passes() {
+        let dir = tmp();
+        // cd - (previous dir) — can't statically check, skip.
+        assert!(bash_check(&dir, "cd -", Some(&dir)).is_none());
+    }
+
+    #[test]
+    fn bash_check_cd_inside_worktree_passes() {
+        let dir = tmp();
+        std::fs::create_dir(dir.join("sub")).unwrap();
+        assert!(bash_check(&dir, "cd sub; ls", Some(&dir)).is_none());
     }
 
     #[test]
