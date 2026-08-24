@@ -160,7 +160,7 @@ class Agent(Stage):
             except ValueError:
                 continue
             if uri.scheme == "file" and uri.path.startswith("session/"):
-                name = uri.path[len("session/"):]
+                name = uri.path[len("session/") :]
                 if "/" in name or ".." in name:
                     raise ValueError(
                         f"out key {key!r}: file://session/<name> must be a plain "
