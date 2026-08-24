@@ -148,13 +148,23 @@ class Agent(Stage):
 
     @staticmethod
     def _file_outputs(out_map: dict[str, str]) -> list[str]:
-        """Return the file://session/<name> filenames declared in out:, in order."""
+        """Return the file://session/<name> filenames declared in out:, in order.
+
+        Rejects names containing '/' or '..' to prevent path-traversal
+        escapes when constructing {cwd}/<name> and {artifact_dir}/<name>.
+        """
         names: list[str] = []
-        for uri_str in out_map.values():
+        for key, uri_str in out_map.items():
             try:
                 uri = Uri.parse(uri_str)
             except ValueError:
                 continue
             if uri.scheme == "file" and uri.path.startswith("session/"):
-                names.append(uri.path[len("session/") :])
+                name = uri.path[len("session/"):]
+                if "/" in name or ".." in name:
+                    raise ValueError(
+                        f"out key {key!r}: file://session/<name> must be a plain "
+                        f"filename (no path separators or '..'), got {name!r}"
+                    )
+                names.append(name)
         return names

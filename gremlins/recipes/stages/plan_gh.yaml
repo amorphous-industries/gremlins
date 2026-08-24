@@ -8,7 +8,10 @@ stages:
     options:
       cmds:
         - |
-          if [ -s "{artifact_dir}/plan.md" ]; then exit 0; fi
+          if [ -s "{artifact_dir}/plan.md" ]; then
+              cp "{artifact_dir}/plan.md" "{cwd}/plan.md" 2>/dev/null || true
+              exit 0
+          fi
           if [ -z "$plan" ]; then exit 0; fi
           if [ -f "$plan" ]; then
               cp "$plan" "{artifact_dir}/plan.md"
