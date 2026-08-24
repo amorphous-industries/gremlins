@@ -225,7 +225,13 @@ fn audit_key_arg(args_json: &str) -> String {
     String::new()
 }
 
-fn audit(log: Option<&Path>, lock: Option<&std::sync::Mutex<()>>, tool: &str, key_arg: &str, status: &str) {
+fn audit(
+    log: Option<&Path>,
+    lock: Option<&std::sync::Mutex<()>>,
+    tool: &str,
+    key_arg: &str,
+    status: &str,
+) {
     let Some(log) = log else {
         return;
     };
@@ -749,12 +755,24 @@ pub async fn invoke(name: &str, ctx: &ToolContext, args_json: &str) -> String {
     let args = match parse_args(args_json) {
         Ok(v) => v,
         Err(_) => {
-            audit(ctx.audit_log.as_deref(), ctx.audit_lock.as_deref(), name, &ka, "error");
+            audit(
+                ctx.audit_log.as_deref(),
+                ctx.audit_lock.as_deref(),
+                name,
+                &ka,
+                "error",
+            );
             return "Error: invalid arguments".into();
         }
     };
     if let Some(err) = check_tool(name, ctx, &args) {
-        audit(ctx.audit_log.as_deref(), ctx.audit_lock.as_deref(), name, &ka, "denied");
+        audit(
+            ctx.audit_log.as_deref(),
+            ctx.audit_lock.as_deref(),
+            name,
+            &ka,
+            "denied",
+        );
         return err;
     }
     let res = match name {
@@ -778,7 +796,13 @@ pub async fn invoke(name: &str, ctx: &ToolContext, args_json: &str) -> String {
         }
         other => format!("Error: unknown tool {other}"),
     };
-    audit(ctx.audit_log.as_deref(), ctx.audit_lock.as_deref(), name, &ka, result_status(&res));
+    audit(
+        ctx.audit_log.as_deref(),
+        ctx.audit_lock.as_deref(),
+        name,
+        &ka,
+        result_status(&res),
+    );
     res
 }
 
