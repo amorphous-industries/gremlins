@@ -30,7 +30,7 @@ class Pipeline:
     stages: list[Stage]
     default_client: Client | None = None
     base_ref: str = "current"
-    bootstrap: list[str] = dataclasses.field(default_factory=list)
+    bootstrap: list[str] = dataclasses.field(default_factory=list[str])
     inputs: Exec | None = None
     input_sources: InputSources | None = None
     land: Exec | None = None
@@ -102,7 +102,7 @@ class Pipeline:
         bootstrap_raw = raw.get("bootstrap")
         if bootstrap_raw is not None:
             if isinstance(bootstrap_raw, list):
-                for item in bootstrap_raw:
+                for item in cast(list[object], bootstrap_raw):
                     if not isinstance(item, str):
                         raise ValueError("'bootstrap' must be a list of strings")
                     bootstrap_cmds.append(item)

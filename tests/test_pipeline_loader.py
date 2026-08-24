@@ -1031,9 +1031,7 @@ stages: []
 def test_bootstrap_overlay_rejects_non_list(tmp_path: pathlib.Path) -> None:
     overlay_dir = tmp_path / ".gremlins"
     overlay_dir.mkdir()
-    overlay_dir.joinpath("bootstrap.yaml").write_text(
-        "not a list\n", encoding="utf-8"
-    )
+    overlay_dir.joinpath("bootstrap.yaml").write_text("not a list\n", encoding="utf-8")
     yaml_path = _write_yaml(
         tmp_path / "pipeline.yaml",
         """\
