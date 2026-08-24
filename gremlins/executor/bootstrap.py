@@ -20,14 +20,10 @@ async def run_bootstrap(cmds: list[str], cwd: pathlib.Path) -> None:
     if not cmds:
         return
     env = dict(os.environ)
-    env.setdefault("GREMLINS_BOOTSTRAP_CWD", str(cwd))
+    env["GREMLINS_BOOTSTRAP_CWD"] = str(cwd)
     result = await proc.run_shell_async(" && ".join(cmds), cwd=cwd, env=env)
     if result.returncode != 0:
         err = (result.stderr or result.stdout).strip()
-        logger.error(
-            "bootstrap failed (exit %d): %s", result.returncode, err[:2000]
-        )
-        raise RuntimeError(
-            f"bootstrap failed (exit {result.returncode}): {err[:500]}"
-        )
+        logger.error("bootstrap failed (exit %d): %s", result.returncode, err[:2000])
+        raise RuntimeError(f"bootstrap failed (exit {result.returncode}): {err[:500]}")
     logger.info("bootstrap ok")

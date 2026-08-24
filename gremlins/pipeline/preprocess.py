@@ -20,9 +20,7 @@ def expand_pipeline(
     if project_root is None:
         d = yaml_path.parent
         project_root = d.parent if d.name == ".gremlins" else d
-    result = _expand(yaml_path, project_root, chain=[])
-    _merge_overlay_bootstrap(result, project_root)
-    return result
+    return _expand(yaml_path, project_root, chain=[])
 
 
 @functools.cache
@@ -56,6 +54,7 @@ def _expand(
         result.pop("__gremlins_expanded__", None)
         return result
     yaml_dir = yaml_path.parent
+    top_level = len(chain) == 0
     prompt_dir = _resolve_prompt_dir(raw.get("prompt_dir"), yaml_dir)
     new_chain = chain + [resolved]
 
@@ -102,6 +101,8 @@ def _expand(
         if k not in ("stages", "prompt_dir", "prompts", "stage-definitions")
     }
     result["stages"] = expanded_stages
+    if top_level:
+        _merge_overlay_bootstrap(result, project_root)
     return result
 
 
@@ -452,9 +453,13 @@ def _merge_overlay_bootstrap(
     if not overlay_file.is_file():
         return
     overlay_cmds = _read_bootstrap_file(overlay_file)
-    existing_cmds: list[str] = [
-        str(c) for c in cast(list[object], result.get("bootstrap") or [])
-    ]
+    existing_raw = result.get("bootstrap")
+    if existing_raw is not None:
+        if not isinstance(existing_raw, list) or not all(isinstance(c, str) for c in existing_raw):
+            raise ValueError("'bootstrap' must be a list of strings")
+        existing_cmds: list[str] = list(existing_raw)
+    else:
+        existing_cmds = []
     result["bootstrap"] = overlay_cmds + existing_cmds
 
 
@@ -474,7 +479,7 @@ def _read_bootstrap_file(path: pathlib.Path) -> list[str]:
     if not isinstance(raw, list):
         raise ValueError(f"bootstrap file must be a list of strings: {path}")
     cmds: list[str] = []
-    for item in raw:
+    for item in cast(list[object], raw):
         if not isinstance(item, str):
             raise ValueError(
                 f"bootstrap file must be a list of strings, got {type(item).__name__!r}: {path}"

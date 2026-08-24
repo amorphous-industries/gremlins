@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import pathlib
+import sys
 
 import pytest
 
@@ -21,7 +22,7 @@ def test_run_bootstrap_runs_successfully(tmp_path: pathlib.Path) -> None:
     marker = tmp_path / "marker"
 
     async def _test() -> None:
-        await run_bootstrap([f"touch {marker}"], tmp_path)
+        await run_bootstrap([f"{sys.executable} -c \"import pathlib; pathlib.Path('{marker}').write_text('')\""], tmp_path)
 
     asyncio.run(_test())
     assert marker.exists()

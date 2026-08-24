@@ -714,7 +714,7 @@ def _extract_bootstrap_cmds(
 ) -> list[str]:
     spec_bootstrap = spec.get("bootstrap")
     if isinstance(spec_bootstrap, list):
-        return [str(item) for item in spec_bootstrap if item]
+        return list(spec_bootstrap)
     if pipeline_data is not None:
         return pipeline_data.bootstrap
     return []
