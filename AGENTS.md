@@ -4,29 +4,37 @@ Background orchestration for Claude Code: a gremlin is a detached process that r
 
 This file is the entry-point orientation for an agent working on this codebase. Per-subpackage detail lives in `gremlins/<pkg>/AGENTS.md`. The user-facing project doc is `README.md`. Design notes live in `DESIGN.md` and `plans/`.
 
-## Session start
-
-At the beginning of every session, run `gremlins prompt-for-assistant` and follow its instructions — it defines the four-role collaboration model (thought partner / scribe / flight controller / correction loop) and queue conventions for working through gremlins. Captured work on this project goes to **GitHub issues** (`gh issue ...` against `xbrianh/gremlins`).
-
 ## Repository layout
 
 ```
 gremlins/                    Python package — see gremlins/AGENTS.md
+  __init__.py                PACKAGE_ROOT only
+  __main__.py                Entry: from gremlins.cli import main; raise SystemExit(main())
+  launcher.py                Sets up state dir, spawns pipeline subprocess
+  run_child.py               Subprocess entry: executes one pipeline stage in a fresh process
+  errors.py                  die(msg) helper
+  paths.py                   Single source of truth for filesystem locations (state dir, worktree, etc.)
+  logging_setup.py           configure_logging — UTC timestamp formatter, stdout, GREMLINS_LOG_LEVEL
+  env_file.py                .env file loading (shell-like parsing)
+  protocols.py               GremlinProtocol, StageProtocol — shared protocols to avoid circular imports
+  _core.py                   Shim: import _gremlins_core as _core; exports _core
   cli/                       Subcommand entry points — one file per subcommand group
-  launcher.py                Sets up state dir + worktree, spawns pipeline
-  run_pipeline.py            Subprocess entry that wraps cli.main with terminal-state bookkeeping
-  state.py                   state.json read/write helpers, bail/stage bookkeeping
-  schema.py                  StageEntry, PipelineDef dataclasses
-  stage_clients.py           Pipeline → client wiring (collect_stage_specs etc.)
   clients/                   Client classes + provider impls — see gremlins/clients/AGENTS.md
-  stages/                    Per-stage bodies — see gremlins/stages/AGENTS.md
-  pipelines/                 Bundled YAML pipelines (gh, local, boss)
-  pipeline/                  YAML loader + discovery + schema
+  stages/                    Stage classes: agent, exec, loop, composite, parallel, sequence — see gremlins/stages/AGENTS.md
+  pipeline/                  YAML loader, discovery, preprocessor, input sources
+  pipelines/                 Bundled YAML pipelines (gh, gh-terse, local, boss, pr-extend)
   prompts/                   Bundled prompt templates
-  executor/                  State class + pipeline.py (StageRunner), run.py
-  fleet/                     Fleet manager (status, stop, land, close, log) — see gremlins/fleet/AGENTS.md
-  utils/                     proc helpers etc.
-  _core.py                   Shim: from _gremlins_core import *
+  executor/                  Run-time orchestrator — see gremlins/executor/AGENTS.md
+    state.py                 State class: execution context + state.json I/O, bail constants
+    run.py                   run_pipeline: unified pipeline entry point
+    gremlin.py               Gremlin: constructs, initializes, and runs a pipeline
+    parallel_state.py        Per-shard state bookkeeping for parallel stages
+  fleet/                     Fleet manager — see gremlins/fleet/AGENTS.md
+  artifacts/                 Artifact registry + URI model — see gremlins/artifacts/AGENTS.md
+  spawn/                     Internal spawn boundaries (pipeline + child subprocess entry points)
+  queue/                     Sequential gremlin dispatch queue
+  recipes/                   Reusable stage recipes (shell stages for YAML cmds:)
+  utils/                     proc, git, text, decorators, yaml_io, state_file, parallel_bail helpers
 Cargo.toml                   Rust workspace root
 crates/                      Rust crates
   gremlins-core/             PyO3 native extension (maturin)
@@ -75,7 +83,7 @@ The `Makefile` sets `MAKEFLAGS += -j$(shell sysctl -n hw.ncpu 2>/dev/null || npr
 
 These values are persisted to `state.json` and read by other writers (the fleet manager, the launcher). Renaming any of them silently breaks cross-process consumers.
 
-- **Bail classes** (`state.json.bail_class`): `reviewer_requested_changes`, `security`, `secrets`, `other`. Source of truth in `gremlins/state.py`.
+- **Bail classes** (`state.json.bail_class`): `reviewer_requested_changes`, `security`, `secrets`, `other`. Source of truth in `gremlins/executor/state.py`.
 - **Stage names** (`state.json.stage`): defined per-pipeline in YAML. The authoritative list for a pipeline is its YAML file under `gremlins/pipelines/` or `.gremlins/`.
 
 ## Where to look for…
@@ -88,7 +96,9 @@ These values are persisted to `state.json` and read by other writers (the fleet 
 | Add a new pipeline | YAMLs in `gremlins/pipelines/` (bundled) or `.gremlins/` (project) |
 | Trace a CLI subcommand | `gremlins/cli/` |
 | Understand fleet operations | `gremlins/fleet/AGENTS.md` |
-| Investigate a state-dir layout | `gremlins/state.py` resolves dirs; per-gremlin layout under `platformdirs.user_state_dir("gremlins")/<gremlin_id>/` |
+| Understand the executor | `gremlins/executor/AGENTS.md` |
+| Understand artifact registry + URIs | `gremlins/artifacts/AGENTS.md` |
+| Investigate a state-dir layout | `gremlins/paths.py` resolves dirs; `gremlins/executor/state.py` manages state.json. Per-gremlin layout under `platformdirs.user_state_dir("gremlins")/<gremlin_id>/` |
 | Find the design backlog | `plans/` (rough notes, not authoritative) |
 | Find open work | GitHub issues, `gh issue list --repo xbrianh/gremlins` |
 
@@ -100,4 +110,8 @@ Stages that invoke `claude` go through an injected `Client` (in `gremlins/client
 
 ## State and bail bookkeeping
 
-`state.set_stage` and `state.emit_bail` write to `state.json` atomically in pure Python via `patch_state`. Both helpers no-op without `GREMLINS_GREMLIN_ID` and never raise — stage / bail bookkeeping must not crash a running gremlin.
+`State.set_stage` (in `executor/state.py`) writes stage info to `state.json` atomically via `State.patch` (which uses `locked_update`).
+`State.write_bail_file` writes `bail_{attempt}.json` to the state dir. When a stage
+detects a recorded bail (via `state.json`), it raises a `Bail` exception.
+Both helpers no-op without `GREMLINS_GREMLIN_ID` and never raise —
+stage / bail bookkeeping must not crash a running gremlin.
