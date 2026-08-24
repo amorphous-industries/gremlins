@@ -264,7 +264,7 @@ async def run_pipeline(
         except RuntimeError as exc:
             die(str(exc))
 
-    if gremlin.pipeline_data.bootstrap and gremlin.worktree_dir:
+    if gremlin.pipeline_data.bootstrap and gremlin.worktree_dir and not resume_from:
         from gremlins.executor.bootstrap import run_bootstrap as _run_bootstrap
 
         try:
