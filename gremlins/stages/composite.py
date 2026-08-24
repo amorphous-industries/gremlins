@@ -13,7 +13,11 @@ def child_state(
     parent: State, child: Stage, *, fan_out: bool = False, child_id: str | None = None
 ) -> State:
     """Derive a child State from parent."""
-    client = child.client if (child.client is not None and child.client_explicit) else parent.client
+    client = (
+        child.client
+        if (child.client is not None and child.client_explicit)
+        else parent.client
+    )
     if not fan_out:
         return dataclasses.replace(parent, client=client)
     if child_id:
