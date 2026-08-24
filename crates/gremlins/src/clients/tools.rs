@@ -73,18 +73,81 @@ fn normalize_dots(p: &Path) -> PathBuf {
     out
 }
 
+/// Resolve the real path by canonicalizing the deepest ancestor that exists
+/// on disk, then re-appending the non-existent suffix. Falls back to the
+/// original path if even the filesystem root can't be canonicalized.
+fn canonicalize_or_ancestor(p: &Path) -> PathBuf {
+    match p.canonicalize() {
+        Ok(c) => c,
+        Err(_) => {
+            let mut ancestor = p;
+            loop {
+                match ancestor.canonicalize() {
+                    Ok(c) => {
+                        let suffix = p.strip_prefix(ancestor).unwrap_or(p);
+                        // Resolve dangling symlinks in the suffix.
+                        // canonicalize() walks past symlinks whose target
+                        // doesn't exist yet. A dangling symlink pointing
+                        // outside would pass containment as an ordinary
+                        // name. Check each suffix prefix; if we find a
+                        // symlink, resolve it and recurse so the real
+                        // target is seen by the containment check.
+                        let components: Vec<_> = suffix.components().collect();
+                        let mut probe = c.clone();
+                        for (i, comp) in components.iter().enumerate() {
+                            probe = probe.join(comp);
+                            if probe.is_symlink() {
+                                if let Ok(target) = std::fs::read_link(&probe) {
+                                    let mut resolved = if target.is_absolute() {
+                                        target
+                                    } else {
+                                        probe.parent().unwrap().join(&target)
+                                    };
+                                    for comp in &components[i + 1..] {
+                                        resolved = resolved.join(comp);
+                                    }
+                                    return canonicalize_or_ancestor(&resolved);
+                                }
+                                break;
+                            }
+                        }
+                        return c.join(suffix);
+                    }
+                    Err(_) => match ancestor.parent() {
+                        Some(parent) if !parent.as_os_str().is_empty() => ancestor = parent,
+                        _ => return p.to_path_buf(),
+                    },
+                }
+            }
+        }
+    }
+}
+
 fn normalize_path(p: &Path) -> Option<PathBuf> {
     let abs = if p.is_absolute() {
         p.to_path_buf()
     } else {
         std::env::current_dir().ok()?.join(p)
     };
-    Some(normalize_dots(&abs))
+    let canonical = canonicalize_or_ancestor(&abs);
+    // normalize_dots handles `.`/`..` in the non-existent suffix only —
+    // canonicalize_or_ancestor already resolved them in the existing prefix.
+    // Lexical `..` in a not-yet-existent suffix is the safe conservative choice.
+    Some(normalize_dots(&canonical))
 }
 
 pub fn within_worktree(p: &Path, root: &Path) -> bool {
     match (normalize_path(p), normalize_path(root)) {
         (Some(p), Some(root)) => p.starts_with(root),
+        _ => false,
+    }
+}
+
+/// Hot-path variant: caller has already canonicalized root via [`normalize_path`].
+/// Avoids re-canonicalizing root on every call inside loops like [`bash_check`].
+fn within_worktree_precanon(p: &Path, canonical_root: &Path) -> bool {
+    match normalize_path(p) {
+        Some(p) => p.starts_with(canonical_root),
         _ => false,
     }
 }
@@ -109,33 +172,16 @@ pub fn enforce(root: &Path, pth: &str, cwd: Option<&Path>) -> Option<String> {
     None
 }
 
-/// Symlink-aware containment check for file I/O. Resolves the path by
-/// canonicalizing its deepest *existing* ancestor (following symlinks) and
-/// re-appending the not-yet-existing tail, then rejects if the real target
-/// escapes the worktree. Returns Some(error) or None if the path is safe.
-///
-/// Canonicalizing the deepest existing ancestor — rather than bailing when
-/// the leaf doesn't exist — closes the escape where a pre-existing symlinked
-/// parent (e.g. a `.venv` linked outside the worktree) would let a Write to
-/// `worktree/link/newfile` land outside the worktree.
+/// Symlink-aware containment check for file I/O. Uses
+/// [`canonicalize_or_ancestor`] to resolve the real path, including dangling
+/// symlinks that would otherwise escape containment. Returns Some(error) or
+/// None if the path is safe.
 pub fn io_enforce(path: &Path, root: &Path) -> Option<String> {
     let real_root = match root.canonicalize() {
         Ok(c) => c,
         Err(_) => return None, // paranoid, shouldn't happen for real worktree
     };
-    // Walk up to the deepest ancestor that exists on disk and canonicalize it.
-    let mut ancestor = path;
-    let real_ancestor = loop {
-        match ancestor.canonicalize() {
-            Ok(c) => break c,
-            Err(_) => match ancestor.parent() {
-                Some(p) if !p.as_os_str().is_empty() => ancestor = p,
-                _ => return None, // nothing resolves; leave it to the I/O call
-            },
-        }
-    };
-    let suffix = path.strip_prefix(ancestor).unwrap_or(path);
-    let real = real_ancestor.join(suffix);
+    let real = canonicalize_or_ancestor(path);
     if !real.starts_with(&real_root) {
         return Some(format!(
             "Error: path outside worktree (resolved): {}",
@@ -175,6 +221,51 @@ fn check_ln_symlink(cmd: &str) -> Option<String> {
     None
 }
 
+/// Defense-in-depth `cd` containment check. Scans for `cd` commands
+/// (possibly after `;`, `&&`, `||`) and resolves the target directory
+/// through [`within_worktree_precanon`]. Catches the escape where a
+/// bare symlink name like `link -> /tmp/outside` is not flagged by the
+/// path-heuristic loop (no `/`, no `~`, no `..`).
+///
+/// Like [`check_ln_symlink`], this is heuristic — it doesn't handle
+/// `env cd`, `sh -c 'cd link'`, or `cd` buried in subshells. The real
+/// defense is the per-token path check and the later `io_enforce` at
+/// I/O time; this just provides an earlier, clearer denial for the
+/// common `cd`-through-symlink pattern.
+fn check_cd(root: &Path, cmd: &str, cwd: Option<&Path>) -> Option<String> {
+    // Split on command boundaries: ;, &&, ||
+    let parts: Vec<&str> = cmd
+        .split(';')
+        .flat_map(|p| p.split("&&"))
+        .flat_map(|p| p.split("||"))
+        .collect();
+    for part in parts {
+        let tokens: Vec<&str> = part.split_whitespace().collect();
+        if tokens.is_empty() {
+            continue;
+        }
+        let first = tokens[0].trim_matches(|c| c == '\'' || c == '"');
+        if first != "cd" && !first.ends_with("/cd") {
+            continue;
+        }
+        // cd with no arg (goes HOME) or cd - (previous dir) —
+        // can't statically resolve, skip.
+        if tokens.len() < 2 {
+            continue;
+        }
+        let arg = tokens[1].trim_matches(|c| c == '\'' || c == '"');
+        if arg == "-" {
+            continue;
+        }
+        let expanded = expand_user(arg);
+        let p = resolve(&expanded, cwd);
+        if !within_worktree(&p, root) {
+            return Some(format!("Error: cd target outside worktree: {arg}"));
+        }
+    }
+    None
+}
+
 pub fn bash_check(root: &Path, cmd: &str, cwd: Option<&Path>) -> Option<String> {
     let s = cmd.trim();
     if s.is_empty() {
@@ -184,6 +275,15 @@ pub fn bash_check(root: &Path, cmd: &str, cwd: Option<&Path>) -> Option<String> 
     if let Some(err) = check_ln_symlink(s) {
         return Some(err);
     }
+    // Guard against cd into symlinked directories outside worktree.
+    if let Some(err) = check_cd(root, s, cwd) {
+        return Some(err);
+    }
+    // Canonicalize root once — avoid re-resolving per token.
+    let canonical_root = match normalize_path(root) {
+        Some(cr) => cr,
+        _ => return Some("Error: invalid worktree root".into()),
+    };
     for raw_tok in s.split_whitespace() {
         let tok = raw_tok.trim_matches(|c| c == '\'' || c == '"');
         if tok.is_empty() {
@@ -202,7 +302,7 @@ pub fn bash_check(root: &Path, cmd: &str, cwd: Option<&Path>) -> Option<String> 
             tok.to_string()
         };
         let p = resolve(&expanded, cwd);
-        if !within_worktree(&p, root) {
+        if !within_worktree_precanon(&p, &canonical_root) {
             return Some(format!("Error: path outside worktree: {raw_tok}"));
         }
     }
@@ -1199,8 +1299,8 @@ mod tests {
         std::fs::create_dir(&outside).unwrap();
         let link = worktree.join("link");
         std::os::unix::fs::symlink(&outside, &link).unwrap();
-        // Lexical containment: symlink is lexically inside the worktree.
-        assert!(within_worktree(&link, &worktree));
+        // Canonical containment: symlink resolves outside the worktree.
+        assert!(!within_worktree(&link, &worktree));
     }
 
     #[test]
@@ -1475,7 +1575,7 @@ mod tests {
 
     #[test]
     #[cfg(unix)]
-    fn enforce_allows_venv_symlink_in_cwd() {
+    fn bash_check_blocks_cd_through_symlink_directory() {
         let dir = tmp();
         let worktree = dir.join("worktree");
         std::fs::create_dir(&worktree).unwrap();
@@ -1483,8 +1583,76 @@ mod tests {
         std::fs::create_dir(&outside).unwrap();
         let link = worktree.join("link");
         std::os::unix::fs::symlink(&outside, &link).unwrap();
-        // Lexical containment: a symlink inside the worktree is allowed.
-        assert!(enforce(&worktree, link.to_str().unwrap(), None).is_none());
+        // cd link — bare name, no /, caught by check_cd.
+        let err = bash_check(&worktree, "cd link; cat secret", Some(&worktree)).unwrap();
+        assert!(err.contains("cd target outside worktree"), "got: {err}");
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn bash_check_blocks_cd_through_dangling_symlink() {
+        let dir = tmp();
+        let worktree = dir.join("worktree");
+        std::fs::create_dir(&worktree).unwrap();
+        let outside = dir.join("outside");
+        std::fs::create_dir(&outside).unwrap();
+        // Dangling symlink to outside/new — target doesn't exist yet.
+        let link = worktree.join("link");
+        std::os::unix::fs::symlink(outside.join("new"), &link).unwrap();
+        let err = bash_check(&worktree, "cd link; cat secret", Some(&worktree)).unwrap();
+        assert!(err.contains("cd target outside worktree"), "got: {err}");
+    }
+
+    #[test]
+    fn bash_check_cd_no_arg_passes() {
+        let dir = tmp();
+        // cd with no argument (goes HOME) — can't statically check, skip.
+        assert!(bash_check(&dir, "cd", Some(&dir)).is_none());
+    }
+
+    #[test]
+    fn bash_check_cd_dash_passes() {
+        let dir = tmp();
+        // cd - (previous dir) — can't statically check, skip.
+        assert!(bash_check(&dir, "cd -", Some(&dir)).is_none());
+    }
+
+    #[test]
+    fn bash_check_cd_inside_worktree_passes() {
+        let dir = tmp();
+        std::fs::create_dir(dir.join("sub")).unwrap();
+        assert!(bash_check(&dir, "cd sub; ls", Some(&dir)).is_none());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn enforce_rejects_symlink_escape() {
+        let dir = tmp();
+        let worktree = dir.join("worktree");
+        std::fs::create_dir(&worktree).unwrap();
+        let outside = dir.join("outside");
+        std::fs::create_dir(&outside).unwrap();
+        let link = worktree.join("link");
+        std::os::unix::fs::symlink(&outside, &link).unwrap();
+        // Canonical containment: symlink resolves outside the worktree.
+        let err = enforce(&worktree, link.to_str().unwrap(), None).unwrap();
+        assert!(err.contains("outside worktree"));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn enforce_rejects_dangling_symlink_escape() {
+        let dir = tmp();
+        let worktree = dir.join("worktree");
+        std::fs::create_dir(&worktree).unwrap();
+        let outside = dir.join("outside");
+        std::fs::create_dir(&outside).unwrap();
+        // Dangling symlink: target doesn't exist, so canonicalize() walks
+        // past it. The containment check must still read_link() and reject.
+        let link = worktree.join("link");
+        std::os::unix::fs::symlink(outside.join("new.txt"), &link).unwrap();
+        let err = enforce(&worktree, link.to_str().unwrap(), None).unwrap();
+        assert!(err.contains("outside worktree"), "got: {err}");
     }
 
     #[test]
@@ -1746,5 +1914,22 @@ mod tests {
         std::os::unix::fs::symlink(&real, &link_dir).unwrap();
         let target = link_dir.join("newfile.txt");
         assert!(io_enforce(&target, &worktree).is_none());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn io_enforce_blocks_dangling_symlink_escape() {
+        let dir = tmp();
+        let worktree = dir.join("worktree");
+        std::fs::create_dir(&worktree).unwrap();
+        let outside = dir.join("outside");
+        std::fs::create_dir(&outside).unwrap();
+        // Dangling symlink: target doesn't exist yet, so canonicalize()
+        // fails on the symlink itself. We must still resolve the symlink
+        // target for containment.
+        let link = worktree.join("link");
+        std::os::unix::fs::symlink(outside.join("new.txt"), &link).unwrap();
+        let err = io_enforce(&link, &worktree).unwrap();
+        assert!(err.contains("outside worktree"), "got: {err}");
     }
 }
