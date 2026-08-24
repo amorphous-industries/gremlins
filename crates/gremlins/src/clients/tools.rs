@@ -108,14 +108,40 @@ pub fn enforce(root: &Path, pth: &str, cwd: Option<&Path>) -> Option<String> {
     None
 }
 
+/// Returns Some(error) if `cmd` is an `ln` invocation that requests
+/// symbolic linking. Token-based: inspects argv[0] for `ln` and scans
+/// subsequent tokens for `-s*`, `--symbolic`, or flags containing `s`.
+fn check_ln_symlink(cmd: &str) -> Option<String> {
+    let tokens: Vec<&str> = cmd.split_whitespace().collect();
+    let first = tokens.first()?.trim_matches(|c| c == '\'' || c == '"');
+    // Match "ln" or paths ending in "/ln" (e.g. /bin/ln).
+    if first != "ln" && !first.ends_with("/ln") {
+        return None;
+    }
+    for tok in &tokens[1..] {
+        let stripped = tok.trim_matches(|c| c == '\'' || c == '"');
+        if stripped == "--symbolic" || stripped.starts_with("-s") {
+            return Some("Error: creating symlinks is not allowed".into());
+        }
+        // Catch short-flag bundles like -sf, -fs, -sn.
+        if stripped.starts_with('-') && stripped.len() > 1 && stripped.contains('s') && stripped != "--symbolic" {
+            // Reject any short flag containing 's' (e.g. -sf, -fs, -sn).
+            // This still has false positives (-ns, --version), but those
+            // are harmless denials in practice.
+            return Some("Error: creating symlinks is not allowed".into());
+        }
+    }
+    None
+}
+
 pub fn bash_check(root: &Path, cmd: &str, cwd: Option<&Path>) -> Option<String> {
     let s = cmd.trim();
     if s.is_empty() {
         return None;
     }
-    let lower = s.to_lowercase();
-    if lower.contains("ln -s") {
-        return Some("Error: creating symlinks is not allowed".into());
+    // Guard against symlink creation via ln.
+    if let Some(err) = check_ln_symlink(s) {
+        return Some(err);
     }
     for raw_tok in s.split_whitespace() {
         let tok = raw_tok.trim_matches(|c| c == '\'' || c == '"');
@@ -306,8 +332,19 @@ fn edit_sync(cwd: Option<&Path>, args_json: &str) -> String {
     }
     if !content.contains(old) {
         let first_line = old.lines().next().unwrap_or("").trim();
-        let needle = if first_line.len() > 80 {
-            &first_line[..80]
+        // Char-boundary-safe truncation to 80 characters.
+        let needle: &str = if first_line.is_empty() {
+            // Don't use an empty needle — find() matches everywhere.
+            return format!(
+                "Error: old_string not found in {file_path} — first line is empty or whitespace-only"
+            );
+        } else if first_line.chars().count() > 80 {
+            let byte_idx = first_line
+                .char_indices()
+                .nth(80)
+                .map(|(i, _)| i)
+                .unwrap_or(first_line.len());
+            &first_line[..byte_idx]
         } else {
             first_line
         };
@@ -315,7 +352,14 @@ fn edit_sync(cwd: Option<&Path>, args_json: &str) -> String {
             let line_no = content[..pos].lines().count() + 1;
             let context_start = content[..pos].rfind('\n').map_or(0, |n| n + 1);
             let context_end = content[pos..].find('\n').map_or(content.len(), |n| pos + n);
-            let context = &content[context_start..context_end.min(context_start + 200)];
+            // Context capped at 200 chars, clamped to a char boundary.
+            let cap_byte = content[context_start..]
+                .char_indices()
+                .nth(200)
+                .map(|(i, _)| context_start + i)
+                .unwrap_or(content.len());
+            let context_end = context_end.min(cap_byte);
+            let context = &content[context_start..context_end];
             format!(" — did you mean to match near line {line_no}? Found:\n{context}")
         } else {
             String::new()
@@ -602,7 +646,8 @@ fn glob_sync(cwd: Option<&Path>, args_json: &str) -> String {
 
 pub async fn invoke(name: &str, ctx: &ToolContext, args_json: &str) -> String {
     if let Some(allowed) = &ctx.allowed_tools {
-        if !allowed.iter().any(|n| n == name) {
+        // subagent is always permitted regardless of tool filter.
+        if name != "subagent" && !allowed.iter().any(|n| n == name) {
             return format!("Error: unknown tool {name}");
         }
     }
@@ -628,6 +673,9 @@ pub async fn invoke(name: &str, ctx: &ToolContext, args_json: &str) -> String {
         "subagent" => {
             if let Some(f) = &ctx.subagent_fn {
                 let task = args.get("task").and_then(|v| v.as_str()).unwrap_or("");
+                if task.is_empty() {
+                    return "Error: subagent task is required".to_string();
+                }
                 let cwd = args.get("cwd").and_then(|v| v.as_str()).map(PathBuf::from);
                 f(task.to_string(), cwd).await
             } else {
@@ -738,7 +786,7 @@ pub fn tool_definitions(filter: Option<&[String]>) -> Vec<ToolDefinition> {
     // Subagent is always available, even when a tool filter is set.
     all.push(ToolDefinition {
         name: "subagent".into(),
-        description: "Delegate tasks to specialized subagents with".into(),
+        description: "Delegate tasks to specialized subagents with isolated context. Modes: single (agent + task), parallel (tasks array), chain (sequential with {previous} placeholder). Default cwd inherits from parent; use the cwd parameter to override.".into(),
         parameters: serde_json::json!({
             "type": "object",
             "properties": {
@@ -1229,6 +1277,34 @@ mod tests {
     }
 
     #[test]
+    fn bash_check_blocks_ln_symbolic_flag() {
+        let dir = tmp();
+        let err = bash_check(&dir, "ln --symbolic foo bar", Some(&dir)).unwrap();
+        assert!(err.contains("symlinks is not allowed"));
+    }
+
+    #[test]
+    fn bash_check_blocks_bin_ln_s() {
+        let dir = tmp();
+        let err = bash_check(&dir, "/bin/ln -s foo bar", Some(&dir)).unwrap();
+        assert!(err.contains("symlinks is not allowed"));
+    }
+
+    #[test]
+    fn bash_check_allows_column_s() {
+        let dir = tmp();
+        // "column -s , file.csv" is not an ln invocation.
+        assert!(bash_check(&dir, "column -s , file.csv", Some(&dir)).is_none());
+    }
+
+    #[test]
+    fn bash_check_allows_echo_ln_s() {
+        let dir = tmp();
+        // echo "ln -s" is an echo, not ln.
+        assert!(bash_check(&dir, "echo \"ln -s\"", Some(&dir)).is_none());
+    }
+
+    #[test]
     #[cfg(unix)]
     fn enforce_allows_venv_symlink_in_cwd() {
         let dir = tmp();
@@ -1297,6 +1373,58 @@ mod tests {
         assert!(result.contains("old_string is empty"));
     }
 
+    #[test]
+    fn edit_not_found_whitespace_only_first_line() {
+        let dir = tmp();
+        std::fs::write(dir.join("f.txt"), "hello\n").unwrap();
+        // old_string starts with a blank line, so first_line trims to empty.
+        let args = serde_json::json!({
+            "file_path": "f.txt",
+            "old_string": "\n  fn alpha() {}",
+            "new_string": ""
+        })
+        .to_string();
+        let result = edit_sync(Some(&dir), &args);
+        assert!(result.contains("first line is empty"));
+    }
+
+    #[test]
+    fn edit_not_found_multibyte_truncation() {
+        let dir = tmp();
+        std::fs::write(dir.join("f.txt"), "hello\n").unwrap();
+        // First line > 80 chars with multibyte content — must not panic.
+        let long_line = "é".repeat(100);
+        let old = format!("{long_line}\nbody");
+        let args = serde_json::json!({
+            "file_path": "f.txt",
+            "old_string": old,
+            "new_string": ""
+        })
+        .to_string();
+        let result = edit_sync(Some(&dir), &args);
+        assert!(result.contains("old_string not found"));
+        // The needle should be truncated to 80 chars, not 80 bytes.
+        // 100 é's is 200 bytes, so untruncated needle would be 200 bytes.
+        assert!(!result.contains(&long_line));
+    }
+
+    #[test]
+    fn edit_not_found_multibyte_context() {
+        let dir = tmp();
+        // File content with multibyte characters near the match.
+        let content = "é".repeat(300) + "\nfn alpha() {}\nbar";
+        std::fs::write(dir.join("f.txt"), &content).unwrap();
+        let args = serde_json::json!({
+            "file_path": "f.txt",
+            "old_string": "fn alpha() {\n  x = 1\n}",
+            "new_string": ""
+        })
+        .to_string();
+        let result = edit_sync(Some(&dir), &args);
+        assert!(result.contains("did you mean to match"));
+        // Must not panic on byte-slice boundary.
+    }
+
     // --- Part 3: Subagent tests ---
 
     #[tokio::test]
@@ -1337,5 +1465,30 @@ mod tests {
         assert!(*called.lock().unwrap());
         assert!(result.contains("subagent result"));
         assert!(result.contains("/tmp/x"));
+    }
+
+    #[tokio::test]
+    async fn subagent_empty_task_returns_error() {
+        let dir = tmp();
+        let subagent_fn: SubagentFn = Arc::new(|_task, _cwd| {
+            Box::pin(async move { "should not be called".to_string() })
+        });
+        let c = ToolContext {
+            cwd: Some(dir.clone()),
+            extra_env: None,
+            worktree_root: dir,
+            audit_log: None,
+            allowed_tools: None,
+            subagent_fn: Some(subagent_fn),
+        };
+        // Empty task string.
+        let args = serde_json::json!({"task": ""}).to_string();
+        let result = invoke("subagent", &c, &args).await;
+        assert!(result.contains("subagent task is required"));
+
+        // Missing task key entirely.
+        let args2 = serde_json::json!({}).to_string();
+        let result2 = invoke("subagent", &c, &args2).await;
+        assert!(result2.contains("subagent task is required"));
     }
 }
