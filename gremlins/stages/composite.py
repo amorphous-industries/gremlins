@@ -13,9 +13,11 @@ def child_state(
     parent: State, child: Stage, *, fan_out: bool = False, child_id: str | None = None
 ) -> State:
     """Derive a child State from parent."""
-    client = parent.client
-    if child.client is not None and child.client_explicit:
-        client = child.client
+    client = (
+        child.client
+        if (child.client is not None and child.client_explicit)
+        else parent.client
+    )
     if not fan_out:
         return dataclasses.replace(parent, client=client)
     if child_id:
@@ -24,7 +26,6 @@ def child_state(
     else:
         artifact_dir = parent.artifact_dir / child.name
         artifact_dir.mkdir(parents=True, exist_ok=True)
-    # Each child gets its own StateData copy so the persisted client is correct.
     return dataclasses.replace(
         parent,
         data=dataclasses.replace(parent.data, client=str(client)),
