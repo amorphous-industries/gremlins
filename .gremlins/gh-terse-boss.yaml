@@ -6,8 +6,10 @@ prompt_dir: prompts
 prompts:
   code-style: gremlins:code_style.md
   small-diffs: small_diffs.md
+  dev-env: dev-env-howto.md
 
 stages:
+  - { include: bootstrap-dev-env }
   - name: chain
     type: loop
     options:
@@ -30,9 +32,9 @@ stages:
   - name: review-chain
     type: review-code
     client: xai:grok-4
-    prompt: [code-style, gremlins:review/chain.md]
+    prompt: [code-style, gremlins:review/chain.md, dev-env]
 
   - name: address-chain
     type: agent
-    prompt: [code-style, gremlins:address.md, gremlins:bail_section.md]
+    prompt: [code-style, gremlins:address.md, gremlins:bail_section.md, dev-env]
     in: {text: review-chain}

@@ -27,6 +27,7 @@ land:
 prompts:
   code-style: gremlins:code_style.md
   terse: terse_style.md
+  dev-env: dev-env-howto.md
 
 stage-definitions:
   normalize:
@@ -58,7 +59,8 @@ stage-definitions:
           - name: fix
             type: agent
             prompt:
-              - gremlins:verify_fix.md
+              - dev-env-howto.md
+              - verify_fix.md
               - gremlins:bail_section_fix.md
             in:
               verify_output: verify_log
@@ -69,27 +71,28 @@ stage-definitions:
       - { type: run-checks-and-fix, options: { cmds: ["make check", "make test"] } }
 
 stages:
+  - { include: bootstrap-dev-env }
   - { type: gremlins:plan-gh, prompt: [code-style, terse, gremlins:plan_gh.md] }
-  - { type: gremlins:implement, prompt: [code-style, terse, no_lint_in_implement.md, gremlins:implement_gh.md] }
+  - { type: gremlins:implement, prompt: [code-style, terse, dev-env, no_lint_in_implement.md, gremlins:implement_gh.md] }
   - { type: normalize-and-fix }
 
   - parallel:
       - name: local-review-one
         type: agent
-        prompt: [code-style, terse, local_review.md]
+        prompt: [code-style, terse, dev-env, local_review.md]
         client: openrouter:deepseek-v4-pro
         out:
           local-review-one: "file://session/local-review-one.md"
       - name: local-review-two
         type: agent
-        prompt: [code-style, terse, local_review.md]
+        prompt: [code-style, terse, dev-env, local_review.md]
         client: openrouter:x-ai/grok-4.5
         out:
           local-review-two: "file://session/local-review-two.md"
 
   - name: local-address
     type: agent
-    prompt: [code-style, terse, local_address.md, no_lint_in_implement.md, gremlins:bail_section.md]
+    prompt: [code-style, terse, dev-env, local_address.md, no_lint_in_implement.md, gremlins:bail_section.md]
     in:
       review-one: local-review-one
       review-two: local-review-two
@@ -98,6 +101,6 @@ stages:
   - { type: gremlins:github-open-pr }
   - { type: gremlins:github-request-copilot-review }
   - { type: gremlins:github-wait-copilot, in: {pr: pr} }
-  - { name: github-address-pull-request-reviews, type: agent, in: {pr: pr}, prompt: [code-style, terse, gremlins:github_address_pull_request_reviews.md, gremlins:bail_section.md] }
+  - { name: github-address-pull-request-reviews, type: agent, in: {pr: pr}, prompt: [code-style, terse, dev-env, gremlins:github_address_pull_request_reviews.md, gremlins:bail_section.md] }
   - { type: normalize-and-fix }
-  - { type: gremlins:github-wait-ci, in: {pr: pr}, prompt: [terse, gremlins:ci_fix.md, gremlins:bail_section_fix.md] }
+  - { type: gremlins:github-wait-ci, in: {pr: pr}, prompt: [terse, dev-env, gremlins:ci_fix.md, gremlins:bail_section_fix.md] }
