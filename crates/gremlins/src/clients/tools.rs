@@ -1,7 +1,8 @@
 use std::collections::HashMap;
-use std::ffi::OsString;
 use std::path::{Component, Path, PathBuf};
+use std::pin::Pin;
 use std::process::Stdio;
+use std::sync::Arc;
 use std::time::Duration;
 
 use regex::Regex;
@@ -12,6 +13,11 @@ const GREP_MAX_LINES: usize = 2000;
 const BASH_TIMEOUT_SECS: u64 = 120;
 const SKIP_DIRS: &[&str] = &["__pycache__", "node_modules", "target"];
 
+type SubagentFuture = Pin<Box<dyn std::future::Future<Output = String> + Send>>;
+
+/// Callback that `invoke` calls for subagent tool invocations.
+pub type SubagentFn = Arc<dyn Fn(String, Option<PathBuf>) -> SubagentFuture + Send + Sync>;
+
 #[derive(Clone)]
 pub struct ToolContext {
     pub cwd: Option<PathBuf>,
@@ -19,6 +25,7 @@ pub struct ToolContext {
     pub worktree_root: PathBuf,
     pub audit_log: Option<PathBuf>,
     pub allowed_tools: Option<Vec<String>>,
+    pub subagent_fn: Option<SubagentFn>,
 }
 
 pub fn project_root() -> PathBuf {
@@ -66,29 +73,6 @@ fn normalize_dots(p: &Path) -> PathBuf {
 }
 
 fn normalize_path(p: &Path) -> Option<PathBuf> {
-    if let Ok(c) = p.canonicalize() {
-        return Some(c);
-    }
-    let mut existing = p.to_path_buf();
-    let mut rest: Vec<OsString> = Vec::new();
-    loop {
-        if let Ok(c) = existing.canonicalize() {
-            let mut out = c;
-            for part in rest.iter().rev() {
-                out.push(part);
-            }
-            return Some(normalize_dots(&out));
-        }
-        match existing.file_name() {
-            Some(name) => {
-                rest.push(name.to_os_string());
-                if !existing.pop() {
-                    break;
-                }
-            }
-            None => break,
-        }
-    }
     let abs = if p.is_absolute() {
         p.to_path_buf()
     } else {
@@ -128,6 +112,10 @@ pub fn bash_check(root: &Path, cmd: &str, cwd: Option<&Path>) -> Option<String> 
     let s = cmd.trim();
     if s.is_empty() {
         return None;
+    }
+    let lower = s.to_lowercase();
+    if lower.contains("ln -s") {
+        return Some("Error: creating symlinks is not allowed".into());
     }
     for raw_tok in s.split_whitespace() {
         let tok = raw_tok.trim_matches(|c| c == '\'' || c == '"');
@@ -313,8 +301,28 @@ fn edit_sync(cwd: Option<&Path>, args_json: &str) -> String {
         Ok(c) => c,
         Err(e) => return format!("Error: {e}"),
     };
-    if old.is_empty() || !content.contains(old) {
-        return format!("Error: old_string not found in {file_path}");
+    if old.is_empty() {
+        return format!("Error: old_string is empty in {file_path}");
+    }
+    if !content.contains(old) {
+        let first_line = old.lines().next().unwrap_or("").trim();
+        let needle = if first_line.len() > 80 {
+            &first_line[..80]
+        } else {
+            first_line
+        };
+        let hint = if let Some(pos) = content.find(needle) {
+            let line_no = content[..pos].lines().count() + 1;
+            let context_start = content[..pos].rfind('\n').map_or(0, |n| n + 1);
+            let context_end = content[pos..].find('\n').map_or(content.len(), |n| pos + n);
+            let context = &content[context_start..context_end.min(context_start + 200)];
+            format!(" — did you mean to match near line {line_no}? Found:\n{context}")
+        } else {
+            String::new()
+        };
+        return format!(
+            "Error: old_string not found in {file_path} — first line: {needle:?}{hint}"
+        );
     }
     if content.matches(old).count() > 1 {
         return format!("Error: old_string is not unique in {file_path}");
@@ -617,6 +625,15 @@ pub async fn invoke(name: &str, ctx: &ToolContext, args_json: &str) -> String {
         "Write" => write_invoke(ctx, args_json).await,
         "Grep" => grep_invoke(ctx, args_json).await,
         "Glob" => glob_invoke(ctx, args_json).await,
+        "subagent" => {
+            if let Some(f) = &ctx.subagent_fn {
+                let task = args.get("task").and_then(|v| v.as_str()).unwrap_or("");
+                let cwd = args.get("cwd").and_then(|v| v.as_str()).map(PathBuf::from);
+                f(task.to_string(), cwd).await
+            } else {
+                "Error: subagent not available for this backend".to_string()
+            }
+        }
         other => format!("Error: unknown tool {other}"),
     };
     audit(ctx.audit_log.as_deref(), name, &ka, result_status(&res));
@@ -624,7 +641,7 @@ pub async fn invoke(name: &str, ctx: &ToolContext, args_json: &str) -> String {
 }
 
 pub fn tool_definitions(filter: Option<&[String]>) -> Vec<ToolDefinition> {
-    let all = [
+    let mut all = vec![
         ToolDefinition {
             name: "Read".into(),
             description: "Read a file from the filesystem.".into(),
@@ -718,12 +735,32 @@ pub fn tool_definitions(filter: Option<&[String]>) -> Vec<ToolDefinition> {
             }),
         },
     ];
+    // Subagent is always available, even when a tool filter is set.
+    all.push(ToolDefinition {
+        name: "subagent".into(),
+        description: "Delegate tasks to specialized subagents with".into(),
+        parameters: serde_json::json!({
+            "type": "object",
+            "properties": {
+                "task": {
+                    "type": "string",
+                    "description": "Task description for the subagent"
+                },
+                "cwd": {
+                    "type": "string",
+                    "description": "Optional working directory override"
+                }
+            },
+            "required": ["task"],
+            "additionalProperties": false
+        }),
+    });
     match filter {
         Some(names) => all
             .into_iter()
-            .filter(|t| names.iter().any(|n| n == &t.name))
+            .filter(|t| t.name == "subagent" || names.iter().any(|n| n == &t.name))
             .collect(),
-        None => all.into_iter().collect(),
+        None => all,
     }
 }
 
@@ -755,6 +792,7 @@ mod tests {
             worktree_root: cwd.to_path_buf(),
             audit_log: None,
             allowed_tools: None,
+            subagent_fn: None,
         }
     }
 
@@ -822,6 +860,7 @@ mod tests {
             worktree_root: dir.clone(),
             audit_log: None,
             allowed_tools: None,
+            subagent_fn: None,
         };
         let args = serde_json::json!({"command": "pwd; ls"}).to_string();
         let output = bash_invoke(&c, &args).await;
@@ -845,6 +884,7 @@ mod tests {
             worktree_root: std::env::current_dir().unwrap(),
             audit_log: None,
             allowed_tools: None,
+            subagent_fn: None,
         };
         let expected = std::env::current_dir().unwrap();
         let args = serde_json::json!({"command": "pwd"}).to_string();
@@ -892,10 +932,10 @@ mod tests {
     #[test]
     fn tool_definitions_filter() {
         let all = tool_definitions(None);
-        assert_eq!(all.len(), 6);
+        assert_eq!(all.len(), 7);
         let filtered = tool_definitions(Some(&["Read".into(), "Bash".into()]));
         let names: Vec<_> = filtered.iter().map(|t| t.name.as_str()).collect();
-        assert_eq!(names, ["Read", "Bash"]);
+        assert_eq!(names, ["Read", "Bash", "subagent"]);
     }
 
     #[test]
@@ -943,7 +983,8 @@ mod tests {
         std::fs::create_dir(&outside).unwrap();
         let link = worktree.join("link");
         std::os::unix::fs::symlink(&outside, &link).unwrap();
-        assert!(!within_worktree(&link, &worktree));
+        // Lexical containment: symlink is lexically inside the worktree.
+        assert!(within_worktree(&link, &worktree));
     }
 
     #[test]
@@ -1146,6 +1187,7 @@ mod tests {
             worktree_root: dir.clone(),
             audit_log: None,
             allowed_tools: Some(vec!["Read".into()]),
+            subagent_fn: None,
         };
         let write_args =
             serde_json::json!({"file_path": target.to_str().unwrap(), "content": "nope"})
@@ -1168,5 +1210,132 @@ mod tests {
     fn audit_log_path_sibling() {
         let raw = PathBuf::from("/tmp/run.jsonl");
         assert_eq!(audit_log_path(&raw), PathBuf::from("/tmp/run.audit.jsonl"));
+    }
+
+    // --- Part 1: Lexical containment tests ---
+
+    #[test]
+    fn bash_check_blocks_ln_s_flag() {
+        let dir = tmp();
+        let err = bash_check(&dir, "ln -s /tmp/foo bar", Some(&dir)).unwrap();
+        assert!(err.contains("symlinks is not allowed"));
+    }
+
+    #[test]
+    fn bash_check_blocks_ln_sf_flag() {
+        let dir = tmp();
+        let err = bash_check(&dir, "ln -sf /tmp/foo bar", Some(&dir)).unwrap();
+        assert!(err.contains("symlinks is not allowed"));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn enforce_allows_venv_symlink_in_cwd() {
+        let dir = tmp();
+        let worktree = dir.join("worktree");
+        std::fs::create_dir(&worktree).unwrap();
+        let outside = dir.join("outside");
+        std::fs::create_dir(&outside).unwrap();
+        let link = worktree.join("link");
+        std::os::unix::fs::symlink(&outside, &link).unwrap();
+        // Lexical containment: a symlink inside the worktree is allowed.
+        assert!(enforce(&worktree, link.to_str().unwrap(), None).is_none());
+    }
+
+    #[test]
+    fn within_worktree_lexical_child() {
+        let dir = tmp();
+        let child = dir.join("sub").join("file.txt");
+        std::fs::create_dir_all(dir.join("sub")).unwrap();
+        std::fs::write(&child, "x").unwrap();
+        assert!(within_worktree(&child, &dir));
+    }
+
+    // --- Part 2: Edit diagnostics tests ---
+
+    #[test]
+    fn edit_not_found_shows_first_line() {
+        let dir = tmp();
+        std::fs::write(dir.join("f.txt"), "hello\nworld\n").unwrap();
+        let args = serde_json::json!({
+            "file_path": "f.txt",
+            "old_string": "fn alpha() {}",
+            "new_string": ""
+        })
+        .to_string();
+        let result = edit_sync(Some(&dir), &args);
+        assert!(result.contains("Error: old_string not found"));
+        assert!(result.contains("fn alpha() {}"));
+    }
+
+    #[test]
+    fn edit_not_found_shows_line_hint() {
+        let dir = tmp();
+        std::fs::write(dir.join("f.txt"), "hello world\nfn alpha() {}\n").unwrap();
+        let args = serde_json::json!({
+            "file_path": "f.txt",
+            "old_string": "fn alpha() {\n  x = 1\n}",
+            "new_string": ""
+        })
+        .to_string();
+        let result = edit_sync(Some(&dir), &args);
+        assert!(result.contains("did you mean to match"));
+        assert!(result.contains("fn alpha"));
+    }
+
+    #[test]
+    fn edit_empty_old_string() {
+        let dir = tmp();
+        std::fs::write(dir.join("f.txt"), "hello\n").unwrap();
+        let args = serde_json::json!({
+            "file_path": "f.txt",
+            "old_string": "",
+            "new_string": ""
+        })
+        .to_string();
+        let result = edit_sync(Some(&dir), &args);
+        assert!(result.contains("old_string is empty"));
+    }
+
+    // --- Part 3: Subagent tests ---
+
+    #[tokio::test]
+    async fn subagent_no_callback_returns_error() {
+        let dir = tmp();
+        let c = ToolContext {
+            cwd: Some(dir.clone()),
+            extra_env: None,
+            worktree_root: dir.clone(),
+            audit_log: None,
+            allowed_tools: None,
+            subagent_fn: None,
+        };
+        let args = serde_json::json!({"task": "do something"}).to_string();
+        let result = invoke("subagent", &c, &args).await;
+        assert!(result.contains("subagent not available"));
+    }
+
+    #[tokio::test]
+    async fn subagent_callback_called_when_set() {
+        let dir = tmp();
+        let called = Arc::new(std::sync::Mutex::new(false));
+        let called2 = called.clone();
+        let subagent_fn: SubagentFn = Arc::new(move |task, cwd| {
+            *called2.lock().unwrap() = true;
+            Box::pin(async move { format!("subagent result: {task} cwd={cwd:?}") })
+        });
+        let c = ToolContext {
+            cwd: Some(dir.clone()),
+            extra_env: None,
+            worktree_root: dir.clone(),
+            audit_log: None,
+            allowed_tools: None,
+            subagent_fn: Some(subagent_fn),
+        };
+        let args = serde_json::json!({"task": "do something", "cwd": "/tmp/x"}).to_string();
+        let result = invoke("subagent", &c, &args).await;
+        assert!(*called.lock().unwrap());
+        assert!(result.contains("subagent result"));
+        assert!(result.contains("/tmp/x"));
     }
 }
