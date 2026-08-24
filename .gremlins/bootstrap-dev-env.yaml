@@ -9,6 +9,6 @@ stages:
       dev-env-ready: file://session/.dev-env-ready
     options:
       cmds:
-        - uv venv
-        - uv pip install -e ".[dev]"
+        - uv venv .venv
+        - uv pip install --python .venv -e ".[dev]"
         - echo ok > "{artifact_dir}/.dev-env-ready"
