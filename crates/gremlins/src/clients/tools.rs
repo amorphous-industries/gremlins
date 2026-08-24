@@ -108,20 +108,33 @@ pub fn enforce(root: &Path, pth: &str, cwd: Option<&Path>) -> Option<String> {
     None
 }
 
-/// Symlink-aware containment check for file I/O. Canonicalizes the path
-/// (following symlinks) and rejects if the real target escapes the worktree.
-/// Returns Some(error) or None if the path is safe.
-/// Non-existent paths (canonicalize fails) pass through — they can't be
-/// symlinked outside the worktree because `ln -s` is blocked.
+/// Symlink-aware containment check for file I/O. Resolves the path by
+/// canonicalizing its deepest *existing* ancestor (following symlinks) and
+/// re-appending the not-yet-existing tail, then rejects if the real target
+/// escapes the worktree. Returns Some(error) or None if the path is safe.
+///
+/// Canonicalizing the deepest existing ancestor — rather than bailing when
+/// the leaf doesn't exist — closes the escape where a pre-existing symlinked
+/// parent (e.g. a `.venv` linked outside the worktree) would let a Write to
+/// `worktree/link/newfile` land outside the worktree.
 pub fn io_enforce(path: &Path, root: &Path) -> Option<String> {
-    let real = match path.canonicalize() {
-        Ok(c) => c,
-        Err(_) => return None, // doesn't exist yet, fall through to I/O
-    };
     let real_root = match root.canonicalize() {
         Ok(c) => c,
         Err(_) => return None, // paranoid, shouldn't happen for real worktree
     };
+    // Walk up to the deepest ancestor that exists on disk and canonicalize it.
+    let mut ancestor = path;
+    let real_ancestor = loop {
+        match ancestor.canonicalize() {
+            Ok(c) => break c,
+            Err(_) => match ancestor.parent() {
+                Some(p) if !p.as_os_str().is_empty() => ancestor = p,
+                _ => return None, // nothing resolves; leave it to the I/O call
+            },
+        }
+    };
+    let suffix = path.strip_prefix(ancestor).unwrap_or(path);
+    let real = real_ancestor.join(suffix);
     if !real.starts_with(&real_root) {
         return Some(format!(
             "Error: path outside worktree (resolved): {}",
@@ -134,6 +147,11 @@ pub fn io_enforce(path: &Path, root: &Path) -> Option<String> {
 /// Returns Some(error) if `cmd` is an `ln` invocation that requests
 /// symbolic linking. Token-based: inspects argv[0] for `ln` and scans
 /// subsequent tokens for `-s*`, `--symbolic`, or flags containing `s`.
+///
+/// Defense-in-depth only. `io_enforce` is the real containment boundary:
+/// this misses `env ln -s`, `command ln -s`, `sh -c 'ln -s'`, and any `ln`
+/// after `;`/`&&`/`|`, since it only inspects argv[0]. It exists to give the
+/// model a clear early denial for the common `ln -s` case, not to be airtight.
 fn check_ln_symlink(cmd: &str) -> Option<String> {
     let tokens: Vec<&str> = cmd.split_whitespace().collect();
     let first = tokens.first()?.trim_matches(|c| c == '\'' || c == '"');
@@ -146,11 +164,10 @@ fn check_ln_symlink(cmd: &str) -> Option<String> {
         if stripped == "--symbolic" || stripped.starts_with("-s") {
             return Some("Error: creating symlinks is not allowed".into());
         }
-        // Catch short-flag bundles like -sf, -fs, -sn.
-        if stripped.starts_with('-') && stripped.len() > 1 && stripped.contains('s') && stripped != "--symbolic" {
-            // Reject any short flag containing 's' (e.g. -sf, -fs, -sn).
-            // This still has false positives (-ns, --version), but those
-            // are harmless denials in practice.
+        // Catch short-flag bundles like -sf, -fs, -sn. Any short flag
+        // containing 's' is rejected. This still has false positives
+        // (-ns, --version), but those are harmless denials in practice.
+        if stripped.starts_with('-') && stripped.len() > 1 && stripped.contains('s') {
             return Some("Error: creating symlinks is not allowed".into());
         }
     }
@@ -510,7 +527,17 @@ fn fnmatch_name(name: &str, pat: &str) -> bool {
         .unwrap_or(false)
 }
 
-fn scan_file(path: &Path, pattern: &Regex, matches: &mut Vec<String>, truncated: &mut bool) {
+fn scan_file(
+    path: &Path,
+    root: &Path,
+    pattern: &Regex,
+    matches: &mut Vec<String>,
+    truncated: &mut bool,
+) {
+    // Skip files that resolve outside the worktree (e.g. via a symlink).
+    if io_enforce(path, root).is_some() {
+        return;
+    }
     if is_binary_prefix(path) {
         return;
     }
@@ -531,6 +558,7 @@ fn scan_file(path: &Path, pattern: &Regex, matches: &mut Vec<String>, truncated:
 
 fn walk_grep(
     dir: &Path,
+    root: &Path,
     pattern: &Regex,
     glob_filter: Option<&str>,
     matches: &mut Vec<String>,
@@ -568,23 +596,28 @@ fn walk_grep(
                 continue;
             }
         }
-        scan_file(&path, pattern, matches, truncated);
+        scan_file(&path, root, pattern, matches, truncated);
     }
     for d in dirs {
         if *truncated {
             return;
         }
-        walk_grep(&d, pattern, glob_filter, matches, truncated);
+        // Skip directory symlinks that resolve outside the worktree.
+        if io_enforce(&d, root).is_some() {
+            continue;
+        }
+        walk_grep(&d, root, pattern, glob_filter, matches, truncated);
     }
 }
 
 pub async fn grep_invoke(ctx: &ToolContext, args_json: &str) -> String {
     let cwd = ctx.cwd.clone();
+    let root = ctx.worktree_root.clone();
     let args_json = args_json.to_string();
-    blocking_string(move || grep_sync(cwd.as_deref(), &args_json)).await
+    blocking_string(move || grep_sync(cwd.as_deref(), &root, &args_json)).await
 }
 
-fn grep_sync(cwd: Option<&Path>, args_json: &str) -> String {
+fn grep_sync(cwd: Option<&Path>, root: &Path, args_json: &str) -> String {
     let args = match parse_args(args_json) {
         Ok(v) => v,
         Err(e) => return e,
@@ -610,6 +643,9 @@ fn grep_sync(cwd: Option<&Path>, args_json: &str) -> String {
     let mut truncated = false;
     if base.is_file() {
         let name = base.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        if let Some(err) = io_enforce(&base, root) {
+            return err;
+        }
         if glob_filter.is_none_or(|g| fnmatch_name(name, g)) {
             if is_binary_prefix(&base) {
                 return "(no matches)".into();
@@ -630,7 +666,14 @@ fn grep_sync(cwd: Option<&Path>, args_json: &str) -> String {
             }
         }
     } else {
-        walk_grep(&base, &pattern, glob_filter, &mut matches, &mut truncated);
+        walk_grep(
+            &base,
+            root,
+            &pattern,
+            glob_filter,
+            &mut matches,
+            &mut truncated,
+        );
     }
     if matches.is_empty() {
         return "(no matches)".into();
@@ -644,11 +687,12 @@ fn grep_sync(cwd: Option<&Path>, args_json: &str) -> String {
 
 pub async fn glob_invoke(ctx: &ToolContext, args_json: &str) -> String {
     let cwd = ctx.cwd.clone();
+    let root = ctx.worktree_root.clone();
     let args_json = args_json.to_string();
-    blocking_string(move || glob_sync(cwd.as_deref(), &args_json)).await
+    blocking_string(move || glob_sync(cwd.as_deref(), &root, &args_json)).await
 }
 
-fn glob_sync(cwd: Option<&Path>, args_json: &str) -> String {
+fn glob_sync(cwd: Option<&Path>, root: &Path, args_json: &str) -> String {
     let args = match parse_args(args_json) {
         Ok(v) => v,
         Err(e) => return e,
@@ -667,6 +711,8 @@ fn glob_sync(cwd: Option<&Path>, args_json: &str) -> String {
     let mut matches: Vec<String> = match glob::glob(&pattern_str) {
         Ok(paths) => paths
             .filter_map(|p| p.ok())
+            // Drop matches that resolve outside the worktree (e.g. via a symlink).
+            .filter(|p| io_enforce(p, root).is_none())
             .map(|p| p.display().to_string())
             .collect(),
         Err(e) => return format!("Error: {e}"),
@@ -821,7 +867,7 @@ pub fn tool_definitions(filter: Option<&[String]>) -> Vec<ToolDefinition> {
     // Subagent is always available, even when a tool filter is set.
     all.push(ToolDefinition {
         name: "subagent".into(),
-        description: "Delegate tasks to specialized subagents with isolated context. Modes: single (agent + task), parallel (tasks array), chain (sequential with {previous} placeholder). Default cwd inherits from parent; use the cwd parameter to override.".into(),
+        description: "Delegate a single task to a nested agent that runs with a clean conversation context but the same worktree and tools as you. Provide the task in `task`. The subagent inherits your working directory by default; pass `cwd` to run it elsewhere within the worktree. Returns the subagent's final text output.".into(),
         parameters: serde_json::json!({
             "type": "object",
             "properties": {
@@ -997,6 +1043,53 @@ mod tests {
         assert!(found.contains("one.rs"));
         assert!(found.contains("three.rs"));
         assert!(!found.contains("two.py"));
+    }
+
+    #[tokio::test]
+    #[cfg(unix)]
+    async fn grep_and_glob_skip_symlink_escape() {
+        let root = tmp();
+        let worktree = root.join("worktree");
+        std::fs::create_dir(&worktree).unwrap();
+        let outside = root.join("outside");
+        std::fs::create_dir(&outside).unwrap();
+        std::fs::write(outside.join("secret.rs"), "fn alpha() {}\n").unwrap();
+        // Symlinked file and directory inside the worktree pointing out.
+        std::os::unix::fs::symlink(outside.join("secret.rs"), worktree.join("leak.rs")).unwrap();
+        std::os::unix::fs::symlink(&outside, worktree.join("outdir")).unwrap();
+        // A legitimate in-worktree file that should still be found.
+        std::fs::write(worktree.join("ok.rs"), "fn alpha() {}\n").unwrap();
+
+        let c = ctx(&worktree);
+        let grep_args = serde_json::json!({"pattern": "alpha"}).to_string();
+        let out = grep_invoke(&c, &grep_args).await;
+        assert!(
+            out.contains("ok.rs"),
+            "in-worktree file should match: {out}"
+        );
+        assert!(
+            !out.contains("leak.rs"),
+            "symlinked file must be skipped: {out}"
+        );
+        assert!(
+            !out.contains("secret.rs"),
+            "escaped dir must be skipped: {out}"
+        );
+
+        let glob_args = serde_json::json!({"pattern": "**/*.rs"}).to_string();
+        let found = glob_invoke(&c, &glob_args).await;
+        assert!(
+            found.contains("ok.rs"),
+            "in-worktree file should glob: {found}"
+        );
+        assert!(
+            !found.contains("leak.rs"),
+            "symlinked file must be filtered: {found}"
+        );
+        assert!(
+            !found.contains("secret.rs"),
+            "escaped dir must be filtered: {found}"
+        );
     }
 
     #[tokio::test]
@@ -1505,9 +1598,8 @@ mod tests {
     #[tokio::test]
     async fn subagent_empty_task_returns_error() {
         let dir = tmp();
-        let subagent_fn: SubagentFn = Arc::new(|_task, _cwd| {
-            Box::pin(async move { "should not be called".to_string() })
-        });
+        let subagent_fn: SubagentFn =
+            Arc::new(|_task, _cwd| Box::pin(async move { "should not be called".to_string() }));
         let c = ToolContext {
             cwd: Some(dir.clone()),
             extra_env: None,
@@ -1578,5 +1670,37 @@ mod tests {
         // Lexically inside the worktree, but symlink resolves outside.
         let err = io_enforce(&link, &worktree).unwrap();
         assert!(err.contains("outside worktree"), "got: {err}");
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn io_enforce_blocks_write_through_symlinked_parent() {
+        let dir = tmp();
+        let worktree = dir.join("worktree");
+        std::fs::create_dir(&worktree).unwrap();
+        let outside = dir.join("outside");
+        std::fs::create_dir(&outside).unwrap();
+        // A pre-existing symlinked directory inside the worktree pointing out.
+        let link_dir = worktree.join("venv-link");
+        std::os::unix::fs::symlink(&outside, &link_dir).unwrap();
+        // The leaf doesn't exist yet, but its parent resolves outside.
+        let target = link_dir.join("newfile.txt");
+        let err = io_enforce(&target, &worktree).unwrap();
+        assert!(err.contains("outside worktree"), "got: {err}");
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn io_enforce_allows_new_file_under_in_worktree_symlink() {
+        let dir = tmp();
+        let worktree = dir.join("worktree");
+        std::fs::create_dir(&worktree).unwrap();
+        let real = worktree.join("real");
+        std::fs::create_dir(&real).unwrap();
+        // A symlink that stays inside the worktree is fine.
+        let link_dir = worktree.join("link");
+        std::os::unix::fs::symlink(&real, &link_dir).unwrap();
+        let target = link_dir.join("newfile.txt");
+        assert!(io_enforce(&target, &worktree).is_none());
     }
 }

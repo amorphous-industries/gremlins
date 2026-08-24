@@ -12,9 +12,11 @@ const MAX_DEPTH: u32 = 3;
 /// context prefix, and the original `ToolContext` — everything needed to run
 /// a nested agent loop.
 ///
-/// Recursive subagents are supported: the runner injects itself into the
-/// sub-context's `subagent_fn` so that deeper nesting can invoke subagent
-/// again (bounded by `MAX_DEPTH` via a shared atomic counter).
+/// Recursive subagents are supported and bounded by `MAX_DEPTH`. Depth is a
+/// true per-call-chain recursion bound, not a concurrency cap: each invocation
+/// injects a child runner at `depth + 1` into the sub-context, so N sibling
+/// subagents launched from one parent all share the same depth and never
+/// exhaust the bound between them. Only genuine nesting increments depth.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn make_runner<M: CompletionModel + Clone + Send + Sync + 'static>(
     model: M,
@@ -26,62 +28,81 @@ pub(crate) fn make_runner<M: CompletionModel + Clone + Send + Sync + 'static>(
     idle_timeout: f64,
     max_turns: usize,
 ) -> tools::SubagentFn {
-    // Depth counter shared across all nested subagent invocations from this parent.
-    let depth = Arc::new(std::sync::atomic::AtomicU32::new(0));
-    // Late-init cell so the closure can inject itself into sub-contexts.
-    let self_cell: Arc<std::sync::Mutex<Option<tools::SubagentFn>>> =
-        Arc::new(std::sync::Mutex::new(None));
+    make_runner_at_depth(
+        model,
+        instructions,
+        tool_filter,
+        cancel,
+        ctx,
+        prefix,
+        idle_timeout,
+        max_turns,
+        0,
+    )
+}
 
-    let runner: tools::SubagentFn = Arc::new({
-        let self_cell = self_cell.clone();
-        move |task: String, cwd: Option<PathBuf>| {
-            let model = model.clone();
-            let instructions = instructions.clone();
-            let tool_filter = tool_filter.clone();
-            let cancel = cancel.clone();
-            let mut sub_ctx = ctx.clone();
-            let prefix = prefix.clone();
-            let depth = depth.clone();
-            let self_cell = self_cell.clone();
+#[allow(clippy::too_many_arguments)]
+fn make_runner_at_depth<M: CompletionModel + Clone + Send + Sync + 'static>(
+    model: M,
+    instructions: String,
+    tool_filter: Option<Vec<String>>,
+    cancel: Arc<super::openai_backend::CancelToken>,
+    ctx: ToolContext,
+    prefix: String,
+    idle_timeout: f64,
+    max_turns: usize,
+    depth: u32,
+) -> tools::SubagentFn {
+    Arc::new(move |task: String, cwd: Option<PathBuf>| {
+        let model = model.clone();
+        let instructions = instructions.clone();
+        let tool_filter = tool_filter.clone();
+        let cancel = cancel.clone();
+        let mut sub_ctx = ctx.clone();
+        let prefix = prefix.clone();
 
-            if let Some(cwd) = cwd {
-                sub_ctx.cwd = Some(cwd);
-            }
-            // Inject self so recursive subagents can invoke subagent again.
-            sub_ctx.subagent_fn = self_cell.lock().unwrap().clone();
-
-            Box::pin(async move {
-                let current = depth.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                if current >= MAX_DEPTH {
-                    depth.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
-                    return format!("Error: subagent max depth ({MAX_DEPTH}) exceeded");
-                }
-
-                let result = crate::clients::openai_backend::run_agent_loop_nested(
-                    &model,
-                    &task,
-                    &sub_ctx,
-                    &cancel,
-                    &instructions,
-                    tool_filter.as_deref(),
-                    &prefix,
-                    idle_timeout,
-                    max_turns,
-                )
-                .await;
-
-                depth.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
-                match result {
-                    Ok(completed) => completed.text_result.unwrap_or_default(),
-                    Err(e) => format!("Subagent error: {e}"),
-                }
-            })
+        if let Some(cwd) = cwd {
+            sub_ctx.cwd = Some(cwd);
         }
-    });
 
-    // Store runner so the closure can inject it into sub-contexts.
-    *self_cell.lock().unwrap() = Some(runner.clone());
-    runner
+        Box::pin(async move {
+            if depth >= MAX_DEPTH {
+                return format!("Error: subagent max depth ({MAX_DEPTH}) exceeded");
+            }
+
+            // Inject a child runner one level deeper so a nested subagent can
+            // recurse again, bounded by MAX_DEPTH along this call chain.
+            sub_ctx.subagent_fn = Some(make_runner_at_depth(
+                model.clone(),
+                instructions.clone(),
+                tool_filter.clone(),
+                cancel.clone(),
+                sub_ctx.clone(),
+                prefix.clone(),
+                idle_timeout,
+                max_turns,
+                depth + 1,
+            ));
+
+            let result = crate::clients::openai_backend::run_agent_loop_nested(
+                &model,
+                &task,
+                &sub_ctx,
+                &cancel,
+                &instructions,
+                tool_filter.as_deref(),
+                &prefix,
+                idle_timeout,
+                max_turns,
+            )
+            .await;
+
+            match result {
+                Ok(completed) => completed.text_result.unwrap_or_default(),
+                Err(e) => format!("Subagent error: {e}"),
+            }
+        })
+    })
 }
 
 #[cfg(test)]
@@ -110,12 +131,10 @@ mod tests {
         };
 
         // Model that returns a single text response in one turn.
-        let model = rig_core::test_utils::MockCompletionModel::from_stream_turns([
-            vec![
-                rig_core::test_utils::MockStreamEvent::text("nested reply"),
-                rig_core::test_utils::MockStreamEvent::final_response_with_default_usage(),
-            ],
-        ]);
+        let model = rig_core::test_utils::MockCompletionModel::from_stream_turns([vec![
+            rig_core::test_utils::MockStreamEvent::text("nested reply"),
+            rig_core::test_utils::MockStreamEvent::final_response_with_default_usage(),
+        ]]);
 
         let cancel = super::super::openai_backend::CancelToken::new();
         let runner = make_runner(
@@ -138,7 +157,7 @@ mod tests {
     }
 
     /// A model whose stream never resolves — used to keep subagent calls
-    /// in-flight so the depth counter accumulates for concurrent testing.
+    /// in-flight so concurrent siblings overlap in time.
     #[derive(Clone)]
     struct PendingModel;
 
@@ -176,8 +195,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn make_runner_depth_guard_rejects_concurrent() {
+    fn depth_test_ctx() -> ToolContext {
         let dir = std::env::temp_dir().join(format!(
             "gremlins-sub-depth-{}-{}",
             std::process::id(),
@@ -187,18 +205,22 @@ mod tests {
                 .as_nanos()
         ));
         std::fs::create_dir_all(&dir).unwrap();
-
-        let ctx = ToolContext {
+        ToolContext {
             cwd: Some(dir.clone()),
             extra_env: None,
-            worktree_root: dir.clone(),
+            worktree_root: dir,
             audit_log: None,
             allowed_tools: None,
             subagent_fn: None,
-        };
+        }
+    }
 
-        // Use a model that hangs forever (pending stream) so concurrent
-        // calls stay in-flight and the depth counter accumulates.
+    /// Concurrent siblings share one depth level: N calls from the same parent
+    /// must not exhaust the recursion bound between them.
+    #[tokio::test]
+    async fn make_runner_concurrent_siblings_do_not_exhaust_depth() {
+        let ctx = depth_test_ctx();
+        // Hangs forever so all siblings overlap in time.
         let model = PendingModel;
         let cancel = super::super::openai_backend::CancelToken::new();
         let runner = make_runner(
@@ -208,26 +230,47 @@ mod tests {
             cancel,
             ctx,
             String::new(),
-            0.5,
+            0.2,
             10,
         );
 
-        // Spawn three concurrent calls (they'll enter the loop and sit on
-        // the pending stream). The fourth call should be rejected.
-        let r0 = tokio::spawn(runner.clone()("call 0".into(), None));
-        let r1 = tokio::spawn(runner.clone()("call 1".into(), None));
-        let r2 = tokio::spawn(runner.clone()("call 2".into(), None));
+        // Ten concurrent siblings at depth 0 — none should be rejected as
+        // "max depth" even though they overlap in time.
+        let handles: Vec<_> = (0..10)
+            .map(|i| tokio::spawn(runner.clone()(format!("call {i}"), None)))
+            .collect();
+        for h in handles {
+            let out = h.await.unwrap();
+            assert!(
+                !out.contains("max depth"),
+                "sibling at depth 0 must not hit the recursion guard, got: {out}"
+            );
+        }
+    }
 
-        // Give the spawned tasks time to enter the runner and bump depth.
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-
-        let blocked = runner("call 3".into(), None).await;
-        assert!(
-            blocked.contains("max depth (3) exceeded"),
-            "concurrent call at depth 3 should be rejected, got: {blocked}"
+    /// The recursion bound is enforced per call chain: a runner already at
+    /// MAX_DEPTH rejects, standing in for a chain nested that many levels deep.
+    #[tokio::test]
+    async fn make_runner_rejects_at_max_depth() {
+        let ctx = depth_test_ctx();
+        let model = PendingModel;
+        let cancel = super::super::openai_backend::CancelToken::new();
+        let runner = make_runner_at_depth(
+            model,
+            "instructions".into(),
+            None,
+            cancel,
+            ctx,
+            String::new(),
+            0.2,
+            10,
+            MAX_DEPTH,
         );
 
-        // Let the spawned tasks resolve (they'll timeout).
-        let _ = tokio::join!(r0, r1, r2);
+        let blocked = runner("too deep".into(), None).await;
+        assert!(
+            blocked.contains("max depth (3) exceeded"),
+            "call at MAX_DEPTH should be rejected, got: {blocked}"
+        );
     }
 }
