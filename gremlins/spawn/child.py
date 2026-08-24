@@ -117,6 +117,11 @@ async def _run(spec_path: pathlib.Path) -> int:
     if stage.client is None:
         stage.client = state.client
 
+    # Subprocess children write to their own state.json (state_root/<child_id>/),
+    # and their branch pipeline only contains this single child stage.
+    # Writing the child name as the top-level `stage` is therefore the correct
+    # resume target (unlike the in-process make_runner path that passes
+    # parent_stage because it writes to the parent's state.json).
     state.record_stage_progress(stage.name)
 
     try:

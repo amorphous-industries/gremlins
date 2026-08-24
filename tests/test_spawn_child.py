@@ -239,6 +239,85 @@ def test_main_missing_spec(tmp_path: pathlib.Path) -> None:
     assert rc == 1
 
 
+def test_run_bail_records_stage_progress(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """state.json records stage name before run, even if the stage bails."""
+    import gremlins.paths as _paths
+
+    state_root = tmp_path / "state"
+    monkeypatch.setattr(_paths, "state_root", lambda: state_root)
+
+    gremlin_id = "test-bail-progress"
+    state_dir = state_root / gremlin_id
+    state_dir.mkdir(parents=True, exist_ok=True)
+    (state_dir / "state.json").write_text(
+        json.dumps({"id": gremlin_id, "attempt": "a1", "status": "running"}),
+        encoding="utf-8",
+    )
+
+    spec_path = _write_spec(
+        tmp_path,
+        "_test_bail",
+        extra={"gremlin_id": gremlin_id},
+    )
+    rc = asyncio.run(_rc._run(spec_path))
+    assert rc == 1
+    result = _read_result(spec_path)
+    assert result["status"] == "bail"
+
+    state_json: dict[str, Any] = json.loads(
+        (state_dir / "state.json").read_text(encoding="utf-8")
+    )
+    assert state_json.get("stage") == "test-stage", (
+        f"stage should be recorded before bail, got {state_json.get('stage')!r}"
+    )
+
+
+def test_run_bail_preserves_child_stage_in_own_state(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Parallel child writes child name as top-level stage to its own state.json."""
+    import gremlins.paths as _paths
+
+    state_root = tmp_path / "state"
+    monkeypatch.setattr(_paths, "state_root", lambda: state_root)
+
+    child_id = "child-abc"
+    child_dir = state_root / child_id
+    child_dir.mkdir(parents=True, exist_ok=True)
+    (child_dir / "state.json").write_text(
+        json.dumps({"id": child_id, "attempt": "a1", "status": "running"}),
+        encoding="utf-8",
+    )
+
+    # Simulate a parallel child spec via the spawn/child schema (child_id + parent_stage)
+    spec_path = _write_spec(
+        tmp_path,
+        "_test_bail",
+        extra={
+            "gremlin_id": child_id,
+            "child_id": child_id,
+            "parent_stage": "parallel-group",
+        },
+    )
+    rc = asyncio.run(_rc._run(spec_path))
+    assert rc == 1
+
+    state_json: dict[str, Any] = json.loads(
+        (child_dir / "state.json").read_text(encoding="utf-8")
+    )
+    # Child writes to its own state.json, so the top-level `stage` is the child stage name.
+    # `parent_stage` is NOT forwarded — the child's resume target is its single stage.
+    assert state_json.get("stage") == "test-stage", (
+        f"child stage should be recorded as top-level stage, got {state_json.get('stage')!r}"
+    )
+    # sub_stage must not leak into the child's own state.json.
+    assert "sub_stage" not in state_json, (
+        f"child state should not have sub_stage, got {state_json.get('sub_stage')!r}"
+    )
+
+
 def test_main_happy_path(tmp_path: pathlib.Path) -> None:
     spec_path = _write_spec(tmp_path, "_test_done")
     rc = _rc.main([str(spec_path)])
