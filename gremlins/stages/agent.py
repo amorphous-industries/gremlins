@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import pathlib
+import shutil
 from typing import TYPE_CHECKING, Any, cast
 
 from gremlins.artifacts.resolve import resolve_in_map
@@ -88,6 +89,9 @@ class Agent(Stage):
         except ValueError as exc:
             raise Bail(f"agent {self.name}: {exc}") from exc
 
+        if out_file:
+            out_file = self.substitute_vars(out_file, state, resolved)
+
         out_map = {
             self.substitute_vars(k, state, resolved): self.substitute_vars(
                 v, state, resolved
@@ -111,7 +115,8 @@ class Agent(Stage):
             src = pathlib.Path(state.cwd) / out_file
             dst = state.artifact_dir / out_file
             if src.exists():
-                os.replace(src, dst)
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(src, dst)
 
         for key, uri_str in out_map.items():
             uri = Uri.parse(uri_str)
