@@ -26,9 +26,9 @@ stages:
               printf 'resolve-plan-input: unrecognized plan: %s\n' "$plan" >&2
               exit 1
           fi
+          cp "{artifact_dir}/plan.md" "{cwd}/plan.md" 2>/dev/null || true
     out:
       plan-issue-number?: "file://session/plan-issue-number.txt"
-      plan-document?: "gh://issue/{read:plan-issue-number}"  # must follow plan-issue-number? — {read:plan-issue-number} interpolates it
 
   - name: plan
     type: agent
@@ -40,7 +40,7 @@ stages:
     out:
       plan-document: "file://session/plan.md"
     options:
-      idle_timeout: 600
+      out_file: plan.md
 
   - name: publish-as-issue
     type: exec

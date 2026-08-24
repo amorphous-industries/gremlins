@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import pathlib
 from typing import TYPE_CHECKING, Any, cast
 
 from gremlins.artifacts.resolve import resolve_in_map
@@ -20,6 +22,13 @@ class Agent(Stage):
 
     in:  var_name -> registry_key   (resolved content substituted into prompt)
     out: registry_key -> uri_string (bound before run, verified after)
+
+    Options:
+        model: override the pipeline-default model for this stage.
+        out_file: relative filename the agent writes in the worktree.
+            After the agent completes, the file is moved from
+            {cwd}/{out_file} to {artifact_dir}/{out_file} so downstream
+            file://session/ out: bindings can verify it exists.
 
     Unknown {keys} pass through unchanged (so code examples with braces work),
     but this also means typos like {plann} produce no error.
@@ -72,6 +81,7 @@ class Agent(Stage):
             raise RuntimeError("agent stage requires gremlin.state to be initialized")
         opts = dict(self.options)
         raw_model = cast(str | None, opts.pop("model", None))
+        out_file = cast(str | None, opts.pop("out_file", None))
 
         try:
             resolved = resolve_in_map(state.artifacts, self.in_map)
@@ -96,6 +106,12 @@ class Agent(Stage):
         await run_agent(
             state, prompt, label=self.name, raw_path=raw_path, model=model, **opts
         )
+
+        if out_file:
+            src = pathlib.Path(state.cwd) / out_file
+            dst = state.artifact_dir / out_file
+            if src.exists():
+                os.replace(src, dst)
 
         for key, uri_str in out_map.items():
             uri = Uri.parse(uri_str)

@@ -27,4 +27,4 @@ If there are no issues worth raising, write a Findings section that says so expl
 
 Do NOT make any code changes — only write the review file.
 
-`{artifact_dir}/{name}-{model}.md` is the canonical and required location for your review output in every case, including any short-circuit one-liner the prompt tells you to emit. Do not emit the verdict only to chat; write it to `{artifact_dir}/{name}-{model}.md` and then stop.
+`{name}-{model}.md` is the canonical and required location for your review output in every case, including any short-circuit one-liner the prompt tells you to emit. Do not emit the verdict only to chat; write it to `{name}-{model}.md` and then stop.

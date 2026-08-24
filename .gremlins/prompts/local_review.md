@@ -46,7 +46,7 @@ Read surrounding code in the repo as needed for full context — don't review th
 
 ## Step 3: Output the review
 
-Write findings as markdown to `{artifact_dir}/{name}.md` using this structure:
+Write findings as markdown to `{name}.md` using this structure:
 
 **For each finding**, write a block:
 

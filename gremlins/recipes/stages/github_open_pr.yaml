@@ -14,12 +14,20 @@ stages:
     in:
       base_ref_to_open_pr: base_ref_to_open_pr
       plan_uri:            plan-document.uri?
+    prompt:
+      - gremlins:github_open_pull_request.md
+
+  - name: move-pr-outputs
+    type: exec
+    options:
+      cmds:
+        - mv "{cwd}/pr-branch.txt" "{artifact_dir}/pr-branch.txt" || true
+        - mv "{cwd}/pr-title.txt" "{artifact_dir}/pr-title.txt" || true
+        - mv "{cwd}/pr-body.md" "{artifact_dir}/pr-body.md" || true
     out:
       pr_title:  "file://session/pr-title.txt"
       pr_body:   "file://session/pr-body.md"
       pr_branch: "file://session/pr-branch.txt"
-    prompt:
-      - gremlins:github_open_pull_request.md
 
   - name: push-and-open
     type: exec
