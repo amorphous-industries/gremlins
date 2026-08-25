@@ -1503,4 +1503,46 @@ mod tests {
         // Write actually happened
         assert_eq!(std::fs::read_to_string(&write_file).unwrap(), "mixed");
     }
+
+    #[tokio::test]
+    async fn loop_no_system_preamble_injected() {
+        // The harness must never inject a system message or preamble into
+        // the completion request — the pipeline's prompt is the complete
+        // instruction set. This guards against a future refactor silently
+        // reintroducing one.
+        let dir = std::env::temp_dir().join(format!(
+            "gremlins-oa-nosys-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let model = rig_core::test_utils::MockCompletionModel::from_stream_turns([[
+            rig_core::test_utils::MockStreamEvent::text("ok"),
+            rig_core::test_utils::MockStreamEvent::final_response_with_default_usage(),
+        ]]);
+        let mut ctx = test_ctx(Some(dir.clone()), None);
+        ctx.idle_timeout = 5.0;
+        ctx.params.idle_timeout = Some(5.0);
+        let cancel = CancelToken::new();
+        let result = run_agent_loop(&model, "hi", &ctx, cancel, loop_opts(None))
+            .await
+            .unwrap();
+        assert_eq!(result.text_result.as_deref(), Some("ok"));
+
+        for req in model.requests() {
+            assert!(
+                req.preamble.is_none(),
+                "harness must not inject preamble"
+            );
+            for msg in req.chat_history.iter() {
+                if let Message::System { content } = msg {
+                    panic!("harness injected system message: {content}");
+                }
+            }
+        }
+    }
 }

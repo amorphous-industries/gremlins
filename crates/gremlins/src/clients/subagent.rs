@@ -17,7 +17,6 @@ const MAX_DEPTH: u32 = 3;
 /// injects a child runner at `depth + 1` into the sub-context, so N sibling
 /// subagents launched from one parent all share the same depth and never
 /// exhaust the bound between them. Only genuine nesting increments depth.
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn make_runner<M: CompletionModel + Clone + Send + Sync + 'static>(
     model: M,
     tool_filter: Option<Vec<String>>,
