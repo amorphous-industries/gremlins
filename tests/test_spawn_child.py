@@ -63,7 +63,7 @@ def _register_test_stages(
     monkeypatch.setitem(STAGE_TYPES, "_test_artifact", _ArtifactStage)
 
     saved = dict(CLIENT_FACTORIES)
-    register_client_factory("fake", lambda _model: FakeClient(fixtures={}))
+    register_client_factory("fake", lambda _model, _extra=None: FakeClient(fixtures={}))
     yield
     CLIENT_FACTORIES.clear()
     CLIENT_FACTORIES.update(saved)
