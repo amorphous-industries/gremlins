@@ -755,7 +755,7 @@ def test_build_spawn_env_omits_telemetry_by_default(lenv):
 
 
 def test_build_spawn_env_is_minimal(lenv, monkeypatch):
-    """_build_spawn_env starts from the full parent env and adds only GREMLINS_* overrides."""
+    """_build_spawn_env starts from the full parent env and adds GREMLINS_* overrides plus PYTHONSAFEPATH."""
     monkeypatch.setenv("MY_PARENT_VAR", "parent_value")
     from gremlins import launcher
 

@@ -66,12 +66,14 @@ def load_env_file_isolated(
     so `.gremlins/env` has complete control over what to keep or override.
     The caller re-injects system vars afterward so users cannot tamper.
     """
+    # Strip BASH_ENV so bash doesn't auto-source an unrelated file.
+    _env = {k: v for k, v in base_env.items() if k != "BASH_ENV"}
     try:
         result = subprocess.run(
             ["bash", "-c", 'source "$1" >/dev/null && env -0', "--", str(path)],
             capture_output=True,
             check=False,
-            env=base_env,
+            env=_env,
             cwd=cwd,
         )
     except FileNotFoundError:

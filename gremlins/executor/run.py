@@ -248,17 +248,21 @@ async def run_pipeline(
     # Build the system vars table. These are available during
     # .gremlins/env sourcing and forcibly re-injected afterward.
     _system = {
-        "GREMLINS_GREMLIN_ID": gremlin_id or "",
-        "GREMLINS_PROJECT_ROOT": str(_project_root),
-        "GREMLINS_OVERLAY_DIR": str(state_dir / paths.OVERLAY_DIRNAME),
-        "GREMLINS_WORKTREE_PATH": str(gremlin.worktree_dir)
-        if gremlin.worktree_dir
-        else "",
-        "GREMLINS_ARTIFACT_DIR": str(gremlin.artifact_dir),
-        "GREMLIN_WORKSPACE_DIR": str(gremlin.worktree_dir)
-        if gremlin.worktree_dir
-        else "",
-        "GREMLIN_STATE_DIR": str(gremlin.state_dir),
+        k: v
+        for k, v in {
+            "GREMLINS_GREMLIN_ID": gremlin_id or "",
+            "GREMLINS_PROJECT_ROOT": str(_project_root),
+            "GREMLINS_OVERLAY_DIR": str(state_dir / paths.OVERLAY_DIRNAME),
+            "GREMLINS_WORKTREE_PATH": str(gremlin.worktree_dir)
+            if gremlin.worktree_dir
+            else None,
+            "GREMLINS_ARTIFACT_DIR": str(gremlin.artifact_dir),
+            "GREMLIN_WORKSPACE_DIR": str(gremlin.worktree_dir)
+            if gremlin.worktree_dir
+            else None,
+            "GREMLIN_STATE_DIR": str(gremlin.state_dir),
+        }.items()
+        if v is not None
     }
 
     # Base env: full parent environment so .gremlins/env has complete
@@ -279,6 +283,13 @@ async def run_pipeline(
 
     # Clear os.environ entirely, then apply the sourced env followed
     # by system vars. System vars go last so users cannot override them.
+    #
+    # os.environ is shared process state — direct-call/test paths
+    # after this point see the rebuilt env. The autouse
+    # _restore_os_environ fixture in tests/conftest.py snapshots and
+    # restores os.environ per-test to avoid cross-test contamination.
+    # The real gremlin runs in its own subprocess, so the mutation is
+    # harmless there.
     os.environ.clear()
     os.environ.update(_env)
     os.environ.update(_system)
