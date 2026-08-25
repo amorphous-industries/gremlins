@@ -81,6 +81,21 @@ def project_overlay_dir(project_root: pathlib.Path) -> pathlib.Path:
     return project_root / OVERLAY_DIRNAME
 
 
+def scratch_root(gremlin_id: str | None) -> pathlib.Path:
+    """Per-gremlin scratch directory. Ephemeral; OS-cleaned on reboot."""
+    sandbox = os.environ.get("GREMLINS_SANDBOX_ROOT", "")
+    if sandbox:
+        path = pathlib.Path(sandbox) / "scratch" / (gremlin_id or "direct")
+    else:
+        path = (
+            pathlib.Path(tempfile.gettempdir())
+            / "gremlins-scratch"
+            / (gremlin_id or "direct")
+        )
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def expand_user_path(s: str) -> str:
     """Expand a leading ~ in a path string."""
     return os.path.expanduser(s)

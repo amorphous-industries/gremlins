@@ -117,7 +117,7 @@ mod tests {
         let ctx = ToolContext {
             cwd: Some(dir.clone()),
             extra_env: None,
-            worktree_root: dir.clone(),
+            allowed_roots: vec![dir.clone()],
             audit_log: None,
             allowed_tools: None,
             subagent_fn: None,
@@ -193,7 +193,7 @@ mod tests {
         ToolContext {
             cwd: Some(dir.clone()),
             extra_env: None,
-            worktree_root: dir,
+            allowed_roots: vec![dir],
             audit_log: None,
             allowed_tools: None,
             subagent_fn: None,

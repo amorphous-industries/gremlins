@@ -258,6 +258,10 @@ async def run_pipeline(
         except RuntimeError as exc:
             die(str(exc))
 
+    os.environ["GREMLINS_SCRATCH_DIR"] = str(
+        paths.scratch_root(gremlin.gremlin_id)
+    )
+
     if gremlin.pipeline_data.bootstrap and gremlin.worktree_dir and not resume_from:
         from gremlins.executor.bootstrap import run_bootstrap as _run_bootstrap
 

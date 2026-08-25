@@ -191,7 +191,12 @@ def pytest_runtest_makereport(item, call):
 @pytest.fixture(autouse=True)
 def sandbox(monkeypatch, request):
     node_id = re.sub(r"[^\w]", "_", request.node.nodeid)[-60:]
-    root = pathlib.Path(tempfile.mkdtemp(prefix=f"grem_{node_id}_", dir="/tmp"))
+    root = pathlib.Path(
+        tempfile.mkdtemp(
+            prefix=f"grem_{node_id}_",
+            dir=os.environ.get("GREMLINS_SCRATCH_DIR", "/tmp"),
+        )
+    )
     original_cwd = pathlib.Path.cwd()
 
     sb = _Sandbox(root)
@@ -270,7 +275,10 @@ def child_sandbox(sandbox, request):
     def _fresh() -> _ChildSandbox:
         node_id = re.sub(r"[^\w]", "_", request.node.nodeid)[-60:]
         root = pathlib.Path(
-            tempfile.mkdtemp(prefix=f"grem_{node_id}_child_", dir="/tmp")
+            tempfile.mkdtemp(
+                prefix=f"grem_{node_id}_child_",
+                dir=os.environ.get("GREMLINS_SCRATCH_DIR", "/tmp"),
+            )
         )
         cs = _ChildSandbox(
             root,
