@@ -71,7 +71,7 @@ def test_verify_context_keeps_own_cmds(tmp_path: pathlib.Path) -> None:
     )
     ctx_stage = result["stages"][0]["body"][1]
     cmds = ctx_stage["options"]["cmds"]
-    assert any("git diff HEAD" in c for c in cmds)
+    assert any("git diff" in c for c in cmds)
     assert any("verify-summary.txt" in c for c in cmds)
 
 

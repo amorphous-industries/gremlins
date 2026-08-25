@@ -41,5 +41,5 @@ stages:
   - { name: address-code, type: agent, in: {text: review-code}, prompt: [code-style, terse, dev-env, gremlins:address.md, gremlins:bail_section.md] }
 
   - { type: normalize }
-  - { name: verify-check-2, type: verify, options: { cmds: ["make check"] }, prompt: verify }
+  - { name: verify-check-final, type: verify, options: { cmds: ["make check"] }, prompt: verify }
   - { name: verify-test, type: verify, options: { cmds: ["make test"] }, prompt: verify }
