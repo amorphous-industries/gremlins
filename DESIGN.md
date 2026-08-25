@@ -9,6 +9,18 @@ It is not a reference for individual modules — see the per-package `AGENTS.md`
 files for that. It is the rationale you need to evaluate proposed changes
 without re-deriving the trade-offs each time.
 
+### The workflow language is unopinionated
+
+Gremlins is an agentic *workflow language*, not a workflow. The pipeline YAML
+is the program; the harness is only its runtime. The runtime supplies
+mechanics — stage sequencing, resumption, worktrees, artifact plumbing, bail
+bookkeeping, client construction — and injects no opinion of its own into any
+model: no system prompt, no preamble, no operational norms. A stage's model
+sees exactly the prompts the pipeline author declared, plus the artifacts the
+pipeline passed through, and nothing else. Any behavioral opinion (what to
+re-check, how to communicate, when to bail) is the pipeline author's to write
+in the pipeline's own prompt files — not the harness's to impose.
+
 ## 1. The shape of a gremlin
 
 A gremlin is a sequence of **stages** executed by a thin orchestrator. The
@@ -218,6 +230,12 @@ A stage's prompt is the concatenation of:
 A reviewer does not see the planner's prompt. The implementer does not see
 the reviewer's lens. Each stage is given its own job in its own words, and
 upstream output crosses the boundary as data, not as context.
+
+There is no other input. Gremlins injects no system prompt or preamble of its
+own: the composed prompt above is the complete instruction set the model
+receives. This is a load-bearing property of the workflow language — if the
+harness began adding operational norms behind the pipeline's back, a pipeline
+would no longer be a self-describing program.
 
 ### 3.3 The worktree is the workspace
 

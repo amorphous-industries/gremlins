@@ -9,12 +9,6 @@ _DEFAULT_ALLOWED_TOOLS: list[str] = ["Bash", "Edit", "Read", "Write", "Grep", "G
 _DEFAULT_BLOCK: dict[str, list[str]] = {"allowed_tools": _DEFAULT_ALLOWED_TOOLS}
 
 
-def _openai_instructions() -> str:
-    from gremlins.utils.yaml_io import load_bundled_prompt
-
-    return load_bundled_prompt("default_openai_agents_instructions.md")
-
-
 def _make_openai_client(
     model: str | None, extra_params: dict[str, str] | None = None
 ) -> object:
@@ -24,7 +18,6 @@ def _make_openai_client(
         "openai",
         model or "",
         dict(_DEFAULT_BLOCK),
-        instructions=_openai_instructions(),
         extra_params=extra_params or {},
     )
 
@@ -38,7 +31,6 @@ def _make_xai_client(
         "xai",
         model or "grok-4",
         dict(_DEFAULT_BLOCK),
-        instructions=_openai_instructions(),
         extra_params=extra_params or {},
     )
 
@@ -52,7 +44,6 @@ def _make_openrouter_client(
         "openrouter",
         model or "",
         dict(_DEFAULT_BLOCK),
-        instructions=_openai_instructions(),
         extra_params=extra_params or {},
     )
 

@@ -8,7 +8,7 @@ use super::tools::{self, ToolContext};
 const MAX_DEPTH: u32 = 3;
 
 /// Build a subagent runner closure. Called once per backend before the agent loop.
-/// The returned closure captures the model, instructions, tool filter, cancel token,
+/// The returned closure captures the model, tool filter, cancel token,
 /// context prefix, and the original `ToolContext` — everything needed to run
 /// a nested agent loop.
 ///
@@ -20,7 +20,6 @@ const MAX_DEPTH: u32 = 3;
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn make_runner<M: CompletionModel + Clone + Send + Sync + 'static>(
     model: M,
-    instructions: String,
     tool_filter: Option<Vec<String>>,
     cancel: Arc<super::openai_backend::CancelToken>,
     ctx: ToolContext,
@@ -30,7 +29,6 @@ pub(crate) fn make_runner<M: CompletionModel + Clone + Send + Sync + 'static>(
 ) -> tools::SubagentFn {
     make_runner_at_depth(
         model,
-        instructions,
         tool_filter,
         cancel,
         ctx,
@@ -44,7 +42,6 @@ pub(crate) fn make_runner<M: CompletionModel + Clone + Send + Sync + 'static>(
 #[allow(clippy::too_many_arguments)]
 fn make_runner_at_depth<M: CompletionModel + Clone + Send + Sync + 'static>(
     model: M,
-    instructions: String,
     tool_filter: Option<Vec<String>>,
     cancel: Arc<super::openai_backend::CancelToken>,
     ctx: ToolContext,
@@ -55,7 +52,6 @@ fn make_runner_at_depth<M: CompletionModel + Clone + Send + Sync + 'static>(
 ) -> tools::SubagentFn {
     Arc::new(move |task: String, cwd: Option<PathBuf>| {
         let model = model.clone();
-        let instructions = instructions.clone();
         let tool_filter = tool_filter.clone();
         let cancel = cancel.clone();
         let mut sub_ctx = ctx.clone();
@@ -74,7 +70,6 @@ fn make_runner_at_depth<M: CompletionModel + Clone + Send + Sync + 'static>(
             // recurse again, bounded by MAX_DEPTH along this call chain.
             sub_ctx.subagent_fn = Some(make_runner_at_depth(
                 model.clone(),
-                instructions.clone(),
                 tool_filter.clone(),
                 cancel.clone(),
                 sub_ctx.clone(),
@@ -89,7 +84,6 @@ fn make_runner_at_depth<M: CompletionModel + Clone + Send + Sync + 'static>(
                 &task,
                 &sub_ctx,
                 &cancel,
-                &instructions,
                 tool_filter.as_deref(),
                 &prefix,
                 idle_timeout,
@@ -138,16 +132,7 @@ mod tests {
         ]]);
 
         let cancel = super::super::openai_backend::CancelToken::new();
-        let runner = make_runner(
-            model,
-            "be helpful".into(),
-            None,
-            cancel,
-            ctx,
-            String::new(),
-            5.0,
-            10,
-        );
+        let runner = make_runner(model, None, cancel, ctx, String::new(), 5.0, 10);
 
         // First invocation: depth 0 < 3, should succeed.
         let output = runner("first call".into(), None).await;
@@ -225,16 +210,7 @@ mod tests {
         // Hangs forever so all siblings overlap in time.
         let model = PendingModel;
         let cancel = super::super::openai_backend::CancelToken::new();
-        let runner = make_runner(
-            model,
-            "instructions".into(),
-            None,
-            cancel,
-            ctx,
-            String::new(),
-            0.2,
-            10,
-        );
+        let runner = make_runner(model, None, cancel, ctx, String::new(), 0.2, 10);
 
         // Ten concurrent siblings at depth 0 — none should be rejected as
         // "max depth" even though they overlap in time.
@@ -257,17 +233,8 @@ mod tests {
         let ctx = depth_test_ctx();
         let model = PendingModel;
         let cancel = super::super::openai_backend::CancelToken::new();
-        let runner = make_runner_at_depth(
-            model,
-            "instructions".into(),
-            None,
-            cancel,
-            ctx,
-            String::new(),
-            0.2,
-            10,
-            MAX_DEPTH,
-        );
+        let runner =
+            make_runner_at_depth(model, None, cancel, ctx, String::new(), 0.2, 10, MAX_DEPTH);
 
         let blocked = runner("too deep".into(), None).await;
         assert!(
