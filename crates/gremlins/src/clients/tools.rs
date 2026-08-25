@@ -1318,7 +1318,7 @@ mod tests {
     #[test]
     fn within_worktree_same_dir() {
         let dir = tmp();
-        assert!(within_worktree(&dir, &[dir.clone()]));
+        assert!(within_worktree(&dir, std::slice::from_ref(&dir)));
     }
 
     #[test]
@@ -1326,7 +1326,7 @@ mod tests {
         let dir = tmp();
         assert!(within_worktree(
             &dir.join("sub").join("file.txt"),
-            &[dir.clone()]
+            std::slice::from_ref(&dir)
         ));
     }
 
@@ -1347,7 +1347,7 @@ mod tests {
     fn within_worktree_sibling() {
         let dir = tmp();
         let sibling = dir.parent().unwrap().join("other");
-        assert!(!within_worktree(&sibling, &[dir.clone()]));
+        assert!(!within_worktree(&sibling, std::slice::from_ref(&dir)));
     }
 
     #[test]
@@ -1361,47 +1361,52 @@ mod tests {
         let link = worktree.join("link");
         std::os::unix::fs::symlink(&outside, &link).unwrap();
         // Canonical containment: symlink resolves outside the worktree.
-        assert!(!within_worktree(&link, &[worktree.clone()]));
+        assert!(!within_worktree(&link, std::slice::from_ref(&worktree)));
     }
 
     #[test]
     fn enforce_inside_worktree() {
         let dir = tmp();
         let inside = dir.join("file.txt");
-        assert!(enforce(&[dir.clone()], inside.to_str().unwrap(), None).is_none());
+        assert!(enforce(std::slice::from_ref(&dir), inside.to_str().unwrap(), None).is_none());
     }
 
     #[test]
     fn enforce_outside_worktree() {
         let dir = tmp();
         let outside = dir.parent().unwrap().join("secret.txt");
-        let err = enforce(&[dir.clone()], outside.to_str().unwrap(), None).unwrap();
+        let err = enforce(std::slice::from_ref(&dir), outside.to_str().unwrap(), None).unwrap();
         assert!(err.contains("outside sandbox"));
     }
 
     #[test]
     fn enforce_relative_path_with_cwd() {
         let dir = tmp();
-        assert!(enforce(&[dir.clone()], "file.txt", Some(&dir)).is_none());
+        assert!(enforce(std::slice::from_ref(&dir), "file.txt", Some(&dir)).is_none());
     }
 
     #[test]
     fn enforce_relative_path_escapes_via_cwd() {
         let dir = tmp();
-        let err = enforce(&[dir.clone()], "../../../etc/passwd", Some(&dir)).unwrap();
+        let err = enforce(
+            std::slice::from_ref(&dir),
+            "../../../etc/passwd",
+            Some(&dir),
+        )
+        .unwrap();
         assert!(err.contains("outside sandbox"));
     }
 
     #[test]
     fn bash_check_safe_command() {
         let dir = tmp();
-        assert!(bash_check(&[dir.clone()], "ls -la", Some(&dir)).is_none());
+        assert!(bash_check(std::slice::from_ref(&dir), "ls -la", Some(&dir)).is_none());
     }
 
     #[test]
     fn bash_check_absolute_outside() {
         let dir = tmp();
-        let err = bash_check(&[dir.clone()], "cat /etc/passwd", Some(&dir)).unwrap();
+        let err = bash_check(std::slice::from_ref(&dir), "cat /etc/passwd", Some(&dir)).unwrap();
         assert!(err.contains("outside sandbox"));
     }
 
@@ -1410,7 +1415,7 @@ mod tests {
         let dir = tmp();
         let inside = dir.join("file.txt");
         let cmd = format!("cat {}", inside.display());
-        assert!(bash_check(&[dir.clone()], &cmd, Some(&dir)).is_none());
+        assert!(bash_check(std::slice::from_ref(&dir), &cmd, Some(&dir)).is_none());
     }
 
     #[test]
@@ -1418,7 +1423,7 @@ mod tests {
         let dir = tmp();
         let prev = std::env::var("HOME").ok();
         unsafe { std::env::set_var("HOME", "/nonexistent-home") };
-        let err = bash_check(&[dir.clone()], "cat ~/.ssh/id_rsa", Some(&dir)).unwrap();
+        let err = bash_check(std::slice::from_ref(&dir), "cat ~/.ssh/id_rsa", Some(&dir)).unwrap();
         assert!(err.contains("outside sandbox"));
         match prev {
             Some(h) => unsafe { std::env::set_var("HOME", h) },
@@ -1429,22 +1434,27 @@ mod tests {
     #[test]
     fn bash_check_dotdot_escapes() {
         let dir = tmp();
-        let err = bash_check(&[dir.clone()], "cat ../secret", Some(&dir)).unwrap();
+        let err = bash_check(std::slice::from_ref(&dir), "cat ../secret", Some(&dir)).unwrap();
         assert!(err.contains("outside sandbox"));
     }
 
     #[test]
     fn bash_check_intermediate_traversal() {
         let dir = tmp();
-        let err = bash_check(&[dir.clone()], "cat subdir/../../etc/passwd", Some(&dir)).unwrap();
+        let err = bash_check(
+            std::slice::from_ref(&dir),
+            "cat subdir/../../etc/passwd",
+            Some(&dir),
+        )
+        .unwrap();
         assert!(err.contains("outside sandbox"));
     }
 
     #[test]
     fn bash_check_empty_command() {
         let dir = tmp();
-        assert!(bash_check(&[dir.clone()], "", Some(&dir)).is_none());
-        assert!(bash_check(&[dir.clone()], "   ", Some(&dir)).is_none());
+        assert!(bash_check(std::slice::from_ref(&dir), "", Some(&dir)).is_none());
+        assert!(bash_check(std::slice::from_ref(&dir), "   ", Some(&dir)).is_none());
     }
 
     #[test]
@@ -1595,28 +1605,38 @@ mod tests {
     #[test]
     fn bash_check_blocks_ln_s_flag() {
         let dir = tmp();
-        let err = bash_check(&[dir.clone()], "ln -s /tmp/foo bar", Some(&dir)).unwrap();
+        let err = bash_check(std::slice::from_ref(&dir), "ln -s /tmp/foo bar", Some(&dir)).unwrap();
         assert!(err.contains("symlinks is not allowed"));
     }
 
     #[test]
     fn bash_check_blocks_ln_sf_flag() {
         let dir = tmp();
-        let err = bash_check(&[dir.clone()], "ln -sf /tmp/foo bar", Some(&dir)).unwrap();
+        let err = bash_check(
+            std::slice::from_ref(&dir),
+            "ln -sf /tmp/foo bar",
+            Some(&dir),
+        )
+        .unwrap();
         assert!(err.contains("symlinks is not allowed"));
     }
 
     #[test]
     fn bash_check_blocks_ln_symbolic_flag() {
         let dir = tmp();
-        let err = bash_check(&[dir.clone()], "ln --symbolic foo bar", Some(&dir)).unwrap();
+        let err = bash_check(
+            std::slice::from_ref(&dir),
+            "ln --symbolic foo bar",
+            Some(&dir),
+        )
+        .unwrap();
         assert!(err.contains("symlinks is not allowed"));
     }
 
     #[test]
     fn bash_check_blocks_bin_ln_s() {
         let dir = tmp();
-        let err = bash_check(&[dir.clone()], "/bin/ln -s foo bar", Some(&dir)).unwrap();
+        let err = bash_check(std::slice::from_ref(&dir), "/bin/ln -s foo bar", Some(&dir)).unwrap();
         assert!(err.contains("symlinks is not allowed"));
     }
 
@@ -1624,14 +1644,19 @@ mod tests {
     fn bash_check_allows_column_s() {
         let dir = tmp();
         // "column -s , file.csv" is not an ln invocation.
-        assert!(bash_check(&[dir.clone()], "column -s , file.csv", Some(&dir)).is_none());
+        assert!(bash_check(
+            std::slice::from_ref(&dir),
+            "column -s , file.csv",
+            Some(&dir)
+        )
+        .is_none());
     }
 
     #[test]
     fn bash_check_allows_echo_ln_s() {
         let dir = tmp();
         // echo "ln -s" is an echo, not ln.
-        assert!(bash_check(&[dir.clone()], "echo \"ln -s\"", Some(&dir)).is_none());
+        assert!(bash_check(std::slice::from_ref(&dir), "echo \"ln -s\"", Some(&dir)).is_none());
     }
 
     #[test]
@@ -1645,7 +1670,12 @@ mod tests {
         let link = worktree.join("link");
         std::os::unix::fs::symlink(&outside, &link).unwrap();
         // cd link — bare name, no /, caught by check_cd.
-        let err = bash_check(&[worktree.clone()], "cd link; cat secret", Some(&worktree)).unwrap();
+        let err = bash_check(
+            std::slice::from_ref(&worktree),
+            "cd link; cat secret",
+            Some(&worktree),
+        )
+        .unwrap();
         assert!(err.contains("cd target outside sandbox"), "got: {err}");
     }
 
@@ -1671,7 +1701,7 @@ mod tests {
         std::os::unix::fs::symlink(&real_python, &venv_python).unwrap();
         assert!(
             bash_check(
-                &[worktree.clone()],
+                std::slice::from_ref(&worktree),
                 ".venv/bin/python -c 'print(1)'",
                 Some(&worktree),
             )
@@ -1694,7 +1724,7 @@ mod tests {
         std::fs::write(&secret, "x").unwrap();
         let link = worktree.join(".venv/bin/python");
         std::os::unix::fs::symlink(&secret, &link).unwrap();
-        let err = io_enforce(&link, &[worktree.clone()]).unwrap();
+        let err = io_enforce(&link, std::slice::from_ref(&worktree)).unwrap();
         assert!(err.contains("outside sandbox"), "got: {err}");
     }
 
@@ -1709,7 +1739,12 @@ mod tests {
         // Dangling symlink to outside/new — target doesn't exist yet.
         let link = worktree.join("link");
         std::os::unix::fs::symlink(outside.join("new"), &link).unwrap();
-        let err = bash_check(&[worktree.clone()], "cd link; cat secret", Some(&worktree)).unwrap();
+        let err = bash_check(
+            std::slice::from_ref(&worktree),
+            "cd link; cat secret",
+            Some(&worktree),
+        )
+        .unwrap();
         assert!(err.contains("cd target outside sandbox"), "got: {err}");
     }
 
@@ -1717,21 +1752,21 @@ mod tests {
     fn bash_check_cd_no_arg_passes() {
         let dir = tmp();
         // cd with no argument (goes HOME) — can't statically check, skip.
-        assert!(bash_check(&[dir.clone()], "cd", Some(&dir)).is_none());
+        assert!(bash_check(std::slice::from_ref(&dir), "cd", Some(&dir)).is_none());
     }
 
     #[test]
     fn bash_check_cd_dash_passes() {
         let dir = tmp();
         // cd - (previous dir) — can't statically check, skip.
-        assert!(bash_check(&[dir.clone()], "cd -", Some(&dir)).is_none());
+        assert!(bash_check(std::slice::from_ref(&dir), "cd -", Some(&dir)).is_none());
     }
 
     #[test]
     fn bash_check_cd_inside_worktree_passes() {
         let dir = tmp();
         std::fs::create_dir(dir.join("sub")).unwrap();
-        assert!(bash_check(&[dir.clone()], "cd sub; ls", Some(&dir)).is_none());
+        assert!(bash_check(std::slice::from_ref(&dir), "cd sub; ls", Some(&dir)).is_none());
     }
 
     #[test]
@@ -1745,7 +1780,12 @@ mod tests {
         let link = worktree.join("link");
         std::os::unix::fs::symlink(&outside, &link).unwrap();
         // Canonical containment: symlink resolves outside the worktree.
-        let err = enforce(&[worktree.clone()], link.to_str().unwrap(), None).unwrap();
+        let err = enforce(
+            std::slice::from_ref(&worktree),
+            link.to_str().unwrap(),
+            None,
+        )
+        .unwrap();
         assert!(err.contains("outside sandbox"));
     }
 
@@ -1761,7 +1801,12 @@ mod tests {
         // past it. The containment check must still read_link() and reject.
         let link = worktree.join("link");
         std::os::unix::fs::symlink(outside.join("new.txt"), &link).unwrap();
-        let err = enforce(&[worktree.clone()], link.to_str().unwrap(), None).unwrap();
+        let err = enforce(
+            std::slice::from_ref(&worktree),
+            link.to_str().unwrap(),
+            None,
+        )
+        .unwrap();
         assert!(err.contains("outside sandbox"), "got: {err}");
     }
 
@@ -1771,7 +1816,7 @@ mod tests {
         let child = dir.join("sub").join("file.txt");
         std::fs::create_dir_all(dir.join("sub")).unwrap();
         std::fs::write(&child, "x").unwrap();
-        assert!(within_worktree(&child, &[dir.clone()]));
+        assert!(within_worktree(&child, std::slice::from_ref(&dir)));
     }
 
     // --- Part 2: Edit diagnostics tests ---
@@ -1786,7 +1831,7 @@ mod tests {
             "new_string": ""
         })
         .to_string();
-        let result = edit_sync(Some(&dir), &[dir.clone()], &args);
+        let result = edit_sync(Some(&dir), std::slice::from_ref(&dir), &args);
         assert!(result.contains("Error: old_string not found"));
         assert!(result.contains("fn alpha() {}"));
     }
@@ -1801,7 +1846,7 @@ mod tests {
             "new_string": ""
         })
         .to_string();
-        let result = edit_sync(Some(&dir), &[dir.clone()], &args);
+        let result = edit_sync(Some(&dir), std::slice::from_ref(&dir), &args);
         assert!(result.contains("did you mean to match"));
         assert!(result.contains("fn alpha"));
     }
@@ -1816,7 +1861,7 @@ mod tests {
             "new_string": ""
         })
         .to_string();
-        let result = edit_sync(Some(&dir), &[dir.clone()], &args);
+        let result = edit_sync(Some(&dir), std::slice::from_ref(&dir), &args);
         assert!(result.contains("old_string is empty"));
     }
 
@@ -1831,7 +1876,7 @@ mod tests {
             "new_string": ""
         })
         .to_string();
-        let result = edit_sync(Some(&dir), &[dir.clone()], &args);
+        let result = edit_sync(Some(&dir), std::slice::from_ref(&dir), &args);
         assert!(result.contains("first line is empty"));
     }
 
@@ -1848,7 +1893,7 @@ mod tests {
             "new_string": ""
         })
         .to_string();
-        let result = edit_sync(Some(&dir), &[dir.clone()], &args);
+        let result = edit_sync(Some(&dir), std::slice::from_ref(&dir), &args);
         assert!(result.contains("old_string not found"));
         // The needle should be truncated to 80 chars, not 80 bytes.
         // 100 é's is 200 bytes, so untruncated needle would be 200 bytes.
@@ -1867,7 +1912,7 @@ mod tests {
             "new_string": ""
         })
         .to_string();
-        let result = edit_sync(Some(&dir), &[dir.clone()], &args);
+        let result = edit_sync(Some(&dir), std::slice::from_ref(&dir), &args);
         assert!(result.contains("did you mean to match"));
         // Must not panic on byte-slice boundary.
     }
@@ -1948,7 +1993,7 @@ mod tests {
         let dir = tmp();
         let f = dir.join("a.txt");
         std::fs::write(&f, "hi").unwrap();
-        assert!(io_enforce(&f, &[dir.clone()]).is_none());
+        assert!(io_enforce(&f, std::slice::from_ref(&dir)).is_none());
     }
 
     #[test]
@@ -1956,7 +2001,7 @@ mod tests {
         let dir = tmp();
         let f = dir.join("new.txt");
         // Non-existent file passes — can't be a bad symlink if it doesn't exist.
-        assert!(io_enforce(&f, &[dir.clone()]).is_none());
+        assert!(io_enforce(&f, std::slice::from_ref(&dir)).is_none());
     }
 
     #[test]
@@ -1974,7 +2019,7 @@ mod tests {
         let target = sibling.join("out.txt");
         std::fs::write(&target, "x").unwrap();
         // target is outside the worktree (sibling, not child).
-        let err = io_enforce(&target, &[dir.clone()]).unwrap();
+        let err = io_enforce(&target, std::slice::from_ref(&dir)).unwrap();
         assert!(err.contains("outside sandbox"), "got: {err}");
     }
 
@@ -1990,7 +2035,7 @@ mod tests {
         let link = worktree.join("link.txt");
         std::os::unix::fs::symlink(outside.join("secret.txt"), &link).unwrap();
         // Lexically inside the worktree, but symlink resolves outside.
-        let err = io_enforce(&link, &[worktree.clone()]).unwrap();
+        let err = io_enforce(&link, std::slice::from_ref(&worktree)).unwrap();
         assert!(err.contains("outside sandbox"), "got: {err}");
     }
 
@@ -2007,7 +2052,7 @@ mod tests {
         std::os::unix::fs::symlink(&outside, &link_dir).unwrap();
         // The leaf doesn't exist yet, but its parent resolves outside.
         let target = link_dir.join("newfile.txt");
-        let err = io_enforce(&target, &[worktree.clone()]).unwrap();
+        let err = io_enforce(&target, std::slice::from_ref(&worktree)).unwrap();
         assert!(err.contains("outside sandbox"), "got: {err}");
     }
 
@@ -2023,7 +2068,7 @@ mod tests {
         let link_dir = worktree.join("link");
         std::os::unix::fs::symlink(&real, &link_dir).unwrap();
         let target = link_dir.join("newfile.txt");
-        assert!(io_enforce(&target, &[worktree.clone()]).is_none());
+        assert!(io_enforce(&target, std::slice::from_ref(&worktree)).is_none());
     }
 
     #[test]
@@ -2039,7 +2084,7 @@ mod tests {
         // target for containment.
         let link = worktree.join("link");
         std::os::unix::fs::symlink(outside.join("new.txt"), &link).unwrap();
-        let err = io_enforce(&link, &[worktree.clone()]).unwrap();
+        let err = io_enforce(&link, std::slice::from_ref(&worktree)).unwrap();
         assert!(err.contains("outside sandbox"), "got: {err}");
     }
 
