@@ -86,7 +86,7 @@ class Exec(Stage):
             raise Bail(f"exec {self.name}: {exc}") from exc
 
         pre_sha: str | None = None
-        if any(v == "git://range" for v in self.out_map.values()):
+        if any(Uri.is_range(v) for v in self.out_map.values()):
             pre_sha = snapshot_head_before(cwd=pathlib.Path(state.cwd))
 
         cmds = [
@@ -139,7 +139,7 @@ class Exec(Stage):
                 if optional:
                     continue
                 raise
-            if uri_str == "git://range":
+            if Uri.is_range(uri_str):
                 if pre_sha is None:
                     raise RuntimeError(
                         f"exec {self.name}: git://range requires pre-snapshot"

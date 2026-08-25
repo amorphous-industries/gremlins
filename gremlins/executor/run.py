@@ -18,7 +18,7 @@ from collections.abc import Callable, Sequence
 from typing import Any
 
 from gremlins import paths
-from gremlins.artifacts.resolve import resolve_in_map
+from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.clients.client import Client
 from gremlins.env_file import load_env_file
 from gremlins.errors import die
@@ -193,22 +193,16 @@ async def run_pipeline(
     stage_inputs: dict[str, Any] = dict(state_json.get("stage_inputs") or {})
 
     # base_ref_sha and base_ref are bound in registry.json at launch time
-    _registry_path = state_dir / "registry.json"
-    base_ref_sha = ""
-    base_ref = ""
-    if _registry_path.exists():
-        try:
-            _reg = json.loads(_registry_path.read_text(encoding="utf-8"))
-            _sha_uri = str(_reg.get("base_sha") or "")
-            if _sha_uri.startswith("git://commit/"):
-                base_ref_sha = _sha_uri.removeprefix("git://commit/")
-            _ref_uri = str(_reg.get("base_ref") or "")
-            if _ref_uri.startswith("git://ref/"):
-                base_ref = _ref_uri.removeprefix("git://ref/")
-        except Exception:
-            logger.warning(
-                "failed to read base_sha/base_ref from registry.json", exc_info=True
-            )
+    try:
+        _registry = ArtifactRegistry(artifact_dir=artifact_dir, cwd=worktree_dir)
+        base_ref_sha = _registry.get_base_sha()
+        base_ref = _registry.get_base_ref()
+    except Exception:
+        logger.warning(
+            "failed to read base_sha/base_ref from registry.json", exc_info=True
+        )
+        base_ref_sha = ""
+        base_ref = ""
 
     # PR refs like pull/<N>/head need to be fetched from the remote
     fetch_worktree = base_ref.startswith("pull/") and base_ref.endswith("/head")
@@ -338,9 +332,7 @@ async def run_pipeline(
         gremlin.state.data.patch(total_cost_usd=total_cost)
 
     if gh:
-        pr_url = resolve_in_map(gremlin.registry, {"pr_url": "pr-url?(unknown)"})[
-            "pr_url"
-        ]
+        pr_url = gremlin.registry.get_pr_url() or "unknown"
         logger.info("done. PR: %s", pr_url)
     else:
         logger.info("done. artifacts in: %s", artifact_dir)

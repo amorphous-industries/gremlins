@@ -31,7 +31,7 @@ class TestSeedRegistryFromSources:
             registry, {"instructions": "do the thing"}, sources, artifact_dir
         )
 
-        assert registry.data["instructions"] == "file://session/instructions.txt"
+        assert registry.raw_entry("instructions") == "file://session/instructions.txt"
         assert (artifact_dir / "instructions.txt").read_text() == "do the thing"
 
     def test_filepath_source_copies_to_session(self, tmp_path: pathlib.Path) -> None:
@@ -44,7 +44,7 @@ class TestSeedRegistryFromSources:
             registry, {"plan": str(plan_file)}, sources, artifact_dir
         )
 
-        assert registry.data["plan"] == "file://session/plan.md"
+        assert registry.raw_entry("plan") == "file://session/plan.md"
         assert (artifact_dir / "plan.md").read_text() == "# Plan"
 
     def test_union_type_falls_back_to_string(self, tmp_path: pathlib.Path) -> None:
@@ -53,7 +53,7 @@ class TestSeedRegistryFromSources:
 
         _seed_registry_from_sources(registry, {"plan": "#123"}, sources, artifact_dir)
 
-        assert registry.data["plan"] == "file://session/plan.txt"
+        assert registry.raw_entry("plan") == "file://session/plan.txt"
         assert (artifact_dir / "plan.txt").read_text() == "#123"
 
     def test_optional_source_absent_skipped(self, tmp_path: pathlib.Path) -> None:
@@ -62,7 +62,7 @@ class TestSeedRegistryFromSources:
 
         _seed_registry_from_sources(registry, {}, sources, artifact_dir)
 
-        assert "instructions" not in registry.data
+        assert not registry.produced("instructions")
 
     def test_required_source_absent_raises(self, tmp_path: pathlib.Path) -> None:
         registry, artifact_dir = _make_registry(tmp_path)
@@ -88,5 +88,5 @@ class TestSeedRegistryFromSources:
             registry, {"plan": "ref", "extra": "ignored"}, sources, artifact_dir
         )
 
-        assert "plan" in registry.data
-        assert "extra" not in registry.data
+        assert registry.produced("plan")
+        assert not registry.produced("extra")

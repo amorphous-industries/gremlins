@@ -30,6 +30,10 @@ class FileArtifactResolver:
             raise ValueError(f"path escapes artifact directory: {uri}") from None
         return p
 
+    def path_for(self, uri: Uri) -> pathlib.Path:
+        """Return the on-disk path a file:// URI resolves to."""
+        return self._path(uri)
+
     def read(self, uri: Uri) -> str:
         try:
             return self._path(uri).read_text(encoding="utf-8")

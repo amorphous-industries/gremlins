@@ -246,12 +246,6 @@ class Gremlin:
             shutil.copytree, self.artifact_dir, child_artifact_dir, dirs_exist_ok=True
         )
 
-        src_registry = self.state_dir / "registry.json"
-        if src_registry.exists():
-            await asyncio.to_thread(
-                shutil.copy2, src_registry, child_state_dir / "registry.json"
-            )
-
         # Create new worktree if needed
         child_worktree = None
         if state.worktree is not None:
@@ -263,8 +257,10 @@ class Gremlin:
             )
             child_worktree = pathlib.Path(child_worktree_path)
 
-        # Load fresh registry from child's registry.json
-        child_registry = ArtifactRegistry(
+        # Load registry from source and persist to child dir
+        src_registry = self.state_dir / "registry.json"
+        child_registry = ArtifactRegistry.from_registry_file(
+            src_registry,
             artifact_dir=child_artifact_dir,
             cwd=child_worktree,
         )
