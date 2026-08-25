@@ -289,23 +289,27 @@ def do_rm(target: str) -> bool:
 
 def _registry_for_gremlin(gremlin_id: str, state: dict[str, Any]) -> ArtifactRegistry:
     project_root = state.get("project_root") or ""
-    cwd = pathlib.Path(project_root) if project_root and os.path.isdir(project_root) else None
+    cwd = (
+        pathlib.Path(project_root)
+        if project_root and os.path.isdir(project_root)
+        else None
+    )
     artifact_dir = paths.state_root() / gremlin_id / "artifacts"
     artifact_dir.mkdir(parents=True, exist_ok=True)
     return ArtifactRegistry(artifact_dir=artifact_dir, cwd=cwd)
 
 
-def _compose_commit_message(plan_path: str):
+def compose_commit_message(plan_path: str):
     """Return (subject, body) distilled from plan.md."""
     try:
         with open(plan_path, encoding="utf-8") as fh:
             content = fh.read()
     except OSError:
         return _fallback_commit_subject(), ""
-    return _compose_commit_message_from_content(content)
+    return compose_commit_message_from_content(content)
 
 
-def _compose_commit_message_from_content(content: str):
+def compose_commit_message_from_content(content: str):
     """Return (subject, body) distilled from plan.md content."""
     para = _extract_first_paragraph(content, "Context") or _extract_first_paragraph(
         content, "Goal"
@@ -374,7 +378,11 @@ def _extract_task_body(content: str) -> str:
 
 
 def _gather_commit_inputs(
-    registry: ArtifactRegistry, state: dict[str, Any], branch: str, merge_base: str, cwd: str | None
+    registry: ArtifactRegistry,
+    state: dict[str, Any],
+    branch: str,
+    merge_base: str,
+    cwd: str | None,
 ) -> dict[str, Any]:
     """Collect all available context for commit message synthesis."""
     inputs = {"description": state.get("description", "")}
@@ -514,7 +522,7 @@ def _build_commit_message(
         if not plan:
             print("error: plan.md not found — cannot build commit message")
             raise
-        subject, body = _compose_commit_message_from_content(plan)
+        subject, body = compose_commit_message_from_content(plan)
         return subject, body, 0.0
 
 
@@ -744,12 +752,11 @@ def _land_gh(
         artifact_dir=artifact_dir,
         cwd=pathlib.Path(cwd) if cwd else None,
     )
-    try:
-        pr_url = registry.get_pr_url()
-        if not pr_url:
-            print(f"error: no PR URL recorded for {gremlin_id}")
-            return False
-        pr_url = pr_url.strip()
+    pr_url = registry.get_pr_url()
+    if not pr_url:
+        print(f"error: no PR URL recorded for {gremlin_id}")
+        return False
+    pr_url = pr_url.strip()
 
     print(f"Checking PR: {pr_url}")
     r = proc.run(

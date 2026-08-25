@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import pathlib
 import secrets
 import shutil
 from collections.abc import Iterable, Mapping
-from typing import Any
+from typing import Any, cast
 
 from gremlins.artifacts._protocol import SchemeResolver
 from gremlins.artifacts.schemes import (
@@ -18,6 +19,8 @@ from gremlins.artifacts.schemes import (
 )
 from gremlins.artifacts.uri import Uri
 from gremlins.utils import git as git_utils
+
+logger = logging.getLogger(__name__)
 
 
 class MissingArtifact(KeyError):
@@ -132,6 +135,13 @@ class ArtifactRegistry:
     def resolver(self, scheme: str) -> SchemeResolver:
         return self._resolvers[scheme]
 
+    @property
+    def file_resolver(self) -> FileArtifactResolver:
+        """Return the registry's concrete file resolver."""
+        resolver = self._resolvers["file"]
+        assert isinstance(resolver, FileArtifactResolver)
+        return resolver
+
     def unbind(self, key: str) -> None:
         if key not in self.data:
             return
@@ -176,8 +186,14 @@ class ArtifactRegistry:
                 continue
             if isinstance(value, str):
                 return value
-            if isinstance(value, dict) and "uri" in value:
-                return value["uri"]
+            if isinstance(value, dict):
+                val = cast(dict[str, Any], value)
+                uri = val.get("uri")
+                if isinstance(uri, str):
+                    return uri
+                url = val.get("url")
+                if isinstance(url, str):
+                    return url
         return None
 
     def get_file_contents(self, key: str, *, default: str = "") -> str:
@@ -210,15 +226,18 @@ class ArtifactRegistry:
             if key in self.data:
                 continue
             uri_str = other.raw_entry(key)
-            if not uri_str or not isinstance(uri_str, str):
+            if not uri_str:
                 continue
-            bound_key = f"{key_prefix}/{key}" if key_prefix else key
+            bound_key = f"{key}/{key_prefix}" if key_prefix else key
             if uri_str.startswith("file://session/") and copy_files:
-                name = uri_str[len("file://session/"):]
-                src = other._resolvers["file"]._artifact_dir / name
+                name = uri_str[len("file://session/") :]
+                src = other.file_resolver.path_for(Uri.parse(uri_str))
                 if not src.exists():
+                    logger.warning("child artifact missing: %s", src)
                     continue
-                dest_dir = dest_artifact_dir or self._resolvers["file"]._artifact_dir
+                dest_dir = dest_artifact_dir or self.file_resolver.path_for(
+                    Uri.parse("file://session/")
+                )
                 dest_name = f"{key_prefix}/{name}" if key_prefix else name
                 dest = dest_dir / dest_name
                 dest.parent.mkdir(parents=True, exist_ok=True)
@@ -228,7 +247,12 @@ class ArtifactRegistry:
                 try:
                     self.bind(bound_key, Uri.parse(uri_str))
                 except Exception:
-                    pass
+                    logger.warning(
+                        "failed to bind %s -> %s into parent registry",
+                        bound_key,
+                        uri_str,
+                        exc_info=True,
+                    )
 
     @classmethod
     def from_registry_file(
