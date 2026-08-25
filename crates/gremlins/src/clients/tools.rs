@@ -22,7 +22,7 @@ pub type SubagentFn = Arc<dyn Fn(String, Option<PathBuf>) -> SubagentFuture + Se
 pub struct ToolContext {
     pub cwd: Option<PathBuf>,
     pub extra_env: Option<HashMap<String, String>>,
-    pub worktree_root: PathBuf,
+    pub allowed_roots: Vec<PathBuf>,
     pub audit_log: Option<PathBuf>,
     pub allowed_tools: Option<Vec<String>>,
     pub subagent_fn: Option<SubagentFn>,
@@ -38,6 +38,15 @@ pub fn project_root() -> PathBuf {
 
 pub fn worktree_root(cwd: Option<&Path>) -> PathBuf {
     cwd.map(Path::to_path_buf).unwrap_or_else(project_root)
+}
+
+pub fn scratch_root() -> Option<PathBuf> {
+    let path: PathBuf = std::env::var("GREMLINS_SCRATCH_DIR")
+        .ok()
+        .filter(|s| !s.is_empty())?
+        .into();
+    std::fs::create_dir_all(&path).ok()?;
+    Some(path)
 }
 
 pub fn audit_log_path(raw_path: &Path) -> PathBuf {
@@ -136,11 +145,15 @@ fn normalize_path(p: &Path) -> Option<PathBuf> {
     Some(normalize_dots(&canonical))
 }
 
-pub fn within_worktree(p: &Path, root: &Path) -> bool {
-    match (normalize_path(p), normalize_path(root)) {
-        (Some(p), Some(root)) => p.starts_with(root),
-        _ => false,
-    }
+pub fn within_worktree(p: &Path, roots: &[PathBuf]) -> bool {
+    let p_norm = match normalize_path(p) {
+        Some(n) => n,
+        None => return false,
+    };
+    roots.iter().any(|root| match normalize_path(root) {
+        Some(r) => p_norm.starts_with(&r),
+        None => false,
+    })
 }
 
 /// Lexical-leaf containment for [`bash_check`] ONLY.
@@ -164,12 +177,13 @@ pub fn within_worktree(p: &Path, root: &Path) -> bool {
 /// exact regression from #1197 that removed `enforce_allows_venv_symlink_in_cwd`
 /// — while adding zero real containment, because execution is not gated here.
 /// See `bash_check_allows_venv_symlink_leaf`.
-fn within_worktree_lexical(p: &Path, canonical_root: &Path) -> bool {
+fn within_worktree_lexical(p: &Path, canonical_roots: &[PathBuf]) -> bool {
     let resolved = match (p.parent(), p.file_name()) {
         (Some(parent), Some(name)) => canonicalize_or_ancestor(parent).join(name),
         _ => canonicalize_or_ancestor(p),
     };
-    normalize_dots(&resolved).starts_with(canonical_root)
+    let norm = normalize_dots(&resolved);
+    canonical_roots.iter().any(|cr| norm.starts_with(cr))
 }
 
 fn expand_user(s: &str) -> String {
@@ -184,10 +198,10 @@ fn expand_user(s: &str) -> String {
     s.to_string()
 }
 
-pub fn enforce(root: &Path, pth: &str, cwd: Option<&Path>) -> Option<String> {
+pub fn enforce(roots: &[PathBuf], pth: &str, cwd: Option<&Path>) -> Option<String> {
     let p = resolve(pth, cwd);
-    if !within_worktree(&p, root) {
-        return Some(format!("Error: path outside worktree: {pth}"));
+    if !within_worktree(&p, roots) {
+        return Some(format!("Error: path outside sandbox: {pth}"));
     }
     None
 }
@@ -196,15 +210,28 @@ pub fn enforce(root: &Path, pth: &str, cwd: Option<&Path>) -> Option<String> {
 /// [`canonicalize_or_ancestor`] to resolve the real path, including dangling
 /// symlinks that would otherwise escape containment. Returns Some(error) or
 /// None if the path is safe.
-pub fn io_enforce(path: &Path, root: &Path) -> Option<String> {
-    let real_root = match root.canonicalize() {
-        Ok(c) => c,
-        Err(_) => return None, // paranoid, shouldn't happen for real worktree
-    };
+///
+/// Fail-closed by design: if a root fails to canonicalize it is skipped
+/// (via `continue`). If *every* root fails, `allowed` stays false and the
+/// path is denied. This is stricter and safer than the old single-root
+/// behavior, which returned `None` (allow) on canonicalization failure —
+/// a "paranoid, shouldn't happen" branch that was effectively fail-open.
+pub fn io_enforce(path: &Path, roots: &[PathBuf]) -> Option<String> {
     let real = canonicalize_or_ancestor(path);
-    if !real.starts_with(&real_root) {
+    let mut allowed = false;
+    for root in roots {
+        let real_root = match root.canonicalize() {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        if real.starts_with(&real_root) {
+            allowed = true;
+            break;
+        }
+    }
+    if !allowed {
         return Some(format!(
-            "Error: path outside worktree (resolved): {}",
+            "Error: path outside sandbox (resolved): {}",
             real.display()
         ));
     }
@@ -252,7 +279,7 @@ fn check_ln_symlink(cmd: &str) -> Option<String> {
 /// defense is the per-token path check and the later `io_enforce` at
 /// I/O time; this just provides an earlier, clearer denial for the
 /// common `cd`-through-symlink pattern.
-fn check_cd(root: &Path, cmd: &str, cwd: Option<&Path>) -> Option<String> {
+fn check_cd(roots: &[PathBuf], cmd: &str, cwd: Option<&Path>) -> Option<String> {
     // Split on command boundaries: ;, &&, ||
     let parts: Vec<&str> = cmd
         .split(';')
@@ -279,14 +306,14 @@ fn check_cd(root: &Path, cmd: &str, cwd: Option<&Path>) -> Option<String> {
         }
         let expanded = expand_user(arg);
         let p = resolve(&expanded, cwd);
-        if !within_worktree(&p, root) {
-            return Some(format!("Error: cd target outside worktree: {arg}"));
+        if !within_worktree(&p, roots) {
+            return Some(format!("Error: cd target outside sandbox: {arg}"));
         }
     }
     None
 }
 
-pub fn bash_check(root: &Path, cmd: &str, cwd: Option<&Path>) -> Option<String> {
+pub fn bash_check(roots: &[PathBuf], cmd: &str, cwd: Option<&Path>) -> Option<String> {
     let s = cmd.trim();
     if s.is_empty() {
         return None;
@@ -295,15 +322,15 @@ pub fn bash_check(root: &Path, cmd: &str, cwd: Option<&Path>) -> Option<String> 
     if let Some(err) = check_ln_symlink(s) {
         return Some(err);
     }
-    // Guard against cd into symlinked directories outside worktree.
-    if let Some(err) = check_cd(root, s, cwd) {
+    // Guard against cd into symlinked directories outside sandbox.
+    if let Some(err) = check_cd(roots, s, cwd) {
         return Some(err);
     }
-    // Canonicalize root once — avoid re-resolving per token.
-    let canonical_root = match normalize_path(root) {
-        Some(cr) => cr,
-        _ => return Some("Error: invalid worktree root".into()),
-    };
+    // Canonicalize roots once — avoid re-resolving per token.
+    let canonical_roots: Vec<PathBuf> = roots.iter().filter_map(|r| normalize_path(r)).collect();
+    if canonical_roots.is_empty() {
+        return Some("Error: invalid sandbox root".into());
+    }
     for raw_tok in s.split_whitespace() {
         let tok = raw_tok.trim_matches(|c| c == '\'' || c == '"');
         if tok.is_empty() {
@@ -325,8 +352,8 @@ pub fn bash_check(root: &Path, cmd: &str, cwd: Option<&Path>) -> Option<String> 
         // Lexical-leaf, not canonical: a final-component symlink whose node is
         // in-worktree (e.g. `.venv/bin/python`) is allowed. See
         // within_worktree_lexical for the rationale and the anti-regression note.
-        if !within_worktree_lexical(&p, &canonical_root) {
-            return Some(format!("Error: path outside worktree: {raw_tok}"));
+        if !within_worktree_lexical(&p, &canonical_roots) {
+            return Some(format!("Error: path outside sandbox: {raw_tok}"));
         }
     }
     None
@@ -399,16 +426,17 @@ fn result_status(res: &str) -> &'static str {
 }
 
 fn check_tool(name: &str, ctx: &ToolContext, args: &serde_json::Value) -> Option<String> {
+    let roots = &ctx.allowed_roots;
     match name {
         "Read" | "Edit" | "Write" => enforce(
-            &ctx.worktree_root,
+            roots,
             args.get("file_path")
                 .and_then(|v| v.as_str())
                 .unwrap_or("."),
             ctx.cwd.as_deref(),
         ),
         "Grep" => enforce(
-            &ctx.worktree_root,
+            roots,
             args.get("path").and_then(|v| v.as_str()).unwrap_or("."),
             ctx.cwd.as_deref(),
         ),
@@ -418,10 +446,10 @@ fn check_tool(name: &str, ctx: &ToolContext, args: &serde_json::Value) -> Option
             let base = resolve(path, ctx.cwd.as_deref());
             let full_path = base.join(pattern);
             let full_str = full_path.to_string_lossy();
-            enforce(&ctx.worktree_root, &full_str, None)
+            enforce(roots, &full_str, None)
         }
         "Bash" => bash_check(
-            &ctx.worktree_root,
+            roots,
             args.get("command").and_then(|v| v.as_str()).unwrap_or(""),
             ctx.cwd.as_deref(),
         ),
@@ -448,12 +476,12 @@ fn req_str<'a>(args: &'a serde_json::Value, key: &str) -> Result<&'a str, String
 
 pub async fn read_invoke(ctx: &ToolContext, args_json: &str) -> String {
     let cwd = ctx.cwd.clone();
-    let root = ctx.worktree_root.clone();
+    let roots = ctx.allowed_roots.clone();
     let args_json = args_json.to_string();
-    blocking_string(move || read_sync(cwd.as_deref(), &root, &args_json)).await
+    blocking_string(move || read_sync(cwd.as_deref(), &roots, &args_json)).await
 }
 
-fn read_sync(cwd: Option<&Path>, root: &Path, args_json: &str) -> String {
+fn read_sync(cwd: Option<&Path>, roots: &[PathBuf], args_json: &str) -> String {
     let args = match parse_args(args_json) {
         Ok(v) => v,
         Err(e) => return e,
@@ -463,7 +491,7 @@ fn read_sync(cwd: Option<&Path>, root: &Path, args_json: &str) -> String {
         Err(e) => return e,
     };
     let path = resolve(file_path, cwd);
-    if let Some(err) = io_enforce(&path, root) {
+    if let Some(err) = io_enforce(&path, roots) {
         return err;
     }
     let content = match std::fs::read_to_string(&path) {
@@ -487,12 +515,12 @@ fn read_sync(cwd: Option<&Path>, root: &Path, args_json: &str) -> String {
 
 pub async fn edit_invoke(ctx: &ToolContext, args_json: &str) -> String {
     let cwd = ctx.cwd.clone();
-    let root = ctx.worktree_root.clone();
+    let roots = ctx.allowed_roots.clone();
     let args_json = args_json.to_string();
-    blocking_string(move || edit_sync(cwd.as_deref(), &root, &args_json)).await
+    blocking_string(move || edit_sync(cwd.as_deref(), &roots, &args_json)).await
 }
 
-fn edit_sync(cwd: Option<&Path>, root: &Path, args_json: &str) -> String {
+fn edit_sync(cwd: Option<&Path>, roots: &[PathBuf], args_json: &str) -> String {
     let args = match parse_args(args_json) {
         Ok(v) => v,
         Err(e) => return e,
@@ -510,7 +538,7 @@ fn edit_sync(cwd: Option<&Path>, root: &Path, args_json: &str) -> String {
         Err(e) => return e,
     };
     let path = resolve(file_path, cwd);
-    if let Some(err) = io_enforce(&path, root) {
+    if let Some(err) = io_enforce(&path, roots) {
         return err;
     }
     let content = match std::fs::read_to_string(&path) {
@@ -616,12 +644,12 @@ pub async fn bash_invoke(ctx: &ToolContext, args_json: &str) -> String {
 
 pub async fn write_invoke(ctx: &ToolContext, args_json: &str) -> String {
     let cwd = ctx.cwd.clone();
-    let root = ctx.worktree_root.clone();
+    let roots = ctx.allowed_roots.clone();
     let args_json = args_json.to_string();
-    blocking_string(move || write_sync(cwd.as_deref(), &root, &args_json)).await
+    blocking_string(move || write_sync(cwd.as_deref(), &roots, &args_json)).await
 }
 
-fn write_sync(cwd: Option<&Path>, root: &Path, args_json: &str) -> String {
+fn write_sync(cwd: Option<&Path>, roots: &[PathBuf], args_json: &str) -> String {
     let args = match parse_args(args_json) {
         Ok(v) => v,
         Err(e) => return e,
@@ -635,7 +663,7 @@ fn write_sync(cwd: Option<&Path>, root: &Path, args_json: &str) -> String {
         Err(e) => return e,
     };
     let path = resolve(file_path, cwd);
-    if let Some(err) = io_enforce(&path, root) {
+    if let Some(err) = io_enforce(&path, roots) {
         return err;
     }
     if let Some(parent) = path.parent() {
@@ -671,13 +699,13 @@ fn fnmatch_name(name: &str, pat: &str) -> bool {
 
 fn scan_file(
     path: &Path,
-    root: &Path,
+    roots: &[PathBuf],
     pattern: &Regex,
     matches: &mut Vec<String>,
     truncated: &mut bool,
 ) {
-    // Skip files that resolve outside the worktree (e.g. via a symlink).
-    if io_enforce(path, root).is_some() {
+    // Skip files that resolve outside any allowed root (e.g. via a symlink).
+    if io_enforce(path, roots).is_some() {
         return;
     }
     if is_binary_prefix(path) {
@@ -700,7 +728,7 @@ fn scan_file(
 
 fn walk_grep(
     dir: &Path,
-    root: &Path,
+    roots: &[PathBuf],
     pattern: &Regex,
     glob_filter: Option<&str>,
     matches: &mut Vec<String>,
@@ -738,28 +766,28 @@ fn walk_grep(
                 continue;
             }
         }
-        scan_file(&path, root, pattern, matches, truncated);
+        scan_file(&path, roots, pattern, matches, truncated);
     }
     for d in dirs {
         if *truncated {
             return;
         }
-        // Skip directory symlinks that resolve outside the worktree.
-        if io_enforce(&d, root).is_some() {
+        // Skip directory symlinks that resolve outside any allowed root.
+        if io_enforce(&d, roots).is_some() {
             continue;
         }
-        walk_grep(&d, root, pattern, glob_filter, matches, truncated);
+        walk_grep(&d, roots, pattern, glob_filter, matches, truncated);
     }
 }
 
 pub async fn grep_invoke(ctx: &ToolContext, args_json: &str) -> String {
     let cwd = ctx.cwd.clone();
-    let root = ctx.worktree_root.clone();
+    let roots = ctx.allowed_roots.clone();
     let args_json = args_json.to_string();
-    blocking_string(move || grep_sync(cwd.as_deref(), &root, &args_json)).await
+    blocking_string(move || grep_sync(cwd.as_deref(), &roots, &args_json)).await
 }
 
-fn grep_sync(cwd: Option<&Path>, root: &Path, args_json: &str) -> String {
+fn grep_sync(cwd: Option<&Path>, roots: &[PathBuf], args_json: &str) -> String {
     let args = match parse_args(args_json) {
         Ok(v) => v,
         Err(e) => return e,
@@ -785,7 +813,7 @@ fn grep_sync(cwd: Option<&Path>, root: &Path, args_json: &str) -> String {
     let mut truncated = false;
     if base.is_file() {
         let name = base.file_name().and_then(|n| n.to_str()).unwrap_or("");
-        if let Some(err) = io_enforce(&base, root) {
+        if let Some(err) = io_enforce(&base, roots) {
             return err;
         }
         if glob_filter.is_none_or(|g| fnmatch_name(name, g)) {
@@ -810,7 +838,7 @@ fn grep_sync(cwd: Option<&Path>, root: &Path, args_json: &str) -> String {
     } else {
         walk_grep(
             &base,
-            root,
+            roots,
             &pattern,
             glob_filter,
             &mut matches,
@@ -829,12 +857,12 @@ fn grep_sync(cwd: Option<&Path>, root: &Path, args_json: &str) -> String {
 
 pub async fn glob_invoke(ctx: &ToolContext, args_json: &str) -> String {
     let cwd = ctx.cwd.clone();
-    let root = ctx.worktree_root.clone();
+    let roots = ctx.allowed_roots.clone();
     let args_json = args_json.to_string();
-    blocking_string(move || glob_sync(cwd.as_deref(), &root, &args_json)).await
+    blocking_string(move || glob_sync(cwd.as_deref(), &roots, &args_json)).await
 }
 
-fn glob_sync(cwd: Option<&Path>, root: &Path, args_json: &str) -> String {
+fn glob_sync(cwd: Option<&Path>, roots: &[PathBuf], args_json: &str) -> String {
     let args = match parse_args(args_json) {
         Ok(v) => v,
         Err(e) => return e,
@@ -853,8 +881,8 @@ fn glob_sync(cwd: Option<&Path>, root: &Path, args_json: &str) -> String {
     let mut matches: Vec<String> = match glob::glob(&pattern_str) {
         Ok(paths) => paths
             .filter_map(|p| p.ok())
-            // Drop matches that resolve outside the worktree (e.g. via a symlink).
-            .filter(|p| io_enforce(p, root).is_none())
+            // Drop matches that resolve outside any allowed root (e.g. via a symlink).
+            .filter(|p| io_enforce(p, roots).is_none())
             .map(|p| p.display().to_string())
             .collect(),
         Err(e) => return format!("Error: {e}"),
@@ -1078,7 +1106,7 @@ mod tests {
         ToolContext {
             cwd: Some(cwd.to_path_buf()),
             extra_env: None,
-            worktree_root: cwd.to_path_buf(),
+            allowed_roots: vec![cwd.to_path_buf()],
             audit_log: None,
             allowed_tools: None,
             subagent_fn: None,
@@ -1147,7 +1175,7 @@ mod tests {
         let c = ToolContext {
             cwd: Some(dir.clone()),
             extra_env: None,
-            worktree_root: dir.clone(),
+            allowed_roots: vec![dir.clone()],
             audit_log: None,
             allowed_tools: None,
             subagent_fn: None,
@@ -1172,7 +1200,7 @@ mod tests {
         let c = ToolContext {
             cwd: None,
             extra_env: None,
-            worktree_root: std::env::current_dir().unwrap(),
+            allowed_roots: vec![std::env::current_dir().unwrap()],
             audit_log: None,
             allowed_tools: None,
             subagent_fn: None,
@@ -1290,26 +1318,36 @@ mod tests {
     #[test]
     fn within_worktree_same_dir() {
         let dir = tmp();
-        assert!(within_worktree(&dir, &dir));
+        assert!(within_worktree(&dir, std::slice::from_ref(&dir)));
     }
 
     #[test]
     fn within_worktree_child() {
         let dir = tmp();
-        assert!(within_worktree(&dir.join("sub").join("file.txt"), &dir));
+        assert!(within_worktree(
+            &dir.join("sub").join("file.txt"),
+            std::slice::from_ref(&dir)
+        ));
     }
 
     #[test]
     fn within_worktree_outside() {
         let dir = tmp();
-        assert!(!within_worktree(&dir, &dir.join("sub")));
+        assert!(!within_worktree(&dir, &[dir.join("sub")]));
+    }
+
+    #[test]
+    fn within_worktree_second_root() {
+        let dir1 = tmp();
+        let dir2 = tmp();
+        assert!(within_worktree(&dir2.join("file.txt"), &[dir1, dir2]));
     }
 
     #[test]
     fn within_worktree_sibling() {
         let dir = tmp();
         let sibling = dir.parent().unwrap().join("other");
-        assert!(!within_worktree(&sibling, &dir));
+        assert!(!within_worktree(&sibling, std::slice::from_ref(&dir)));
     }
 
     #[test]
@@ -1323,48 +1361,53 @@ mod tests {
         let link = worktree.join("link");
         std::os::unix::fs::symlink(&outside, &link).unwrap();
         // Canonical containment: symlink resolves outside the worktree.
-        assert!(!within_worktree(&link, &worktree));
+        assert!(!within_worktree(&link, std::slice::from_ref(&worktree)));
     }
 
     #[test]
     fn enforce_inside_worktree() {
         let dir = tmp();
         let inside = dir.join("file.txt");
-        assert!(enforce(&dir, inside.to_str().unwrap(), None).is_none());
+        assert!(enforce(std::slice::from_ref(&dir), inside.to_str().unwrap(), None).is_none());
     }
 
     #[test]
     fn enforce_outside_worktree() {
         let dir = tmp();
         let outside = dir.parent().unwrap().join("secret.txt");
-        let err = enforce(&dir, outside.to_str().unwrap(), None).unwrap();
-        assert!(err.contains("outside worktree"));
+        let err = enforce(std::slice::from_ref(&dir), outside.to_str().unwrap(), None).unwrap();
+        assert!(err.contains("outside sandbox"));
     }
 
     #[test]
     fn enforce_relative_path_with_cwd() {
         let dir = tmp();
-        assert!(enforce(&dir, "file.txt", Some(&dir)).is_none());
+        assert!(enforce(std::slice::from_ref(&dir), "file.txt", Some(&dir)).is_none());
     }
 
     #[test]
     fn enforce_relative_path_escapes_via_cwd() {
         let dir = tmp();
-        let err = enforce(&dir, "../../../etc/passwd", Some(&dir)).unwrap();
-        assert!(err.contains("outside worktree"));
+        let err = enforce(
+            std::slice::from_ref(&dir),
+            "../../../etc/passwd",
+            Some(&dir),
+        )
+        .unwrap();
+        assert!(err.contains("outside sandbox"));
     }
 
     #[test]
     fn bash_check_safe_command() {
         let dir = tmp();
-        assert!(bash_check(&dir, "ls -la", Some(&dir)).is_none());
+        assert!(bash_check(std::slice::from_ref(&dir), "ls -la", Some(&dir)).is_none());
     }
 
     #[test]
     fn bash_check_absolute_outside() {
         let dir = tmp();
-        let err = bash_check(&dir, "cat /etc/passwd", Some(&dir)).unwrap();
-        assert!(err.contains("outside worktree"));
+        let err = bash_check(std::slice::from_ref(&dir), "cat /etc/passwd", Some(&dir)).unwrap();
+        assert!(err.contains("outside sandbox"));
     }
 
     #[test]
@@ -1372,7 +1415,7 @@ mod tests {
         let dir = tmp();
         let inside = dir.join("file.txt");
         let cmd = format!("cat {}", inside.display());
-        assert!(bash_check(&dir, &cmd, Some(&dir)).is_none());
+        assert!(bash_check(std::slice::from_ref(&dir), &cmd, Some(&dir)).is_none());
     }
 
     #[test]
@@ -1380,8 +1423,8 @@ mod tests {
         let dir = tmp();
         let prev = std::env::var("HOME").ok();
         unsafe { std::env::set_var("HOME", "/nonexistent-home") };
-        let err = bash_check(&dir, "cat ~/.ssh/id_rsa", Some(&dir)).unwrap();
-        assert!(err.contains("outside worktree"));
+        let err = bash_check(std::slice::from_ref(&dir), "cat ~/.ssh/id_rsa", Some(&dir)).unwrap();
+        assert!(err.contains("outside sandbox"));
         match prev {
             Some(h) => unsafe { std::env::set_var("HOME", h) },
             None => unsafe { std::env::remove_var("HOME") },
@@ -1391,22 +1434,27 @@ mod tests {
     #[test]
     fn bash_check_dotdot_escapes() {
         let dir = tmp();
-        let err = bash_check(&dir, "cat ../secret", Some(&dir)).unwrap();
-        assert!(err.contains("outside worktree"));
+        let err = bash_check(std::slice::from_ref(&dir), "cat ../secret", Some(&dir)).unwrap();
+        assert!(err.contains("outside sandbox"));
     }
 
     #[test]
     fn bash_check_intermediate_traversal() {
         let dir = tmp();
-        let err = bash_check(&dir, "cat subdir/../../etc/passwd", Some(&dir)).unwrap();
-        assert!(err.contains("outside worktree"));
+        let err = bash_check(
+            std::slice::from_ref(&dir),
+            "cat subdir/../../etc/passwd",
+            Some(&dir),
+        )
+        .unwrap();
+        assert!(err.contains("outside sandbox"));
     }
 
     #[test]
     fn bash_check_empty_command() {
         let dir = tmp();
-        assert!(bash_check(&dir, "", Some(&dir)).is_none());
-        assert!(bash_check(&dir, "   ", Some(&dir)).is_none());
+        assert!(bash_check(std::slice::from_ref(&dir), "", Some(&dir)).is_none());
+        assert!(bash_check(std::slice::from_ref(&dir), "   ", Some(&dir)).is_none());
     }
 
     #[test]
@@ -1465,7 +1513,7 @@ mod tests {
         let outside = dir.parent().unwrap().join("secret.txt");
         let args = serde_json::json!({"file_path": outside.to_str().unwrap()}).to_string();
         let result = invoke("Read", &c, &args).await;
-        assert!(result.contains("outside worktree"));
+        assert!(result.contains("outside sandbox"));
         let entry: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&log).unwrap()).unwrap();
         assert_eq!(entry["status"], "denied");
@@ -1509,7 +1557,7 @@ mod tests {
         c.audit_log = Some(log.clone());
         let args = serde_json::json!({"command": "cat /etc/passwd"}).to_string();
         let result = invoke("Bash", &c, &args).await;
-        assert!(result.contains("outside worktree"));
+        assert!(result.contains("outside sandbox"));
         let entry: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&log).unwrap()).unwrap();
         assert_eq!(entry["status"], "denied");
@@ -1523,7 +1571,7 @@ mod tests {
         let c = ToolContext {
             cwd: Some(dir.clone()),
             extra_env: None,
-            worktree_root: dir.clone(),
+            allowed_roots: vec![dir.clone()],
             audit_log: None,
             allowed_tools: Some(vec!["Read".into()]),
             subagent_fn: None,
@@ -1557,28 +1605,38 @@ mod tests {
     #[test]
     fn bash_check_blocks_ln_s_flag() {
         let dir = tmp();
-        let err = bash_check(&dir, "ln -s /tmp/foo bar", Some(&dir)).unwrap();
+        let err = bash_check(std::slice::from_ref(&dir), "ln -s /tmp/foo bar", Some(&dir)).unwrap();
         assert!(err.contains("symlinks is not allowed"));
     }
 
     #[test]
     fn bash_check_blocks_ln_sf_flag() {
         let dir = tmp();
-        let err = bash_check(&dir, "ln -sf /tmp/foo bar", Some(&dir)).unwrap();
+        let err = bash_check(
+            std::slice::from_ref(&dir),
+            "ln -sf /tmp/foo bar",
+            Some(&dir),
+        )
+        .unwrap();
         assert!(err.contains("symlinks is not allowed"));
     }
 
     #[test]
     fn bash_check_blocks_ln_symbolic_flag() {
         let dir = tmp();
-        let err = bash_check(&dir, "ln --symbolic foo bar", Some(&dir)).unwrap();
+        let err = bash_check(
+            std::slice::from_ref(&dir),
+            "ln --symbolic foo bar",
+            Some(&dir),
+        )
+        .unwrap();
         assert!(err.contains("symlinks is not allowed"));
     }
 
     #[test]
     fn bash_check_blocks_bin_ln_s() {
         let dir = tmp();
-        let err = bash_check(&dir, "/bin/ln -s foo bar", Some(&dir)).unwrap();
+        let err = bash_check(std::slice::from_ref(&dir), "/bin/ln -s foo bar", Some(&dir)).unwrap();
         assert!(err.contains("symlinks is not allowed"));
     }
 
@@ -1586,14 +1644,19 @@ mod tests {
     fn bash_check_allows_column_s() {
         let dir = tmp();
         // "column -s , file.csv" is not an ln invocation.
-        assert!(bash_check(&dir, "column -s , file.csv", Some(&dir)).is_none());
+        assert!(bash_check(
+            std::slice::from_ref(&dir),
+            "column -s , file.csv",
+            Some(&dir)
+        )
+        .is_none());
     }
 
     #[test]
     fn bash_check_allows_echo_ln_s() {
         let dir = tmp();
         // echo "ln -s" is an echo, not ln.
-        assert!(bash_check(&dir, "echo \"ln -s\"", Some(&dir)).is_none());
+        assert!(bash_check(std::slice::from_ref(&dir), "echo \"ln -s\"", Some(&dir)).is_none());
     }
 
     #[test]
@@ -1607,8 +1670,13 @@ mod tests {
         let link = worktree.join("link");
         std::os::unix::fs::symlink(&outside, &link).unwrap();
         // cd link — bare name, no /, caught by check_cd.
-        let err = bash_check(&worktree, "cd link; cat secret", Some(&worktree)).unwrap();
-        assert!(err.contains("cd target outside worktree"), "got: {err}");
+        let err = bash_check(
+            std::slice::from_ref(&worktree),
+            "cd link; cat secret",
+            Some(&worktree),
+        )
+        .unwrap();
+        assert!(err.contains("cd target outside sandbox"), "got: {err}");
     }
 
     // ANTI-REGRESSION: agent self-verify needs to execute the bootstrap venv,
@@ -1632,7 +1700,12 @@ mod tests {
         let venv_python = worktree.join(".venv/bin/python");
         std::os::unix::fs::symlink(&real_python, &venv_python).unwrap();
         assert!(
-            bash_check(&worktree, ".venv/bin/python -c 'print(1)'", Some(&worktree)).is_none(),
+            bash_check(
+                std::slice::from_ref(&worktree),
+                ".venv/bin/python -c 'print(1)'",
+                Some(&worktree),
+            )
+            .is_none(),
             "bash_check must allow executing the in-worktree venv python symlink"
         );
     }
@@ -1651,8 +1724,8 @@ mod tests {
         std::fs::write(&secret, "x").unwrap();
         let link = worktree.join(".venv/bin/python");
         std::os::unix::fs::symlink(&secret, &link).unwrap();
-        let err = io_enforce(&link, &worktree).unwrap();
-        assert!(err.contains("outside worktree"), "got: {err}");
+        let err = io_enforce(&link, std::slice::from_ref(&worktree)).unwrap();
+        assert!(err.contains("outside sandbox"), "got: {err}");
     }
 
     #[test]
@@ -1666,29 +1739,34 @@ mod tests {
         // Dangling symlink to outside/new — target doesn't exist yet.
         let link = worktree.join("link");
         std::os::unix::fs::symlink(outside.join("new"), &link).unwrap();
-        let err = bash_check(&worktree, "cd link; cat secret", Some(&worktree)).unwrap();
-        assert!(err.contains("cd target outside worktree"), "got: {err}");
+        let err = bash_check(
+            std::slice::from_ref(&worktree),
+            "cd link; cat secret",
+            Some(&worktree),
+        )
+        .unwrap();
+        assert!(err.contains("cd target outside sandbox"), "got: {err}");
     }
 
     #[test]
     fn bash_check_cd_no_arg_passes() {
         let dir = tmp();
         // cd with no argument (goes HOME) — can't statically check, skip.
-        assert!(bash_check(&dir, "cd", Some(&dir)).is_none());
+        assert!(bash_check(std::slice::from_ref(&dir), "cd", Some(&dir)).is_none());
     }
 
     #[test]
     fn bash_check_cd_dash_passes() {
         let dir = tmp();
         // cd - (previous dir) — can't statically check, skip.
-        assert!(bash_check(&dir, "cd -", Some(&dir)).is_none());
+        assert!(bash_check(std::slice::from_ref(&dir), "cd -", Some(&dir)).is_none());
     }
 
     #[test]
     fn bash_check_cd_inside_worktree_passes() {
         let dir = tmp();
         std::fs::create_dir(dir.join("sub")).unwrap();
-        assert!(bash_check(&dir, "cd sub; ls", Some(&dir)).is_none());
+        assert!(bash_check(std::slice::from_ref(&dir), "cd sub; ls", Some(&dir)).is_none());
     }
 
     #[test]
@@ -1702,8 +1780,13 @@ mod tests {
         let link = worktree.join("link");
         std::os::unix::fs::symlink(&outside, &link).unwrap();
         // Canonical containment: symlink resolves outside the worktree.
-        let err = enforce(&worktree, link.to_str().unwrap(), None).unwrap();
-        assert!(err.contains("outside worktree"));
+        let err = enforce(
+            std::slice::from_ref(&worktree),
+            link.to_str().unwrap(),
+            None,
+        )
+        .unwrap();
+        assert!(err.contains("outside sandbox"));
     }
 
     #[test]
@@ -1718,8 +1801,13 @@ mod tests {
         // past it. The containment check must still read_link() and reject.
         let link = worktree.join("link");
         std::os::unix::fs::symlink(outside.join("new.txt"), &link).unwrap();
-        let err = enforce(&worktree, link.to_str().unwrap(), None).unwrap();
-        assert!(err.contains("outside worktree"), "got: {err}");
+        let err = enforce(
+            std::slice::from_ref(&worktree),
+            link.to_str().unwrap(),
+            None,
+        )
+        .unwrap();
+        assert!(err.contains("outside sandbox"), "got: {err}");
     }
 
     #[test]
@@ -1728,7 +1816,7 @@ mod tests {
         let child = dir.join("sub").join("file.txt");
         std::fs::create_dir_all(dir.join("sub")).unwrap();
         std::fs::write(&child, "x").unwrap();
-        assert!(within_worktree(&child, &dir));
+        assert!(within_worktree(&child, std::slice::from_ref(&dir)));
     }
 
     // --- Part 2: Edit diagnostics tests ---
@@ -1743,7 +1831,7 @@ mod tests {
             "new_string": ""
         })
         .to_string();
-        let result = edit_sync(Some(&dir), &dir, &args);
+        let result = edit_sync(Some(&dir), std::slice::from_ref(&dir), &args);
         assert!(result.contains("Error: old_string not found"));
         assert!(result.contains("fn alpha() {}"));
     }
@@ -1758,7 +1846,7 @@ mod tests {
             "new_string": ""
         })
         .to_string();
-        let result = edit_sync(Some(&dir), &dir, &args);
+        let result = edit_sync(Some(&dir), std::slice::from_ref(&dir), &args);
         assert!(result.contains("did you mean to match"));
         assert!(result.contains("fn alpha"));
     }
@@ -1773,7 +1861,7 @@ mod tests {
             "new_string": ""
         })
         .to_string();
-        let result = edit_sync(Some(&dir), &dir, &args);
+        let result = edit_sync(Some(&dir), std::slice::from_ref(&dir), &args);
         assert!(result.contains("old_string is empty"));
     }
 
@@ -1788,7 +1876,7 @@ mod tests {
             "new_string": ""
         })
         .to_string();
-        let result = edit_sync(Some(&dir), &dir, &args);
+        let result = edit_sync(Some(&dir), std::slice::from_ref(&dir), &args);
         assert!(result.contains("first line is empty"));
     }
 
@@ -1805,7 +1893,7 @@ mod tests {
             "new_string": ""
         })
         .to_string();
-        let result = edit_sync(Some(&dir), &dir, &args);
+        let result = edit_sync(Some(&dir), std::slice::from_ref(&dir), &args);
         assert!(result.contains("old_string not found"));
         // The needle should be truncated to 80 chars, not 80 bytes.
         // 100 é's is 200 bytes, so untruncated needle would be 200 bytes.
@@ -1824,7 +1912,7 @@ mod tests {
             "new_string": ""
         })
         .to_string();
-        let result = edit_sync(Some(&dir), &dir, &args);
+        let result = edit_sync(Some(&dir), std::slice::from_ref(&dir), &args);
         assert!(result.contains("did you mean to match"));
         // Must not panic on byte-slice boundary.
     }
@@ -1837,7 +1925,7 @@ mod tests {
         let c = ToolContext {
             cwd: Some(dir.clone()),
             extra_env: None,
-            worktree_root: dir.clone(),
+            allowed_roots: vec![dir.clone()],
             audit_log: None,
             allowed_tools: None,
             subagent_fn: None,
@@ -1860,7 +1948,7 @@ mod tests {
         let c = ToolContext {
             cwd: Some(dir.clone()),
             extra_env: None,
-            worktree_root: dir.clone(),
+            allowed_roots: vec![dir.clone()],
             audit_log: None,
             allowed_tools: None,
             subagent_fn: Some(subagent_fn),
@@ -1881,7 +1969,7 @@ mod tests {
         let c = ToolContext {
             cwd: Some(dir.clone()),
             extra_env: None,
-            worktree_root: dir,
+            allowed_roots: vec![dir.clone()],
             audit_log: None,
             allowed_tools: None,
             subagent_fn: Some(subagent_fn),
@@ -1905,7 +1993,7 @@ mod tests {
         let dir = tmp();
         let f = dir.join("a.txt");
         std::fs::write(&f, "hi").unwrap();
-        assert!(io_enforce(&f, &dir).is_none());
+        assert!(io_enforce(&f, std::slice::from_ref(&dir)).is_none());
     }
 
     #[test]
@@ -1913,7 +2001,7 @@ mod tests {
         let dir = tmp();
         let f = dir.join("new.txt");
         // Non-existent file passes — can't be a bad symlink if it doesn't exist.
-        assert!(io_enforce(&f, &dir).is_none());
+        assert!(io_enforce(&f, std::slice::from_ref(&dir)).is_none());
     }
 
     #[test]
@@ -1931,8 +2019,8 @@ mod tests {
         let target = sibling.join("out.txt");
         std::fs::write(&target, "x").unwrap();
         // target is outside the worktree (sibling, not child).
-        let err = io_enforce(&target, &dir).unwrap();
-        assert!(err.contains("outside worktree"), "got: {err}");
+        let err = io_enforce(&target, std::slice::from_ref(&dir)).unwrap();
+        assert!(err.contains("outside sandbox"), "got: {err}");
     }
 
     #[test]
@@ -1947,8 +2035,8 @@ mod tests {
         let link = worktree.join("link.txt");
         std::os::unix::fs::symlink(outside.join("secret.txt"), &link).unwrap();
         // Lexically inside the worktree, but symlink resolves outside.
-        let err = io_enforce(&link, &worktree).unwrap();
-        assert!(err.contains("outside worktree"), "got: {err}");
+        let err = io_enforce(&link, std::slice::from_ref(&worktree)).unwrap();
+        assert!(err.contains("outside sandbox"), "got: {err}");
     }
 
     #[test]
@@ -1964,8 +2052,8 @@ mod tests {
         std::os::unix::fs::symlink(&outside, &link_dir).unwrap();
         // The leaf doesn't exist yet, but its parent resolves outside.
         let target = link_dir.join("newfile.txt");
-        let err = io_enforce(&target, &worktree).unwrap();
-        assert!(err.contains("outside worktree"), "got: {err}");
+        let err = io_enforce(&target, std::slice::from_ref(&worktree)).unwrap();
+        assert!(err.contains("outside sandbox"), "got: {err}");
     }
 
     #[test]
@@ -1980,7 +2068,7 @@ mod tests {
         let link_dir = worktree.join("link");
         std::os::unix::fs::symlink(&real, &link_dir).unwrap();
         let target = link_dir.join("newfile.txt");
-        assert!(io_enforce(&target, &worktree).is_none());
+        assert!(io_enforce(&target, std::slice::from_ref(&worktree)).is_none());
     }
 
     #[test]
@@ -1996,7 +2084,68 @@ mod tests {
         // target for containment.
         let link = worktree.join("link");
         std::os::unix::fs::symlink(outside.join("new.txt"), &link).unwrap();
-        let err = io_enforce(&link, &worktree).unwrap();
-        assert!(err.contains("outside worktree"), "got: {err}");
+        let err = io_enforce(&link, std::slice::from_ref(&worktree)).unwrap();
+        assert!(err.contains("outside sandbox"), "got: {err}");
+    }
+
+    // Integration: multi-root containment with worktree + scratch.
+    // Regression guard for the executor wiring that sets GREMLINS_SCRATCH_DIR
+    // and assembles allowed_roots = [worktree, scratch].
+    #[test]
+    fn multi_root_io_enforce_allows_scratch_denies_elsewhere() {
+        let worktree = tmp();
+        let scratch = tmp();
+        // Simulate a file the agent writes into the scratch dir.
+        let scratch_file = scratch.join("cached.dat");
+        std::fs::write(&scratch_file, "hello").unwrap();
+        // A file outside both roots.
+        let outside = tmp();
+        let outside_file = outside.join("secret.txt");
+        std::fs::write(&outside_file, "x").unwrap();
+
+        let roots = [worktree.clone(), scratch.clone()];
+
+        // Scratch file is allowed.
+        assert!(io_enforce(&scratch_file, &roots).is_none());
+        // Outside-both file is denied.
+        let err = io_enforce(&outside_file, &roots).unwrap();
+        assert!(err.contains("outside sandbox"), "got: {err}");
+        // Worktree file is still allowed (regression check).
+        let wt_file = worktree.join("main.rs");
+        std::fs::write(&wt_file, "fn main() {}").unwrap();
+        assert!(io_enforce(&wt_file, &roots).is_none());
+    }
+
+    #[test]
+    fn multi_root_enforce_allows_scratch_denies_elsewhere() {
+        let worktree = tmp();
+        let scratch = tmp();
+        let outside = tmp();
+
+        let roots = [worktree.clone(), scratch.clone()];
+
+        let scratch_file = scratch.join("build-cache.log");
+        assert!(enforce(&roots, scratch_file.to_str().unwrap(), None).is_none());
+
+        let outside_file = outside.join("bad.txt");
+        let err = enforce(&roots, outside_file.to_str().unwrap(), None).unwrap();
+        assert!(err.contains("outside sandbox"));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn multi_root_bash_check_allows_scratch_path() {
+        let worktree = tmp();
+        let scratch = tmp();
+        let scratch_file = scratch.join("downloaded.tar.gz");
+        std::fs::write(&scratch_file, "binary").unwrap();
+
+        let roots = [worktree.clone(), scratch.clone()];
+
+        // A bash command referencing a file in scratch should pass.
+        assert!(bash_check(&roots, "cat downloaded.tar.gz", Some(&scratch)).is_none());
+        // A bare absolute path outside both should be denied.
+        let err = bash_check(&roots, "cat /etc/passwd", Some(&worktree)).unwrap();
+        assert!(err.contains("outside sandbox"), "got: {err}");
     }
 }

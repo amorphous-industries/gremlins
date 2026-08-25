@@ -8,6 +8,7 @@ import sys
 import time
 from collections.abc import Iterator
 
+from gremlins import paths
 from gremlins.executor.gremlin import Gremlin
 from gremlins.fleet.duration import parse_duration
 from gremlins.fleet.render import FleetRow, build_row, print_table
@@ -246,6 +247,11 @@ def do_drill_in(target: str) -> None:
 
     print()
     print(f"  state directory: {wdir}")
+    scratch = paths.scratch_root(gremlin_id)
+    if scratch.is_dir():
+        print(f"  scratch dir    : {scratch}")
+    else:
+        print(f"  scratch dir    : {scratch} (absent)")
     log_path = os.path.join(wdir, "log")
     artifacts_dir = os.path.join(wdir, "artifacts")
     artifact_paths: list[str] = []
@@ -391,6 +397,7 @@ def do_drill_in_json(target: str) -> None:
             fpath = os.path.join(artifacts_dir, fname)
             if os.path.isfile(fpath):
                 artifact_paths.append(fpath)
+    scratch = paths.scratch_root(gremlin_id)
     obj: dict[str, object] = {
         "id": gremlin_id,
         "liveness": parse_liveness(live),
@@ -401,6 +408,7 @@ def do_drill_in_json(target: str) -> None:
         "bail_reason": bail_reason or None,
         "bail_detail": bail_detail or None,
         "state_dir": wdir,
+        "scratch_dir": str(scratch) if scratch.is_dir() else None,
         "log_path": log_path if os.path.isfile(log_path) else None,
         "artifact_paths": artifact_paths,
         "state": state,

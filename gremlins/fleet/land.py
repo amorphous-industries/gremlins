@@ -166,6 +166,17 @@ def _remove_worktree(wdir: str, state: dict[str, Any], cwd: str | None) -> None:
             print(f"removed worktree {workdir}")
 
 
+def _remove_scratch(gremlin_id: str) -> None:
+    """Remove the gremlin's scratch directory if it exists."""
+    scratch = paths.scratch_root(gremlin_id)
+    if scratch.is_dir():
+        try:
+            shutil.rmtree(scratch)
+            print(f"removed scratch directory {scratch}")
+        except OSError as e:
+            print(f"warning: could not remove scratch directory {scratch}: {e}")
+
+
 def _finalize_cleanup(
     gremlin_id: str,
     wdir: str,
@@ -192,7 +203,7 @@ def cleanup_gremlin(
     check_cwd: bool = False,
     remove_state_dir: bool = True,
 ) -> bool:
-    """Touch closed marker, remove worktree, optionally remove state dir.
+    """Touch closed marker, remove worktree, scratch dir, optionally remove state dir.
 
     Returns False only when check_cwd=True and we're inside the worktree; all
     other steps are best-effort (warnings printed on failure).
@@ -209,6 +220,7 @@ def cleanup_gremlin(
             return False
 
     _remove_worktree(wdir, state, cwd)
+    _remove_scratch(gremlin_id)
     _finalize_cleanup(
         gremlin_id,
         wdir,
@@ -789,6 +801,7 @@ def _land_gh(
         print("PR already merged.")
         _fast_forward_main(cwd)
         _remove_worktree(wdir, state, cwd)
+        _remove_scratch(gremlin_id)
         _finalize_cleanup(gremlin_id, wdir, state, cwd, remove_state_dir=False)
         return True
 
@@ -798,6 +811,7 @@ def _land_gh(
                 "PR is closed (not merged) — force flag set, cleaning up without merge."
             )
             _remove_worktree(wdir, state, cwd)
+            _remove_scratch(gremlin_id)
             _finalize_cleanup(
                 gremlin_id,
                 wdir,
@@ -884,6 +898,7 @@ def _land_gh(
         print("PR merged.")
 
     _fast_forward_main(cwd)
+    _remove_scratch(gremlin_id)
     _finalize_cleanup(gremlin_id, wdir, state, cwd, remove_state_dir=False)
     return True
 
@@ -955,6 +970,7 @@ def _land_with_stage(
     if setup_kind in ("worktree-detached", "worktree-detached-from-ref"):
         _fast_forward_main(cwd)
 
+    _remove_scratch(gremlin_id)
     _finalize_cleanup(gremlin_id, wdir, state, cwd, remove_state_dir=False)
     return True
 

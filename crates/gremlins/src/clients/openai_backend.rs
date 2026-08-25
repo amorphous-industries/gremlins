@@ -238,10 +238,14 @@ async fn run_agent_loop<M: CompletionModel + Clone + Send + Sync + 'static>(
     let worktree = tools::worktree_root(cwd.as_deref());
     let audit_log = raw_path.as_ref().map(|p| tools::audit_log_path(p));
     let max_turns = config::openai_agents_max_turns();
+    let mut allowed_roots = vec![worktree];
+    if let Some(scratch) = tools::scratch_root() {
+        allowed_roots.push(scratch);
+    }
     let mut tool_ctx = ToolContext {
         cwd: cwd.clone(),
         extra_env,
-        worktree_root: worktree,
+        allowed_roots,
         audit_log,
         allowed_tools: opts.tool_filter.map(|s| s.to_vec()),
         subagent_fn: None,
