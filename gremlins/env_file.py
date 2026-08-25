@@ -51,3 +51,44 @@ def load_env_file(
         for k, v in after.items()
         if before.get(k) != v and k not in _BASH_INTERNALS
     }
+
+
+def load_env_file_isolated(
+    path: pathlib.Path,
+    *,
+    base_env: dict[str, str],
+    cwd: pathlib.Path | None = None,
+) -> dict[str, str]:
+    """Source `path` in a controlled bash environment and return every env var.
+
+    `base_env` is the environment the bash subprocess receives.
+    The caller constructs it — typically the full parent env plus system vars,
+    so `.gremlins/env` has complete control over what to keep or override.
+    The caller re-injects system vars afterward so users cannot tamper.
+    """
+    # Strip BASH_ENV so bash doesn't auto-source an unrelated file.
+    _env = {k: v for k, v in base_env.items() if k != "BASH_ENV"}
+    try:
+        result = subprocess.run(
+            ["bash", "-c", 'source "$1" >/dev/null && env -0', "--", str(path)],
+            capture_output=True,
+            check=False,
+            env=_env,
+            cwd=cwd,
+        )
+    except FileNotFoundError:
+        raise RuntimeError(f"failed to source {path}: bash not found")
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"failed to source {path}:\n{result.stderr.decode(errors='replace').strip()}"
+        )
+    env: dict[str, str] = {}
+    for entry in result.stdout.split(b"\0"):
+        decoded = entry.decode(errors="replace")
+        if "=" in decoded:
+            k, _, v = decoded.partition("=")
+            env[k] = v
+    # Strip bash internal vars.
+    for key in _BASH_INTERNALS:
+        env.pop(key, None)
+    return env

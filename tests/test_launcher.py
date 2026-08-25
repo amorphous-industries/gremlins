@@ -754,6 +754,21 @@ def test_build_spawn_env_omits_telemetry_by_default(lenv):
     assert "GREMLINS_TELEMETRY" not in env
 
 
+def test_build_spawn_env_is_minimal(lenv, monkeypatch):
+    """_build_spawn_env starts from the full parent env and adds GREMLINS_* overrides plus PYTHONSAFEPATH."""
+    monkeypatch.setenv("MY_PARENT_VAR", "parent_value")
+    from gremlins import launcher
+
+    env = launcher._build_spawn_env("gr-test")
+    # Parent vars flow through naturally.
+    assert env["MY_PARENT_VAR"] == "parent_value"
+    assert "PATH" in env
+    assert "HOME" in env
+    # Only gremlin vars are added on top.
+    assert env["GREMLINS_GREMLIN_ID"] == "gr-test"
+    assert "GREMLINS_OVERLAY_DIR" in env
+
+
 # ---------------------------------------------------------------------------
 # .gremlins overlay placement
 # ---------------------------------------------------------------------------

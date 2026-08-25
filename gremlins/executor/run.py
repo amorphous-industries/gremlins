@@ -20,7 +20,7 @@ from typing import Any
 from gremlins import paths
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.clients.client import Client
-from gremlins.env_file import load_env_file
+from gremlins.env_file import load_env_file_isolated
 from gremlins.errors import die
 from gremlins.executor.gremlin import Gremlin
 from gremlins.logging_setup import configure_logging
@@ -166,9 +166,7 @@ async def run_pipeline(
         os.environ.pop("GREMLINS_RESUME_FROM", None) or args.resume_from or None
     )
 
-    os.environ.pop("GREMLINS_PROJECT_ROOT", None)
     _project_root = paths.project_root()
-    os.environ["GREMLINS_PROJECT_ROOT"] = str(_project_root)
 
     if shutil.which("git") is None:
         die("git not found on PATH")
@@ -246,17 +244,56 @@ async def run_pipeline(
 
     stage_gremlins_overlay(str(_project_root), state_dir)
 
-    # Load .gremlins/env before bootstrap so commands can use env vars.
+    # --- env isolation ---
+    # Build the system vars table. These are available during
+    # .gremlins/env sourcing and forcibly re-injected afterward.
+    _system = {
+        k: v
+        for k, v in {
+            "GREMLINS_GREMLIN_ID": gremlin_id or "",
+            "GREMLINS_PROJECT_ROOT": str(_project_root),
+            "GREMLINS_OVERLAY_DIR": str(state_dir / paths.OVERLAY_DIRNAME),
+            "GREMLINS_WORKTREE_PATH": str(gremlin.worktree_dir)
+            if gremlin.worktree_dir
+            else None,
+            "GREMLINS_ARTIFACT_DIR": str(gremlin.artifact_dir),
+            "GREMLIN_WORKSPACE_DIR": str(gremlin.worktree_dir)
+            if gremlin.worktree_dir
+            else None,
+            "GREMLIN_STATE_DIR": str(gremlin.state_dir),
+        }.items()
+        if v is not None
+    }
+
+    # Base env: full parent environment so .gremlins/env has complete
+    # control — it can forward what it wants, override, or unset.
+    # System vars go on top (available during sourcing) but are
+    # re-injected last so users cannot tamper with them.
+    _base = dict(os.environ)
+    _base.update(_system)
+
     _env_file = paths.project_overlay_dir(_project_root) / "env"
     if _env_file.is_file():
-        os.environ["GREMLINS_WORKTREE_PATH"] = (
-            str(gremlin.worktree_dir) if gremlin.worktree_dir else ""
-        )
-        os.environ["GREMLINS_ARTIFACT_DIR"] = str(gremlin.artifact_dir)
         try:
-            os.environ.update(load_env_file(_env_file, cwd=_project_root))
+            _env = load_env_file_isolated(_env_file, base_env=_base, cwd=_project_root)
         except RuntimeError as exc:
             die(str(exc))
+    else:
+        _env = dict(_base)
+
+    # Clear os.environ entirely, then apply the sourced env followed
+    # by system vars. System vars go last so users cannot override them.
+    #
+    # os.environ is shared process state — direct-call/test paths
+    # after this point see the rebuilt env. The autouse
+    # _restore_os_environ fixture in tests/conftest.py snapshots and
+    # restores os.environ per-test to avoid cross-test contamination.
+    # The real gremlin runs in its own subprocess, so the mutation is
+    # harmless there.
+    os.environ.clear()
+    os.environ.update(_env)
+    os.environ.update(_system)
+    # --- end env isolation ---
 
     os.environ["GREMLINS_SCRATCH_DIR"] = str(paths.scratch_root(gremlin.gremlin_id))
 

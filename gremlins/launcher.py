@@ -57,11 +57,8 @@ def _resolve_description_and_slug(
 
 
 def _build_spawn_env(gremlin_id: str, *, telemetry: bool = False) -> dict[str, str]:
+    """Return the child subprocess env — parent env plus gremlin overrides."""
     env = dict(os.environ)
-    pkg_root = str(pathlib.Path(__file__).resolve().parent.parent)
-    existing_pp = env.get("PYTHONPATH", "")
-    parts = [p for p in [pkg_root, existing_pp] if p]
-    env["PYTHONPATH"] = os.pathsep.join(parts)
     env["PYTHONSAFEPATH"] = "1"
     env["GREMLINS_GREMLIN_ID"] = gremlin_id
     env["GREMLINS_OVERLAY_DIR"] = str(
