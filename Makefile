@@ -16,12 +16,12 @@ format-write:
 	ruff format .
 
 typecheck:
-	pyright --pythonpath $(shell which python)
+	PYTHONPATH='' pyright --pythonpath $(shell which python)
 
 test: rust-test $(TEST_FILES)
 
 $(TEST_FILES):
-	python -m pytest $@ || { code=$$?; [ $$code -eq 5 ] && exit 0 || exit $$code; }
+	PYTHONPATH='' python -m pytest $@ || { code=$$?; [ $$code -eq 5 ] && exit 0 || exit $$code; }
 
 # --- Rust ---
 
