@@ -354,7 +354,8 @@ def test_gh_pipeline_stage_names(tmp_path):
         "git-commit",
         "require-impl-progress",
         "normalize",
-        "verify",
+        "verify-check",
+        "verify-test",
         "open-pr",
         "compose-pr",
         "push-and-open",
@@ -1284,9 +1285,10 @@ def test_github_wait_ci_stage_ordering(tmp_path, monkeypatch):
     )
     assert result == 0
 
-    assert order[0] == "verify", "verify must run before other tracked stages"
+    assert order[0] == "verify-check", "verify must run before other tracked stages"
     assert order[-1] == "ci-gate"
-    assert order.count("verify") == 1
+    assert order.count("verify-check") == 1
+    assert order.count("verify-test") == 1
     assert order.count("ci-gate") == 1
     labels = [c.label for c in client.calls]
     assert "github-review-pull-request" in labels
@@ -1363,7 +1365,7 @@ def test_verify_stage_argument_wiring(tmp_path, monkeypatch):
     captured_stage = {}
 
     async def record_verify(self, state):
-        if self.name == "verify":
+        if self.name == "verify-check":
             captured_stage["stage"] = self
             captured_stage["state"] = state
 
@@ -1397,12 +1399,12 @@ def test_verify_stage_argument_wiring(tmp_path, monkeypatch):
     assert stage.client.model == "gpt-4o"
     # cmds are on the cmd exec stage inside the loop body; first cmd is the user cmd
     cmd_stage = stage.body[0]
-    assert cmd_stage.options.get("cmds")[0] == "make check && make test"
+    assert cmd_stage.options.get("cmds")[0] == "make check"
     assert captured_stage["state"].artifact_dir == artifact_dir
 
 
 def test_resume_from_verify(tmp_path, monkeypatch):
-    """--resume-from verify skips plan and implement, runs verify onward."""
+    """--resume-from verify-check skips plan and implement, runs verify onward."""
     _init_git_repo(tmp_path)
     monkeypatch.chdir(tmp_path)
 
@@ -1444,7 +1446,7 @@ def test_resume_from_verify(tmp_path, monkeypatch):
     result = asyncio.run(
         run_pipeline(
             _gh_pipeline_path(tmp_path),
-            argv=["--resume-from", "verify"],
+            argv=["--resume-from", "verify-check"],
             gremlin_id="gr-test",
             client=client,
         )
@@ -1453,7 +1455,7 @@ def test_resume_from_verify(tmp_path, monkeypatch):
 
     labels = [c.label for c in client.calls]
     assert "implement" not in labels, "implement must not run on verify resume"
-    assert sum(1 for s in verify_calls if s.name == "verify") == 1
+    assert sum(1 for s in verify_calls if s.name == "verify-check") == 1
 
 
 def test_gh_main_writes_stage_to_state(tmp_path, monkeypatch):

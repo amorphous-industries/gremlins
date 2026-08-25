@@ -205,7 +205,8 @@ def test_local_pipeline_stage_names(tmp_path):
         "review-code",
         "address-code",
         "normalize",
-        "verify",
+        "verify-check",
+        "verify-test",
     ]
 
 
@@ -242,7 +243,7 @@ def test_local_main_writes_stage_to_state(tmp_path, monkeypatch):
     assert result == 0
 
     data = json.loads((state_dir / "state.json").read_text())
-    assert data.get("stage") == "verify"
+    assert data.get("stage") == "verify-test"
 
 
 def test_local_main_env_file_vars_reach_verify(tmp_path, monkeypatch):

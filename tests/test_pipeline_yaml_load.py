@@ -25,7 +25,8 @@ _LOCAL_STAGE_NAMES = [
     "review-code",
     "address-code",
     "normalize",
-    "verify",
+    "verify-check",
+    "verify-test",
 ]
 
 

@@ -35,10 +35,11 @@ stages:
   - { type: gremlins:plan,      prompt: [code-style, terse, gremlins:plan.md] }
   - { type: gremlins:implement,  prompt: [code-style, terse, dev-env, no_lint_in_implement.md, gremlins:implement_local.md] }
   - { type: normalize }
-  - { name: check, type: verify, options: { cmds: ["make check"] }, prompt: verify }
+  - { name: verify-check, type: verify, options: { cmds: ["make check"] }, prompt: verify }
 
   - { type: gremlins:review-code,  prompt: [code-style, terse, dev-env, gremlins:review/detail.md] }
   - { name: address-code, type: agent, in: {text: review-code}, prompt: [code-style, terse, dev-env, gremlins:address.md, gremlins:bail_section.md] }
 
   - { type: normalize }
-  - { type: verify, options: { cmds: ["make check && make test"] }, prompt: verify }
+  - { name: verify-check-final, type: verify, options: { cmds: ["make check"] }, prompt: verify }
+  - { name: verify-test, type: verify, options: { cmds: ["make test"] }, prompt: verify }

@@ -49,7 +49,7 @@ def test_verify_recipe_body_has_three_stages(tmp_path: pathlib.Path) -> None:
     assert len(body) == 3
     assert body[0]["name"] == "cmd"
     assert body[0]["type"] == "exec"
-    assert body[1]["name"] == "verify-diff"
+    assert body[1]["name"] == "verify-context"
     assert body[1]["type"] == "exec"
     assert body[2]["name"] == "fix"
     assert body[2]["type"] == "agent"
@@ -64,13 +64,15 @@ def test_verify_cmds_propagated_to_cmd_stage(tmp_path: pathlib.Path) -> None:
     assert cmd_stage["options"]["cmds"] == ["make check", "make test"]
 
 
-def test_verify_diff_keeps_own_cmds(tmp_path: pathlib.Path) -> None:
+def test_verify_context_keeps_own_cmds(tmp_path: pathlib.Path) -> None:
     result = _make_pipeline(
         tmp_path,
         "- { type: verify, options: { cmds: ['make check'] }, prompt: verify }",
     )
-    diff_stage = result["stages"][0]["body"][1]
-    assert any("git diff HEAD" in c for c in diff_stage["options"]["cmds"])
+    ctx_stage = result["stages"][0]["body"][1]
+    cmds = ctx_stage["options"]["cmds"]
+    assert any("git diff" in c for c in cmds)
+    assert any("verify-summary.txt" in c for c in cmds)
 
 
 def test_verify_empty_cmds_raises(tmp_path: pathlib.Path) -> None:

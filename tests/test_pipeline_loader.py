@@ -556,7 +556,7 @@ stages:
     stage_names = [s.name for s in pipeline.stages]
     assert "plan" in stage_names
     assert "implement" in stage_names
-    assert "verify" in stage_names
+    assert "verify-check" in stage_names
 
 
 def test_include_unknown_pipeline_raises(tmp_path: pathlib.Path) -> None:
