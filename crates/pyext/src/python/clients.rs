@@ -30,12 +30,11 @@ fn map_error(e: ClientError) -> PyErr {
 #[pymethods]
 impl RustClient {
     #[new]
-    #[pyo3(signature = (provider, model, native_block, instructions=None, extra_params=None))]
+    #[pyo3(signature = (provider, model, native_block, extra_params=None))]
     fn new(
         provider: String,
         model: String,
         native_block: HashMap<String, Vec<String>>,
-        instructions: Option<String>,
         extra_params: Option<HashMap<String, String>>,
     ) -> PyResult<Self> {
         let extra_params = extra_params.unwrap_or_default();
@@ -74,7 +73,6 @@ impl RustClient {
                 kind,
                 client,
                 model,
-                instructions.unwrap_or_default(),
                 tool_filter,
                 extra_params,
             )),

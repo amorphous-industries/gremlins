@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from functools import partial
+
 from gremlins.clients.registry import register_client_factory
 
 # Default tool allowlists (moved from deleted gremlins.permissions.defaults).
@@ -9,50 +11,19 @@ _DEFAULT_ALLOWED_TOOLS: list[str] = ["Bash", "Edit", "Read", "Write", "Grep", "G
 _DEFAULT_BLOCK: dict[str, list[str]] = {"allowed_tools": _DEFAULT_ALLOWED_TOOLS}
 
 
-def _openai_instructions() -> str:
-    from gremlins.utils.yaml_io import load_bundled_prompt
-
-    return load_bundled_prompt("default_openai_agents_instructions.md")
-
-
-def _make_openai_client(
-    model: str | None, extra_params: dict[str, str] | None = None
+def _make_openai_compatible_client(
+    provider: str,
+    model: str | None,
+    extra_params: dict[str, str] | None = None,
+    *,
+    default_model: str = "",
 ) -> object:
     from _gremlins_core.clients import RustClient
 
     return RustClient(
-        "openai",
-        model or "",
+        provider,
+        model or default_model,
         dict(_DEFAULT_BLOCK),
-        instructions=_openai_instructions(),
-        extra_params=extra_params or {},
-    )
-
-
-def _make_xai_client(
-    model: str | None, extra_params: dict[str, str] | None = None
-) -> object:
-    from _gremlins_core.clients import RustClient
-
-    return RustClient(
-        "xai",
-        model or "grok-4",
-        dict(_DEFAULT_BLOCK),
-        instructions=_openai_instructions(),
-        extra_params=extra_params or {},
-    )
-
-
-def _make_openrouter_client(
-    model: str | None, extra_params: dict[str, str] | None = None
-) -> object:
-    from _gremlins_core.clients import RustClient
-
-    return RustClient(
-        "openrouter",
-        model or "",
-        dict(_DEFAULT_BLOCK),
-        instructions=_openai_instructions(),
         extra_params=extra_params or {},
     )
 
@@ -70,7 +41,11 @@ def _make_cmd_client(
     return RustClient.cmd(model)
 
 
-register_client_factory("openai", _make_openai_client)
-register_client_factory("xai", _make_xai_client)
-register_client_factory("openrouter", _make_openrouter_client)
+register_client_factory("openai", partial(_make_openai_compatible_client, "openai"))
+register_client_factory(
+    "xai", partial(_make_openai_compatible_client, "xai", default_model="grok-4")
+)
+register_client_factory(
+    "openrouter", partial(_make_openai_compatible_client, "openrouter")
+)
 register_client_factory("cmd", _make_cmd_client)

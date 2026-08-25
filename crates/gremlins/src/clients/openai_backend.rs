@@ -99,7 +99,6 @@ pub struct OpenAiBackend {
     provider: OpenAiProvider,
     client: openai::CompletionsClient,
     model: String,
-    instructions: String,
     tool_filter: Option<Vec<String>>,
     client_params: HashMap<String, String>,
     last_ctx: Mutex<Option<RunContext>>,
@@ -112,7 +111,6 @@ impl OpenAiBackend {
         provider: OpenAiProvider,
         client: openai::CompletionsClient,
         model: String,
-        instructions: String,
         tool_filter: Option<Vec<String>>,
         client_params: HashMap<String, String>,
     ) -> Self {
@@ -125,7 +123,6 @@ impl OpenAiBackend {
             provider,
             client,
             model,
-            instructions,
             tool_filter,
             client_params,
             last_ctx: Mutex::new(None),
@@ -170,7 +167,6 @@ impl OpenAiBackend {
             &ctx,
             cancel,
             LoopOpts {
-                instructions: &self.instructions,
                 extra: self.extra_params(),
                 tool_filter: self.tool_filter.as_deref(),
             },
@@ -180,7 +176,6 @@ impl OpenAiBackend {
 }
 
 struct LoopOpts<'a> {
-    instructions: &'a str,
     extra: Option<serde_json::Value>,
     tool_filter: Option<&'a [String]>,
 }
@@ -257,7 +252,6 @@ async fn run_agent_loop<M: CompletionModel + Clone + Send + Sync + 'static>(
     // Wire up the subagent runner before entering the turn loop.
     let runner = super::subagent::make_runner(
         model.clone(),
-        opts.instructions.to_string(),
         opts.tool_filter.map(|f| f.to_vec()),
         cancel.clone(),
         tool_ctx.clone(),
@@ -292,14 +286,12 @@ pub(crate) async fn run_agent_loop_nested<M: CompletionModel + Clone + Send + Sy
     prompt: &str,
     tool_ctx: &ToolContext,
     cancel: &CancelToken,
-    instructions: &str,
     tool_filter: Option<&[String]>,
     prefix: &str,
     idle_timeout: f64,
     max_turns: usize,
 ) -> Result<CompletedRun, ClientError> {
     let opts = LoopOpts {
-        instructions,
         extra: None,
         tool_filter,
     };
@@ -374,7 +366,6 @@ async fn run_agent_loop_core<M: CompletionModel>(
 
         let mut builder = model
             .completion_request(next_prompt.clone())
-            .preamble(opts.instructions.to_string())
             .messages(history.clone())
             .tools(tool_defs.to_vec())
             .temperature(DEFAULT_TEMPERATURE);
@@ -1041,7 +1032,6 @@ mod tests {
 
     fn loop_opts(filter: Option<&[String]>) -> LoopOpts<'_> {
         LoopOpts {
-            instructions: "",
             extra: None,
             tool_filter: filter,
         }
@@ -1298,7 +1288,6 @@ mod tests {
             OpenAiProvider::OpenAi,
             client,
             "gpt-4o".into(),
-            String::new(),
             None,
             HashMap::new(),
         );
@@ -1513,5 +1502,44 @@ mod tests {
         assert_eq!(results[2]["message"]["content"][0]["tool_use_id"], "b1");
         // Write actually happened
         assert_eq!(std::fs::read_to_string(&write_file).unwrap(), "mixed");
+    }
+
+    #[tokio::test]
+    async fn loop_no_system_preamble_injected() {
+        // The harness must never inject a system message or preamble into
+        // the completion request — the pipeline's prompt is the complete
+        // instruction set. This guards against a future refactor silently
+        // reintroducing one.
+        let dir = std::env::temp_dir().join(format!(
+            "gremlins-oa-nosys-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let model = rig_core::test_utils::MockCompletionModel::from_stream_turns([[
+            rig_core::test_utils::MockStreamEvent::text("ok"),
+            rig_core::test_utils::MockStreamEvent::final_response_with_default_usage(),
+        ]]);
+        let mut ctx = test_ctx(Some(dir.clone()), None);
+        ctx.idle_timeout = 5.0;
+        ctx.params.idle_timeout = Some(5.0);
+        let cancel = CancelToken::new();
+        let result = run_agent_loop(&model, "hi", &ctx, cancel, loop_opts(None))
+            .await
+            .unwrap();
+        assert_eq!(result.text_result.as_deref(), Some("ok"));
+
+        for req in model.requests() {
+            assert!(req.preamble.is_none(), "harness must not inject preamble");
+            for msg in req.chat_history.iter() {
+                if let Message::System { content } = msg {
+                    panic!("harness injected system message: {content}");
+                }
+            }
+        }
     }
 }
