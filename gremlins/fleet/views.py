@@ -8,6 +8,7 @@ import sys
 import time
 from collections.abc import Iterator
 
+from gremlins import paths
 from gremlins.executor.gremlin import Gremlin
 from gremlins.fleet.duration import parse_duration
 from gremlins.fleet.render import FleetRow, build_row, print_table
@@ -20,7 +21,6 @@ from gremlins.fleet.state import (
     load_state,
     parse_liveness,
 )
-from gremlins import paths
 from gremlins.queue.core import QueueSummary, queue_summary
 
 
