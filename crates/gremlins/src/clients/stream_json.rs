@@ -55,7 +55,7 @@ pub fn emit_event(prefix: &str, evt: &Value) {
             if evt.get("subtype").and_then(|v| v.as_str()) == Some("init") {
                 let model = evt.get("model").and_then(|v| v.as_str()).unwrap_or("?");
                 let cwd = evt.get("cwd").and_then(|v| v.as_str()).unwrap_or("?");
-                stream::emit_init(prefix, model, cwd);
+                stream::emit_init(prefix, model, cwd, None);
             }
         }
         "assistant" => {

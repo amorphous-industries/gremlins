@@ -143,13 +143,33 @@ pub fn within_worktree(p: &Path, root: &Path) -> bool {
     }
 }
 
-/// Hot-path variant: caller has already canonicalized root via [`normalize_path`].
-/// Avoids re-canonicalizing root on every call inside loops like [`bash_check`].
-fn within_worktree_precanon(p: &Path, canonical_root: &Path) -> bool {
-    match normalize_path(p) {
-        Some(p) => p.starts_with(canonical_root),
-        _ => false,
-    }
+/// Lexical-leaf containment for [`bash_check`] ONLY.
+///
+/// Resolves symlinked ancestor *directories* (so `/var` -> `/private/var` and
+/// any symlinked parent dir are judged by their real location) but does NOT
+/// follow a final-component symlink. A venv interpreter is created as
+/// `.venv/bin/python -> /opt/homebrew/.../python3.14`: the symlink node lives
+/// inside the worktree even though its target does not. Executing it is not a
+/// containment breach — bash can already run out-of-tree binaries via PATH
+/// (git, cargo, ruff, make) and read/write anywhere via `python -c`. Likewise,
+/// this permits leaf-symlink *reads* through bash (e.g. `cat somelink` where
+/// `somelink -> /etc/passwd`) that `bash_check` previously denied. This is
+/// acceptable because the real
+/// data boundary is [`io_enforce`] on the Read/Write/Edit tools, which stays
+/// fully canonical. This check is a usability guardrail: an early, clear denial
+/// for obviously-stray path arguments, not a sandbox.
+///
+/// DO NOT "harden" this to canonicalize the final component. Doing so re-breaks
+/// agent self-verify (`.venv/bin/python` becomes "path outside worktree") — the
+/// exact regression from #1197 that removed `enforce_allows_venv_symlink_in_cwd`
+/// — while adding zero real containment, because execution is not gated here.
+/// See `bash_check_allows_venv_symlink_leaf`.
+fn within_worktree_lexical(p: &Path, canonical_root: &Path) -> bool {
+    let resolved = match (p.parent(), p.file_name()) {
+        (Some(parent), Some(name)) => canonicalize_or_ancestor(parent).join(name),
+        _ => canonicalize_or_ancestor(p),
+    };
+    normalize_dots(&resolved).starts_with(canonical_root)
 }
 
 fn expand_user(s: &str) -> String {
@@ -223,7 +243,7 @@ fn check_ln_symlink(cmd: &str) -> Option<String> {
 
 /// Defense-in-depth `cd` containment check. Scans for `cd` commands
 /// (possibly after `;`, `&&`, `||`) and resolves the target directory
-/// through [`within_worktree_precanon`]. Catches the escape where a
+/// through [`within_worktree`]. Catches the escape where a
 /// bare symlink name like `link -> /tmp/outside` is not flagged by the
 /// path-heuristic loop (no `/`, no `~`, no `..`).
 ///
@@ -302,7 +322,10 @@ pub fn bash_check(root: &Path, cmd: &str, cwd: Option<&Path>) -> Option<String> 
             tok.to_string()
         };
         let p = resolve(&expanded, cwd);
-        if !within_worktree_precanon(&p, &canonical_root) {
+        // Lexical-leaf, not canonical: a final-component symlink whose node is
+        // in-worktree (e.g. `.venv/bin/python`) is allowed. See
+        // within_worktree_lexical for the rationale and the anti-regression note.
+        if !within_worktree_lexical(&p, &canonical_root) {
             return Some(format!("Error: path outside worktree: {raw_tok}"));
         }
     }
@@ -1586,6 +1609,50 @@ mod tests {
         // cd link — bare name, no /, caught by check_cd.
         let err = bash_check(&worktree, "cd link; cat secret", Some(&worktree)).unwrap();
         assert!(err.contains("cd target outside worktree"), "got: {err}");
+    }
+
+    // ANTI-REGRESSION: agent self-verify needs to execute the bootstrap venv,
+    // whose `bin/python` is a symlink to a base interpreter outside the
+    // worktree. bash_check must allow a final-component symlink whose node is
+    // in-worktree. This was silently broken by #1197 (which deleted the old
+    // `enforce_allows_venv_symlink_in_cwd` test); do not "harden" bash_check to
+    // canonicalize the leaf, or you re-break self-verify for zero real safety
+    // (execution isn't gated here — see within_worktree_lexical).
+    #[test]
+    #[cfg(unix)]
+    fn bash_check_allows_venv_symlink_leaf() {
+        let dir = tmp();
+        let worktree = dir.join("worktree");
+        std::fs::create_dir_all(worktree.join(".venv/bin")).unwrap();
+        let brew = dir.join("brew/bin");
+        std::fs::create_dir_all(&brew).unwrap();
+        let real_python = brew.join("python3.14");
+        std::fs::write(&real_python, "#!/bin/sh").unwrap();
+        // .venv/bin/python -> <outside>/brew/bin/python3.14, exactly like uv/venv.
+        let venv_python = worktree.join(".venv/bin/python");
+        std::os::unix::fs::symlink(&real_python, &venv_python).unwrap();
+        assert!(
+            bash_check(&worktree, ".venv/bin/python -c 'print(1)'", Some(&worktree)).is_none(),
+            "bash_check must allow executing the in-worktree venv python symlink"
+        );
+    }
+
+    // The data boundary stays strict: reading/writing THROUGH the same leaf
+    // symlink via the file tools is still blocked by io_enforce.
+    #[test]
+    #[cfg(unix)]
+    fn io_enforce_still_blocks_venv_symlink_leaf() {
+        let dir = tmp();
+        let worktree = dir.join("worktree");
+        std::fs::create_dir_all(worktree.join(".venv/bin")).unwrap();
+        let outside = dir.join("outside");
+        std::fs::create_dir(&outside).unwrap();
+        let secret = outside.join("secret");
+        std::fs::write(&secret, "x").unwrap();
+        let link = worktree.join(".venv/bin/python");
+        std::os::unix::fs::symlink(&secret, &link).unwrap();
+        let err = io_enforce(&link, &worktree).unwrap();
+        assert!(err.contains("outside worktree"), "got: {err}");
     }
 
     #[test]
