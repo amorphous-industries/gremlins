@@ -57,16 +57,34 @@ def _resolve_description_and_slug(
 
 
 def _build_spawn_env(gremlin_id: str, *, telemetry: bool = False) -> dict[str, str]:
-    env = dict(os.environ)
+    """Return the minimal env needed for the child subprocess to start.
+
+    The child's run_pipeline() will do full env isolation. These vars
+    just need to survive the spawn so paths.py and configure_logging()
+    can do their job before that isolation block runs.
+    """
     pkg_root = str(pathlib.Path(__file__).resolve().parent.parent)
-    existing_pp = env.get("PYTHONPATH", "")
+    existing_pp = os.environ.get("PYTHONPATH", "")
     parts = [p for p in [pkg_root, existing_pp] if p]
-    env["PYTHONPATH"] = os.pathsep.join(parts)
-    env["PYTHONSAFEPATH"] = "1"
-    env["GREMLINS_GREMLIN_ID"] = gremlin_id
-    env["GREMLINS_OVERLAY_DIR"] = str(
-        _state_root() / gremlin_id / _paths.OVERLAY_DIRNAME
-    )
+    env: dict[str, str] = {
+        "PATH": os.environ.get("PATH", ""),
+        "HOME": os.environ.get("HOME", ""),
+        "PYTHONPATH": os.pathsep.join(parts),
+        "PYTHONSAFEPATH": "1",
+        "GREMLINS_GREMLIN_ID": gremlin_id,
+        "GREMLINS_OVERLAY_DIR": str(
+            _state_root() / gremlin_id / _paths.OVERLAY_DIRNAME
+        ),
+    }
+    # Forward infrastructure/override vars consumed before the
+    # run_pipeline() isolation block clears os.environ.
+    for key in (
+        "GREMLINS_SANDBOX_ROOT",
+        "GREMLINS_PROJECT_ROOT",
+        "GREMLINS_LOG_LEVEL",
+    ):
+        if key in os.environ:
+            env[key] = os.environ[key]
     if telemetry:
         env["GREMLINS_TELEMETRY"] = "1"
     return env

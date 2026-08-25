@@ -189,6 +189,20 @@ def pytest_runtest_makereport(item, call):
 
 
 @pytest.fixture(autouse=True)
+def _restore_os_environ():
+    """Restore os.environ after each test.
+
+    run_pipeline() clears and rebuilds os.environ (env isolation), which
+    corrupts the shared pytest process for direct-call tests. Snapshot the
+    full env at setup and restore it at teardown so each test starts clean.
+    """
+    snapshot = dict(os.environ)
+    yield
+    os.environ.clear()
+    os.environ.update(snapshot)
+
+
+@pytest.fixture(autouse=True)
 def sandbox(monkeypatch, request):
     node_id = re.sub(r"[^\w]", "_", request.node.nodeid)[-60:]
     scratch_dir = os.environ.get("GREMLINS_SCRATCH_DIR", "/tmp")

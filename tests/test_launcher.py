@@ -754,6 +754,25 @@ def test_build_spawn_env_omits_telemetry_by_default(lenv):
     assert "GREMLINS_TELEMETRY" not in env
 
 
+def test_build_spawn_env_is_minimal(lenv, monkeypatch):
+    """_build_spawn_env no longer copies full parent os.environ."""
+    monkeypatch.setenv("SHOULD_NOT_LEAK", "leaked_value")
+    monkeypatch.setenv("UNRELATED", "unrelated_value")
+    from gremlins import launcher
+
+    env = launcher._build_spawn_env("gr-test")
+    # Only PATH, HOME, PYTHONPATH, PYTHONSAFEPATH, GREMLINS_*, and
+    # explicitly forwarded infra vars should appear.
+    assert "SHOULD_NOT_LEAK" not in env
+    assert "UNRELATED" not in env
+    assert "PATH" in env
+    assert "HOME" in env
+    assert "PYTHONPATH" in env
+    assert env["PYTHONSAFEPATH"] == "1"
+    assert env["GREMLINS_GREMLIN_ID"] == "gr-test"
+    assert "GREMLINS_OVERLAY_DIR" in env
+
+
 # ---------------------------------------------------------------------------
 # .gremlins overlay placement
 # ---------------------------------------------------------------------------

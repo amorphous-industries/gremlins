@@ -1,5 +1,9 @@
+import json
 import os
+import pathlib
 import signal
+import subprocess
+import sys
 import types
 from unittest.mock import patch
 
@@ -78,3 +82,140 @@ def test_atexit_log_silent_on_clean_exit(caplog):
             atexit_fn()
 
     assert "exiting via atexit" not in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# env isolation integration tests
+# ---------------------------------------------------------------------------
+
+REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
+
+
+def _run_isolation_subprocess(
+    tmp_path: pathlib.Path,
+    *,
+    project_root: str,
+    state_root: str,
+    env_file_content: str | None,
+    extra_parent_vars: dict[str, str] | None = None,
+) -> dict[str, str]:
+    """Run a subprocess that exercises the run_pipeline env isolation logic.
+
+    Returns the resulting os.environ dict after isolation.
+    """
+    result_file = tmp_path / "_env_result.json"
+    test_script = tmp_path / "_test_iso.py"
+
+    code = "import os, json, pathlib\n"
+    if extra_parent_vars:
+        for k, v in extra_parent_vars.items():
+            code += f"os.environ[{k!r}] = {v!r}\n"
+
+    code += f"""
+from gremlins.env_file import load_env_file_isolated
+
+_project_root = {project_root!r}
+state_dir = pathlib.Path({state_root!r}) / "test-gremlin"
+
+_system = {{
+    "GREMLINS_GREMLIN_ID": "test-gremlin",
+    "GREMLINS_PROJECT_ROOT": _project_root,
+    "GREMLINS_OVERLAY_DIR": str(state_dir / ".gremlins"),
+    "GREMLINS_WORKTREE_PATH": "",
+    "GREMLINS_ARTIFACT_DIR": str(state_dir / "artifacts"),
+    "GREMLIN_WORKSPACE_DIR": "",
+    "GREMLIN_STATE_DIR": str(state_dir),
+}}
+
+_base = {{"PATH": os.environ.get("PATH", ""), "HOME": os.environ.get("HOME", "")}}
+_base.update(_system)
+
+_env_file = pathlib.Path(_project_root) / ".gremlins" / "env"
+"""
+    if env_file_content is not None:
+        code += f"""
+_env_file.parent.mkdir(parents=True, exist_ok=True)
+_env_file.write_text({env_file_content!r})
+_env = load_env_file_isolated(_env_file, base_env=_base, cwd=pathlib.Path(_project_root))
+"""
+    else:
+        code += "\n_env = dict(_base)\n"
+
+    code += f"""
+os.environ.clear()
+os.environ.update(_env)
+os.environ.update(_system)
+
+json.dump(dict(os.environ), open({str(result_file)!r}, "w"))
+"""
+
+    test_script.write_text(code)
+
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(REPO_ROOT)
+    r = subprocess.run(
+        [sys.executable, str(test_script)],
+        capture_output=True,
+        text=True,
+        timeout=15,
+        env=env,
+    )
+    assert r.returncode == 0, (
+        f"subprocess failed:\nstderr: {r.stderr}\nstdout: {r.stdout}"
+    )
+    return json.loads(result_file.read_text())
+
+
+def test_env_isolation_no_file(sandbox, tmp_path):
+    """Without .gremlins/env, only PATH, HOME, and system vars survive."""
+    result = _run_isolation_subprocess(
+        tmp_path,
+        project_root=str(sandbox.project),
+        state_root=str(sandbox.state),
+        env_file_content=None,
+        extra_parent_vars={"SHOULD_NOT_LEAK": "leaked"},
+    )
+    assert "SHOULD_NOT_LEAK" not in result
+    assert result["GREMLINS_GREMLIN_ID"] == "test-gremlin"
+    assert "PATH" in result
+    assert "HOME" in result
+    assert "GREMLINS_PROJECT_ROOT" in result
+
+
+def test_env_isolation_with_file(sandbox, tmp_path):
+    """With .gremlins/env, custom vars appear and parent vars do not leak."""
+    result = _run_isolation_subprocess(
+        tmp_path,
+        project_root=str(sandbox.project),
+        state_root=str(sandbox.state),
+        env_file_content="export CUSTOM_VAR=hello\n",
+        extra_parent_vars={"SHOULD_NOT_LEAK": "leaked"},
+    )
+    assert "SHOULD_NOT_LEAK" not in result
+    assert result["CUSTOM_VAR"] == "hello"
+    assert result["GREMLINS_GREMLIN_ID"] == "test-gremlin"
+
+
+def test_system_vars_cannot_be_overridden(sandbox, tmp_path):
+    """.gremlins/env cannot override system vars."""
+    result = _run_isolation_subprocess(
+        tmp_path,
+        project_root=str(sandbox.project),
+        state_root=str(sandbox.state),
+        env_file_content="export GREMLINS_GREMLIN_ID=fake\n",
+    )
+    # System vars are re-injected after sourcing, so the real value survives.
+    assert result["GREMLINS_GREMLIN_ID"] == "test-gremlin"
+
+
+def test_system_vars_cannot_be_unset(sandbox, tmp_path):
+    """.gremlins/env cannot unset system vars."""
+    result = _run_isolation_subprocess(
+        tmp_path,
+        project_root=str(sandbox.project),
+        state_root=str(sandbox.state),
+        env_file_content="unset GREMLINS_PROJECT_ROOT\n",
+    )
+    # System vars are re-injected after sourcing, so the var is still present.
+    assert "GREMLINS_PROJECT_ROOT" in result
+    assert result["GREMLINS_PROJECT_ROOT"] == str(sandbox.project)
