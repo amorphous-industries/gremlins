@@ -165,5 +165,20 @@ fn completed_run_to_py(py: Python<'_>, r: &CompletedRun) -> PyResult<Py<PyAny>> 
     if let Some(cost) = r.cost_usd {
         kwargs.set_item("cost_usd", cost)?;
     }
+    if let Some(ref usage) = r.token_usage {
+        let usage_cls = protocol.getattr("UsageStats")?;
+        let usage_kwargs = PyDict::new(py);
+        usage_kwargs.set_item("prompt_tokens", usage.prompt_tokens)?;
+        usage_kwargs.set_item("completion_tokens", usage.completion_tokens)?;
+        usage_kwargs.set_item("cached_input_tokens", usage.cached_input_tokens)?;
+        usage_kwargs.set_item(
+            "cache_creation_input_tokens",
+            usage.cache_creation_input_tokens,
+        )?;
+        usage_kwargs.set_item("reasoning_tokens", usage.reasoning_tokens)?;
+        usage_kwargs.set_item("turns", usage.turns)?;
+        let py_usage = usage_cls.call((), Some(&usage_kwargs))?;
+        kwargs.set_item("token_usage", py_usage)?;
+    }
     Ok(cls.call((), Some(&kwargs))?.into_any().unbind())
 }

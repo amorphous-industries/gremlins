@@ -99,3 +99,40 @@ def test_model_kwarg_forwarded(tmp_path):
     state = _make_state(tmp_path)
     asyncio.run(run_agent(state, "hello", label="test-label", model="haiku"))
     assert state.client.calls[0].model == "haiku"
+
+
+def test_token_usage_accumulated_into_state(tmp_path):
+    usage_events = [
+        {
+            "type": "result",
+            "result": "done",
+            "token_usage": {
+                "prompt_tokens": 100,
+                "completion_tokens": 20,
+                "cached_input_tokens": 90,
+                "cache_creation_input_tokens": 5,
+                "reasoning_tokens": 8,
+                "turns": 3,
+            },
+        }
+    ]
+    state = _make_state(tmp_path, attempt="att1", fixtures={"test-label": usage_events})
+    asyncio.run(run_agent(state, "hello", label="test-label"))
+    asyncio.run(run_agent(state, "hello", label="test-label"))
+
+    data = json.loads(state.data.state_file.read_text())
+    assert data["token_usage"] == {
+        "prompt_tokens": 200,
+        "completion_tokens": 40,
+        "cached_input_tokens": 180,
+        "cache_creation_input_tokens": 10,
+        "reasoning_tokens": 16,
+        "turns": 6,
+    }
+
+
+def test_token_usage_absent_is_noop(tmp_path):
+    state = _make_state(tmp_path, attempt="att1")
+    asyncio.run(run_agent(state, "hello", label="test-label"))
+    data = json.loads(state.data.state_file.read_text())
+    assert "token_usage" not in data

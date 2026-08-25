@@ -255,6 +255,27 @@ class StateData:
         except Exception:
             logger.warning("failed to append artifact", exc_info=True)
 
+    def accumulate_token_usage(self, usage: dict[str, int]) -> None:
+        """Fold a per-run token-usage delta into the cumulative state.json total.
+
+        No-ops without a state file. Never raises — telemetry bookkeeping must
+        not crash a running gremlin.
+        """
+        sf = self.state_file or resolve_state_file(self.gremlin_id)
+        if sf is None or not sf.exists() or not usage:
+            return
+        try:
+
+            def _apply(data: dict[str, Any]) -> None:
+                total: dict[str, int] = dict(data.get("token_usage") or {})
+                for key, val in usage.items():
+                    total[key] = int(total.get(key, 0)) + int(val)
+                data["token_usage"] = total
+
+            locked_update(sf, _apply)
+        except Exception:
+            pass
+
     def read_bail_info(self) -> dict[str, str] | None:
         sf = self.state_file or resolve_state_file(self.gremlin_id)
         if sf is None or not sf.exists():

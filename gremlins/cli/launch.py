@@ -22,6 +22,7 @@ _INFRA_ARGS = frozenset(
         "client",
         "gremlin_id",
         "wait",
+        "telemetry",
     }
 )
 _INFRA_FLAG_NAMES = frozenset(
@@ -34,6 +35,7 @@ _INFRA_FLAG_NAMES = frozenset(
         "client",
         "gremlin-id",
         "wait",
+        "telemetry",
     }
 )
 _LAUNCH_BRIEF = "usage: gremlins launch <name> [opts]\nLaunch a background gremlin by pipeline name. Run 'gremlins launch --list' to see available pipelines.\n"
@@ -65,6 +67,12 @@ def build_launch_parser(
     )
     p.add_argument("--base-ref", default=None)
     p.add_argument("--client", default=None)
+    p.add_argument(
+        "--telemetry",
+        "-v",
+        action="store_true",
+        help="Enable per-turn telemetry (TTFT, token counts, cache hit ratio) in the gremlin log.",
+    )
     if pipeline is not None and pipeline.inputs is not None:
         seen: set[str] = set()
         for path in pipeline.inputs.in_map.values():
@@ -131,11 +139,15 @@ def launch_main(argv: list[str]) -> int:
     if stage_inputs.get("pr") and args.base_ref:
         sys.stderr.write("error: --pr and --base-ref are mutually exclusive\n")
         return 1
-    return _self_background_main(name, args, stage_inputs)
+    return _self_background_main(name, args, stage_inputs, telemetry=args.telemetry)
 
 
 def _self_background_main(
-    pipeline_name: str, args: argparse.Namespace, stage_inputs: dict[str, Any]
+    pipeline_name: str,
+    args: argparse.Namespace,
+    stage_inputs: dict[str, Any],
+    *,
+    telemetry: bool = False,
 ) -> int:
     importlib.import_module("gremlins.clients")
 
@@ -149,6 +161,7 @@ def _self_background_main(
             base_ref=args.base_ref,
             pipeline_args=pipeline_args,
             gremlin_id=args.gremlin_id,
+            telemetry=telemetry,
         )
     except (ValueError, RuntimeError) as exc:
         sys.stderr.write(f"error: {exc}\n")
