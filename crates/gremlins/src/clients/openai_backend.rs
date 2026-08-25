@@ -546,12 +546,19 @@ fn build_extra_params(
         );
     }
 
-    // Pass through any other client params as top-level string values.
+    // Pass through any other client params. Parse each value as JSON so
+    // numbers/bools survive as their natural types; fall back to a plain
+    // string if the value isn't valid JSON (e.g. an opaque enum like
+    // thinking=deepseek).
     // "reasoning" and "parallel_tool_calls" are excluded — reserved keys with
     // provider-specific handling above.
     for (k, v) in client_params {
         if k != "reasoning" && k != "parallel_tool_calls" {
-            params.insert(k.clone(), serde_json::Value::String(v.clone()));
+            let val = match serde_json::from_str::<serde_json::Value>(v) {
+                Ok(parsed) => parsed,
+                Err(_) => serde_json::Value::String(v.clone()),
+            };
+            params.insert(k.clone(), val);
         }
     }
 
@@ -814,6 +821,25 @@ mod tests {
         assert_eq!(p["thinking"], "deepseek");
         assert_eq!(p["foo"], "bar");
         assert!(p.get("reasoning").is_none());
+    }
+
+    #[test]
+    fn extra_params_client_passthrough_json_types() {
+        let mut cp = HashMap::new();
+        cp.insert("temperature".into(), "0.7".into());
+        cp.insert("top_p".into(), "0.95".into());
+        cp.insert("stream".into(), "true".into());
+        cp.insert("max_tokens".into(), "4096".into());
+        cp.insert("stop".into(), "[\"END\"]".into()); // JSON array
+        let p = build_extra_params(OpenAiProvider::OpenAi, &cp).unwrap();
+        // numbers
+        assert_eq!(p["temperature"], serde_json::json!(0.7));
+        assert_eq!(p["top_p"], serde_json::json!(0.95));
+        assert_eq!(p["max_tokens"], serde_json::json!(4096));
+        // bool
+        assert_eq!(p["stream"], serde_json::json!(true));
+        // JSON array passthrough
+        assert_eq!(p["stop"], serde_json::json!(["END"]));
     }
 
     #[test]

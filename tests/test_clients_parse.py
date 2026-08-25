@@ -98,6 +98,11 @@ def test_parse_unknown_provider_raises():
         Client.parse("does-not-exist:foo")
 
 
+def test_parse_duplicate_key_raises():
+    with pytest.raises(ValueError, match="duplicate key"):
+        Client.parse("openai:gpt-4:reasoning=high,reasoning=low")
+
+
 def test_client_equality_and_hash():
     a = Client("openai", "gpt-4")
     b = Client("openai", "gpt-4")

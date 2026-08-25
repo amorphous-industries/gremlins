@@ -544,10 +544,41 @@ The boss resumes from its child-spawn stage and proceeds with the next iteration
 
 | Variable | Default | Description |
 |---|---|---|
-| `GREMLINS_REASONING_EFFORT` | *(unset)* | Reasoning effort for OpenAI-compatible backends (`openai`, `xai`, `openrouter`). One of `low`, `medium`, `high`. Unset disables reasoning entirely (no token cost). Only takes effect for models that support reasoning. |
+| `GREMLINS_REASONING_EFFORT` | *(unset)* | Reasoning effort for OpenAI-compatible backends (`openai`, `xai`, `openrouter`). One of `low`, `medium`, `high`. Unset disables reasoning entirely (no token cost). Only takes effect for models that support reasoning. Per-client `reasoning=` params override this default — see [Client specifier syntax](#client-specifier-syntax) below. |
 | `GREMLINS_STREAM_IDLE_TIMEOUT` | `600` | Stream idle timeout in seconds for OpenAI-compatible backends. If the model produces no output for this duration the stream is cancelled and the call is retried. |
 | `GREMLINS_OPENAI_AGENTS_MAX_TURNS` | `100` | Maximum agent loop turns for OpenAI-compatible backends. Guards against runaway tool-call loops. |
 | `GREMLINS_LOG_LEVEL` | `INFO` | Log level for gremlins output. One of `DEBUG`, `INFO`, `WARNING`, `ERROR`. |
+
+### Client specifier syntax
+
+Client specifiers follow the format `provider:model` with an optional `:k=v,...`
+params suffix:
+
+```
+provider:model:k1=v1,k2=v2,...
+```
+
+**Examples:**
+
+```
+xai:grok-4:reasoning=high
+openrouter:deepseek/deepseek-v4-pro:reasoning=high,thinking=deepseek
+openai:gpt-4o-mini:temperature=0.7
+cmd:claude -p --model sonnet
+```
+
+Params are passed directly to the model backend as additional request
+parameters. The `reasoning` param gets special handling — it is expanded
+into the nested `{"effort": "<value>", "summary": "auto"}` object expected
+by OpenAI-compatible reasoning APIs. All other params are forwarded as
+literal values.
+
+- A per-client `reasoning=` param overrides `GREMLINS_REASONING_EFFORT` for
+  that client.
+- The `cmd` provider does not parse params — the full string after `cmd:` is
+  treated as the shell command.
+- Reserved keys `reasoning` and `parallel_tool_calls` are handled by the
+  backend and should not be set directly by the user.
 
 ### Filesystem overrides
 

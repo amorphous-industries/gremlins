@@ -20,6 +20,8 @@ def _parse_params(params_str: str) -> dict[str, str]:
     result: dict[str, str] = {}
     for pair in params_str.split(","):
         k, _, v = pair.partition("=")
+        if k in result:
+            raise ValueError(f"duplicate key {k!r} in client params {params_str!r}")
         result[k] = v
     return result
 
