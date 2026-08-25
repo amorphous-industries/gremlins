@@ -903,6 +903,31 @@ mod tests {
         assert_eq!(p["reasoning"]["summary"], "auto");
     }
 
+    /// Lock the contract between [`build_extra_params`] output shape and the
+    /// `opts.extra -> reasoning.effort` extraction in [`run_agent_loop`]. If
+    /// the JSON structure produced by `build_extra_params` ever changes, this
+    /// test must also change — preventing silent `reasoning_effort=default`
+    /// degradation in stage-init telemetry.
+    #[test]
+    fn build_extra_params_to_reasoning_effort_extraction_locked() {
+        let mut cp = HashMap::new();
+        cp.insert("reasoning".into(), "low".into());
+        let extra = build_extra_params(OpenAiProvider::OpenRouter, &cp).unwrap();
+        let effort = extra
+            .get("reasoning")
+            .and_then(|r| r.get("effort"))
+            .and_then(|e| e.as_str());
+        assert_eq!(effort, Some("low"));
+
+        // Without reasoning, extraction returns None
+        let extra = build_extra_params(OpenAiProvider::OpenRouter, &HashMap::new()).unwrap();
+        let effort = extra
+            .get("reasoning")
+            .and_then(|r| r.get("effort"))
+            .and_then(|e| e.as_str());
+        assert_eq!(effort, None);
+    }
+
     #[test]
     fn extra_params_client_passthrough() {
         let mut cp = HashMap::new();

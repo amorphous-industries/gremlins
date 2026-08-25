@@ -151,7 +151,10 @@ pub fn within_worktree(p: &Path, root: &Path) -> bool {
 /// `.venv/bin/python -> /opt/homebrew/.../python3.14`: the symlink node lives
 /// inside the worktree even though its target does not. Executing it is not a
 /// containment breach — bash can already run out-of-tree binaries via PATH
-/// (git, cargo, ruff, make) and read/write anywhere via `python -c`. The real
+/// (git, cargo, ruff, make) and read/write anywhere via `python -c`. Likewise,
+/// this permits leaf-symlink *reads* through bash (e.g. `cat somelink` where
+/// `somelink -> /etc/passwd`) that `bash_check` previously denied. This is
+/// acceptable because the real
 /// data boundary is [`io_enforce`] on the Read/Write/Edit tools, which stays
 /// fully canonical. This check is a usability guardrail: an early, clear denial
 /// for obviously-stray path arguments, not a sandbox.

@@ -47,13 +47,14 @@ fn trunc(s: &str, n: usize) -> String {
 }
 
 pub fn emit_init(prefix: &str, model: &str, cwd: &str, reasoning_effort: Option<&str>) {
+    let effort = trunc(reasoning_effort.unwrap_or("default"), 50);
     eprintln!(
         "{} {}init model={} cwd={} reasoning_effort={}",
         ts_internal(),
         prefix,
         model,
         cwd,
-        reasoning_effort.unwrap_or("default")
+        effort
     );
 }
 
