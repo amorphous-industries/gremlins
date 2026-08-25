@@ -1534,10 +1534,7 @@ mod tests {
         assert_eq!(result.text_result.as_deref(), Some("ok"));
 
         for req in model.requests() {
-            assert!(
-                req.preamble.is_none(),
-                "harness must not inject preamble"
-            );
+            assert!(req.preamble.is_none(), "harness must not inject preamble");
             for msg in req.chat_history.iter() {
                 if let Message::System { content } = msg {
                     panic!("harness injected system message: {content}");

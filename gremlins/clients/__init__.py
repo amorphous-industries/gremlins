@@ -42,6 +42,10 @@ def _make_cmd_client(
 
 
 register_client_factory("openai", partial(_make_openai_compatible_client, "openai"))
-register_client_factory("xai", partial(_make_openai_compatible_client, "xai", default_model="grok-4"))
-register_client_factory("openrouter", partial(_make_openai_compatible_client, "openrouter"))
+register_client_factory(
+    "xai", partial(_make_openai_compatible_client, "xai", default_model="grok-4")
+)
+register_client_factory(
+    "openrouter", partial(_make_openai_compatible_client, "openrouter")
+)
 register_client_factory("cmd", _make_cmd_client)
