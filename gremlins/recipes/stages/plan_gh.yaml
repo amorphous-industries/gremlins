@@ -32,6 +32,7 @@ stages:
           cp "{artifact_dir}/plan.md" "{cwd}/plan.md" 2>/dev/null || true
     out:
       plan-issue-number?: "file://session/plan-issue-number.txt"
+      plan-document?: "file://session/plan.md"
 
   - name: plan
     type: agent

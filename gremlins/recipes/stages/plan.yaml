@@ -24,6 +24,7 @@ stages:
           fi
           cp "{artifact_dir}/plan.md" "{cwd}/plan.md" 2>/dev/null || true
     out:
+      plan-document?: "file://session/plan.md"
 
   - name: plan
     type: agent
