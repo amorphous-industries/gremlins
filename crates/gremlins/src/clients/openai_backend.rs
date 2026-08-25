@@ -209,7 +209,13 @@ async fn run_agent_loop<M: CompletionModel + Clone + Send + Sync + 'static>(
         .as_ref()
         .map(|p| p.display().to_string())
         .unwrap_or_else(|| "?".into());
-    stream::emit_init(&prefix, &model_name, &cwd_display);
+    let reasoning_effort = opts
+        .extra
+        .as_ref()
+        .and_then(|v| v.get("reasoning"))
+        .and_then(|r| r.get("effort"))
+        .and_then(|e| e.as_str());
+    stream::emit_init(&prefix, &model_name, &cwd_display, reasoning_effort);
     stream::flush();
 
     if cwd.is_none() {
