@@ -251,7 +251,10 @@ def lenv(sandbox, monkeypatch):
     monkeypatch.setenv("GIT_OPTIONAL_LOCKS", "0")
     old_path = os.environ.get("PATH", "")
     monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{old_path}")
-    monkeypatch.delenv("PYTHONPATH", raising=False)
+    src_root = str(pathlib.Path(__file__).resolve().parent.parent)
+    existing_pp = os.environ.get("PYTHONPATH", "")
+    pp = src_root + os.pathsep + existing_pp if existing_pp else src_root
+    monkeypatch.setenv("PYTHONPATH", pp)
 
     class _Env:
         pass
