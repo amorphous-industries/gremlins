@@ -1,18 +1,75 @@
+# ---- .gremlins/env ----
+#
+# This file is the **sole** source of environment variables for gremlin runs.
+# The harness passes through only PATH and HOME; everything else must be
+# declared here. System vars (GREMLINS_PROJECT_ROOT, GREMLINS_GREMLIN_ID,
+# etc.) are available during sourcing and re-injected afterward — do not
+# try to override them.
+#
+# Three groups below:
+#   1. Project config — hard-coded values for this project.
+#   2. User environment essentials — forwarded from the calling shell.
+#   3. Secrets — sourced from an untracked file.
+
+
+# ---------------------------------------------------------------------------
+# 1. Project-specific configuration
+# ---------------------------------------------------------------------------
+
 export GREMLINS_OPENAI_AGENTS_MAX_TURNS='1000'
 
-# ---- Rust build cache ----
+
+# ---------------------------------------------------------------------------
+# 2. User environment essentials
+#
+# PATH and HOME are provided by the harness. Forward everything else the
+# project needs at runtime: SSH agent (git push), locale (tool warnings),
+# toolchain home dirs (cargo / rustup), and identity.
+# ---------------------------------------------------------------------------
+
+# SSH agent — needed for gh pipeline stages that push branches.
+[ -n "${SSH_AUTH_SOCK:-}" ] && export SSH_AUTH_SOCK
+
+# Locale — suppress "setlocale: LC_ALL cannot change locale" noise from
+# every subprocess tool (cargo, ruff, claude, …).
+[ -n "${LANG:-}" ] && export LANG
+[ -n "${LC_ALL:-}" ] && export LC_ALL
+[ -n "${LC_CTYPE:-}" ] && export LC_CTYPE
+
+# Toolchain home dirs — cargo/rustup default to ~/.cargo and ~/.rustup,
+# but users who override them need the overrides forwarded.
+[ -n "${CARGO_HOME:-}" ] && export CARGO_HOME
+[ -n "${RUSTUP_HOME:-}" ] && export RUSTUP_HOME
+
+# Identity — git and assorted tools fall back to USER when not in a repo.
+[ -n "${USER:-}" ] && export USER
+
+
+# ---------------------------------------------------------------------------
+# 3. Rust build cache
+#
 # Gremlin worktrees live in temp dirs, so cargo builds from scratch every
 # verify iteration without this. Two complementary strategies:
 #
-# 1. CARGO_TARGET_DIR — persistent location so cargo's incremental compilation
-#    survives across loop iterations. Also avoids filling the tmpdir with 1GB+.
-# 2. sccache (brew install sccache) — content-hash-based compiler cache that
-#    spans different git states, so changing source doesn't lose the cache.
-#
-export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$(dirname "$(dirname "${BASH_SOURCE[0]}")")/.cargo-gremlin-target}"
+# a) CARGO_TARGET_DIR — persistent location so cargo's incremental
+#    compilation survives across loop iterations. Also avoids filling
+#    the tmpdir with 1 GB+.
+# b) sccache (brew install sccache) — content-hash-based compiler cache
+#    that spans different git states, so changing source doesn't lose
+#    the cache.
+# ---------------------------------------------------------------------------
+
+export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-${GREMLINS_PROJECT_ROOT}/.cargo-gremlin-target}"
+
 if command -v sccache &>/dev/null; then
     export RUSTC_WRAPPER="${RUSTC_WRAPPER:-sccache}"
 fi
+
+
+# ---------------------------------------------------------------------------
+# 4. Secrets (untracked file)
+# ---------------------------------------------------------------------------
+
 SECRET_ENV="${GREMLINS_PROJECT_ROOT}/secret_env"
 if [ -f "$SECRET_ENV" ]; then
     source "$SECRET_ENV"
