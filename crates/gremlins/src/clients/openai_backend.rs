@@ -519,17 +519,29 @@ async fn run_agent_loop_core<M: CompletionModel>(
 }
 
 fn extra_params(provider: OpenAiProvider) -> Option<serde_json::Value> {
+    let mut params = serde_json::Map::new();
+
     match provider {
-        OpenAiProvider::Xai => Some(serde_json::json!({
-            "reasoning": {"effort": "high", "summary": "auto"}
-        })),
-        OpenAiProvider::OpenRouter => Some(serde_json::json!({
-            "parallel_tool_calls": true,
-            "reasoning": {"effort": "high", "summary": "auto"}
-        })),
-        OpenAiProvider::OpenAi => Some(serde_json::json!({
-            "parallel_tool_calls": true
-        })),
+        OpenAiProvider::OpenAi | OpenAiProvider::OpenRouter => {
+            params.insert(
+                "parallel_tool_calls".into(),
+                serde_json::Value::Bool(true),
+            );
+        }
+        _ => {}
+    }
+
+    if let Some(effort) = config::reasoning_effort() {
+        params.insert(
+            "reasoning".into(),
+            serde_json::json!({"effort": effort, "summary": "auto"}),
+        );
+    }
+
+    if params.is_empty() {
+        None
+    } else {
+        Some(serde_json::Value::Object(params))
     }
 }
 
@@ -750,10 +762,19 @@ mod tests {
     }
 
     #[test]
-    fn xai_reasoning_params() {
-        let params = extra_params(OpenAiProvider::Xai).unwrap();
-        assert_eq!(params["reasoning"]["effort"], "high");
-        assert_eq!(params["reasoning"]["summary"], "auto");
+    fn extra_params_default_no_reasoning() {
+        // openai gets parallel_tool_calls only
+        let p = extra_params(OpenAiProvider::OpenAi).unwrap();
+        assert_eq!(p["parallel_tool_calls"], true);
+        assert!(p.get("reasoning").is_none());
+
+        // xai gets nothing by default
+        assert!(extra_params(OpenAiProvider::Xai).is_none());
+
+        // openrouter gets parallel_tool_calls only
+        let p = extra_params(OpenAiProvider::OpenRouter).unwrap();
+        assert_eq!(p["parallel_tool_calls"], true);
+        assert!(p.get("reasoning").is_none());
     }
 
     #[test]

@@ -27,6 +27,10 @@ pub fn openai_agents_max_turns() -> usize {
         .unwrap_or(100)
 }
 
+pub fn reasoning_effort() -> Option<String> {
+    env::var("GREMLINS_REASONING_EFFORT").ok()
+}
+
 const TRANSIENT_SUBSTRINGS: &[&str] = &[
     "capacity",
     "rate limit",
