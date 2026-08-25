@@ -261,18 +261,11 @@ async def run_pipeline(
         "GREMLIN_STATE_DIR": str(gremlin.state_dir),
     }
 
-    # Base env: only PATH and HOME from parent, plus the sandbox override
-    # and system vars (so users can write e.g.
-    # export PATH="$PATH:$GREMLIN_WORKSPACE_DIR/bin").
-    # GREMLINS_SANDBOX_ROOT is infrastructure that paths.py still reads after
-    # isolation (e.g. write_terminal_state in the spawn boundary); it is not a
-    # system var, so users may override it at their own risk.
-    _base = {
-        "PATH": os.environ.get("PATH", ""),
-        "HOME": os.environ.get("HOME", ""),
-    }
-    if "GREMLINS_SANDBOX_ROOT" in os.environ:
-        _base["GREMLINS_SANDBOX_ROOT"] = os.environ["GREMLINS_SANDBOX_ROOT"]
+    # Base env: full parent environment so .gremlins/env has complete
+    # control — it can forward what it wants, override, or unset.
+    # System vars go on top (available during sourcing) but are
+    # re-injected last so users cannot tamper with them.
+    _base = dict(os.environ)
     _base.update(_system)
 
     _env_file = paths.project_overlay_dir(_project_root) / "env"

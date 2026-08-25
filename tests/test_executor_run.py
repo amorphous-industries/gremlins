@@ -127,7 +127,7 @@ _system = {{
     "GREMLIN_STATE_DIR": str(state_dir),
 }}
 
-_base = {{"PATH": os.environ.get("PATH", ""), "HOME": os.environ.get("HOME", "")}}
+_base = dict(os.environ)
 _base.update(_system)
 
 _env_file = pathlib.Path(_project_root) / ".gremlins" / "env"
@@ -167,32 +167,31 @@ json.dump(dict(os.environ), open({str(result_file)!r}, "w"))
 
 
 def test_env_isolation_no_file(sandbox, tmp_path):
-    """Without .gremlins/env, only PATH, HOME, and system vars survive."""
+    """Without .gremlins/env, the full parent environment passes through."""
     result = _run_isolation_subprocess(
         tmp_path,
         project_root=str(sandbox.project),
         state_root=str(sandbox.state),
         env_file_content=None,
-        extra_parent_vars={"SHOULD_NOT_LEAK": "leaked"},
+        extra_parent_vars={"MY_VAR": "my_value"},
     )
-    assert "SHOULD_NOT_LEAK" not in result
+    # Parent vars pass through when there's no env file.
+    assert result["MY_VAR"] == "my_value"
     assert result["GREMLINS_GREMLIN_ID"] == "test-gremlin"
-    assert "PATH" in result
-    assert "HOME" in result
     assert "GREMLINS_PROJECT_ROOT" in result
 
 
 def test_env_isolation_with_file(sandbox, tmp_path):
-    """With .gremlins/env, custom vars appear and parent vars do not leak."""
+    """With .gremlins/env, custom vars appear and parent env is available."""
     result = _run_isolation_subprocess(
         tmp_path,
         project_root=str(sandbox.project),
         state_root=str(sandbox.state),
         env_file_content="export CUSTOM_VAR=hello\n",
-        extra_parent_vars={"SHOULD_NOT_LEAK": "leaked"},
+        extra_parent_vars={"PARENT_VAR": "still_here"},
     )
-    assert "SHOULD_NOT_LEAK" not in result
     assert result["CUSTOM_VAR"] == "hello"
+    assert result["PARENT_VAR"] == "still_here"
     assert result["GREMLINS_GREMLIN_ID"] == "test-gremlin"
 
 

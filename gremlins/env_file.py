@@ -59,11 +59,12 @@ def load_env_file_isolated(
     base_env: dict[str, str],
     cwd: pathlib.Path | None = None,
 ) -> dict[str, str]:
-    """Source `path` in a clean bash environment and return every env var.
+    """Source `path` in a controlled bash environment and return every env var.
 
-    `base_env` is the **only** environment the bash subprocess receives.
-    It must contain PATH, HOME, and all system vars, and nothing else.
-    The caller is responsible for constructing `base_env` correctly.
+    `base_env` is the environment the bash subprocess receives.
+    The caller constructs it — typically the full parent env plus system vars,
+    so `.gremlins/env` has complete control over what to keep or override.
+    The caller re-injects system vars afterward so users cannot tamper.
     """
     try:
         result = subprocess.run(

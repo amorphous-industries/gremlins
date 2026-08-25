@@ -1,48 +1,18 @@
 # ---- .gremlins/env ----
 #
 # This file is the **sole** source of environment variables for gremlin runs.
-# The harness passes through only PATH and HOME; everything else must be
-# declared here. System vars (GREMLINS_PROJECT_ROOT, GREMLINS_GREMLIN_ID,
-# etc.) are available during sourcing and re-injected afterward — do not
-# try to override them.
-#
-# Three groups below:
-#   1. Project config — hard-coded values for this project.
-#   2. User environment essentials — forwarded from the calling shell.
-#   3. Secrets — sourced from an untracked file.
+# It inherits the full calling environment; whatever it sets, unsets, or
+# leaves unchanged is what the pipeline sees. System vars (GREMLINS_PROJECT_ROOT,
+# GREMLINS_GREMLIN_ID, etc.) are available during sourcing and re-injected
+# afterward — do not try to override them.
 
 
-# ---------------------------------------------------------------------------
-# 1. Project-specific configuration
-# ---------------------------------------------------------------------------
+# ---- Project config ---------------------------------------------------------
 
 export GREMLINS_OPENAI_AGENTS_MAX_TURNS='1000'
 
 
-# ---------------------------------------------------------------------------
-# 2. User environment essentials
-#
-# PATH and HOME are always provided by the harness. Forward everything else
-# the project needs at runtime: SSH agent, locale, toolchain dirs, identity.
-# ---------------------------------------------------------------------------
-
-_essentials=(
-    SSH_AUTH_SOCK   # git push during gh pipeline stages
-    LANG            # suppress setlocale noise from subprocess tools
-    LC_ALL
-    LC_CTYPE
-    CARGO_HOME      # user toolchain home overrides
-    RUSTUP_HOME
-    USER            # git config fallback, general tool identity
-)
-for _v in "${_essentials[@]}"; do
-    [ -n "${!_v:-}" ] && export "$_v"
-done
-unset _v _essentials
-
-
-# ---------------------------------------------------------------------------
-# 3. Rust build cache
+# ---- Rust build cache -------------------------------------------------------
 #
 # Gremlin worktrees live in temp dirs, so cargo builds from scratch every
 # verify iteration without this. Two complementary strategies:
@@ -53,18 +23,14 @@ unset _v _essentials
 # b) sccache (brew install sccache) — content-hash-based compiler cache
 #    that spans different git states, so changing source doesn't lose
 #    the cache.
-# ---------------------------------------------------------------------------
 
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-${GREMLINS_PROJECT_ROOT}/.cargo-gremlin-target}"
-
 if command -v sccache &>/dev/null; then
     export RUSTC_WRAPPER="${RUSTC_WRAPPER:-sccache}"
 fi
 
 
-# ---------------------------------------------------------------------------
-# 4. Secrets (untracked file)
-# ---------------------------------------------------------------------------
+# ---- Secrets (untracked file) -----------------------------------------------
 
 SECRET_ENV="${GREMLINS_PROJECT_ROOT}/secret_env"
 if [ -f "$SECRET_ENV" ]; then
