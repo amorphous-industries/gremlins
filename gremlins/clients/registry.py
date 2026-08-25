@@ -3,9 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-CLIENT_FACTORIES: dict[
-    str, Callable[[str | None, dict[str, str] | None], Any]
-] = {}
+CLIENT_FACTORIES: dict[str, Callable[[str | None, dict[str, str] | None], Any]] = {}
 
 
 def register_client_factory(

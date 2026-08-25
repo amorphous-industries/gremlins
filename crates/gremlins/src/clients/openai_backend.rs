@@ -529,10 +529,7 @@ fn build_extra_params(
 
     match provider {
         OpenAiProvider::OpenAi | OpenAiProvider::OpenRouter => {
-            params.insert(
-                "parallel_tool_calls".into(),
-                serde_json::Value::Bool(true),
-            );
+            params.insert("parallel_tool_calls".into(), serde_json::Value::Bool(true));
         }
         _ => {}
     }
@@ -541,7 +538,7 @@ fn build_extra_params(
     let effort = client_params
         .get("reasoning")
         .cloned()
-        .or_else(|| config::reasoning_effort());
+        .or_else(config::reasoning_effort);
     if let Some(effort) = effort {
         params.insert(
             "reasoning".into(),
@@ -550,9 +547,10 @@ fn build_extra_params(
     }
 
     // Pass through any other client params as top-level string values.
-    // "reasoning" is excluded — handled above with its nested-object shape.
+    // "reasoning" and "parallel_tool_calls" are excluded — reserved keys with
+    // provider-specific handling above.
     for (k, v) in client_params {
-        if k != "reasoning" {
+        if k != "reasoning" && k != "parallel_tool_calls" {
             params.insert(k.clone(), serde_json::Value::String(v.clone()));
         }
     }

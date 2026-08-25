@@ -48,16 +48,19 @@ class Client:
                 f"invalid client specifier {s!r}: provider must not be empty"
             )
         if not rest:
-            raise ValueError(
-                f"invalid client specifier {s!r}: model must not be empty"
-            )
+            raise ValueError(f"invalid client specifier {s!r}: model must not be empty")
         if provider not in CLIENT_FACTORIES:
-            raise ValueError(
-                f"unknown provider {provider!r} in client specifier {s!r}"
-            )
+            raise ValueError(f"unknown provider {provider!r} in client specifier {s!r}")
 
         extra_params: dict[str, str] = {}
         # cmd provider: the "model" is the full command, no params suffix.
+        # Note: param values are matched greedily by _PARAMS_RE (value class is
+        # [^=,]+). This means colons inside values are allowed, e.g.
+        # "model:reasoning=val:with:colons" parses "val:with:colons" as the
+        # reasoning value. This is intentional to support colon-bearing values,
+        # but it means a trailing ":suffix" is swallowed into the last param.
+        # Models with colons in their name work fine as long as params follow
+        # after the model name colon.
         if provider != "cmd":
             m = _PARAMS_RE.search(rest)
             if m:
@@ -91,15 +94,15 @@ class Client:
         )
 
     def __hash__(self) -> int:
-        return hash((self.provider, self.model, tuple(sorted(self.extra_params.items()))))
+        return hash(
+            (self.provider, self.model, tuple(sorted(self.extra_params.items())))
+        )
 
     def _get_impl(self) -> Any:
         if self._impl is None:
             if self.provider not in CLIENT_FACTORIES:
                 raise ValueError(f"unknown provider {self.provider!r}")
-            self._impl = CLIENT_FACTORIES[self.provider](
-                self.model, self.extra_params
-            )
+            self._impl = CLIENT_FACTORIES[self.provider](self.model, self.extra_params)
         return self._impl
 
     async def run(

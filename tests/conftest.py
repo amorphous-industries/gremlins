@@ -69,7 +69,9 @@ FAKE_CLAUDE = FIXTURES_DIR / "fake_claude.py"
 
 
 def pytest_configure(config: pytest.Config) -> None:
-    def _make_fake_client(model: str | None) -> object:
+    def _make_fake_client(
+        model: str | None, extra_params: dict[str, str] | None = None
+    ) -> object:
         return FakeClient(
             fixtures={},
             model=model or "fake",

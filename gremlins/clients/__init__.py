@@ -60,6 +60,9 @@ def _make_openrouter_client(
 def _make_cmd_client(
     model: str | None, extra_params: dict[str, str] | None = None
 ) -> object:
+    # "model" holds the full shell command for the cmd provider.
+    # extra_params is accepted for signature uniformity but ignored — cmd
+    # is exempt from param parsing in Client.parse().
     if not model:
         raise ValueError("cmd: command is required")
     from _gremlins_core.clients import RustClient
