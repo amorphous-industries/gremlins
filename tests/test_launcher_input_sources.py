@@ -31,7 +31,7 @@ class TestSeedRegistryFromSources:
             registry, {"instructions": "do the thing"}, sources, artifact_dir
         )
 
-        assert registry.data["instructions"] == "file://session/instructions.txt"
+        assert registry.raw_entry("instructions") == "file://session/instructions.txt"
         assert (artifact_dir / "instructions.txt").read_text() == "do the thing"
 
     def test_filepath_source_copies_to_session(self, tmp_path: pathlib.Path) -> None:
@@ -44,7 +44,7 @@ class TestSeedRegistryFromSources:
             registry, {"plan": str(plan_file)}, sources, artifact_dir
         )
 
-        assert registry.data["plan"] == "file://session/plan.md"
+        assert registry.raw_entry("plan") == "file://session/plan.md"
         assert (artifact_dir / "plan.md").read_text() == "# Plan"
 
     def test_union_type_falls_back_to_string(self, tmp_path: pathlib.Path) -> None:

@@ -16,7 +16,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, cast
 
 from gremlins import paths
-from gremlins.artifacts.uri import Uri
+from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.executor.parallel_state import ParallelGroupState
 
 if TYPE_CHECKING:
@@ -487,53 +487,37 @@ class _ParallelExecutor:
         sr = paths.state_root()
         parent_keys: set[str] = set(parent_state.artifacts.keys())
 
-        # key -> [(child_key, child_id, uri_str)] — only new bindings not in parent at fan-out
-        per_key: dict[str, list[tuple[str, str, str]]] = {}
-        # Iterate all children (via _stages_by_key), not _child_runners.
-        # On resume, _child_runners excludes already-done children, but those
-        # children may have completed in a prior run whose fan-in was skipped
-        # (e.g. because a sibling failed, causing _parallel to raise).  We must
-        # still gather their artifacts before removing child state dirs.
+        # key -> list of (child_key, child_id)
+        per_key: dict[str, list[tuple[str, str]]] = {}
         for child_key in self._stages_by_key:
             child_id = f"{parent_gid}--{self._group_name}--{child_key}"
-            child_reg = sr / child_id / "registry.json"
-            if not child_reg.exists():
+            child_reg_path = sr / child_id / "registry.json"
+            if not child_reg_path.exists():
                 continue
-            child_bindings: dict[str, str] = json.loads(
-                child_reg.read_text(encoding="utf-8")
+            child = ArtifactRegistry.from_registry_file(
+                child_reg_path,
+                artifact_dir=sr / child_id / "artifacts",
             )
-            for k, v in child_bindings.items():
+            for k in child.keys():
                 if k in parent_keys:
                     continue
-                per_key.setdefault(k, []).append((child_key, child_id, v))
+                per_key.setdefault(k, []).append((child_key, child_id))
 
         for key, producers in per_key.items():
             multi = len(producers) > 1
-            for child_key, child_id, uri_str in producers:
-                bound_key = f"{key}/{child_key}" if multi else key
-                if uri_str.startswith("file://session/"):
-                    name = uri_str[len("file://session/") :]
-                    src = sr / child_id / "artifacts" / name
-                    if not src.exists():
-                        logger.warning("child artifact missing: %s", src)
-                        continue
-                    dest_name = f"{child_key}/{name}" if multi else name
-                    dest = parent_state.artifact_dir / dest_name
-                    dest.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(src, dest)
-                    parent_state.artifacts.bind(
-                        bound_key, Uri.parse(f"file://session/{dest_name}")
-                    )
-                else:
-                    try:
-                        parent_state.artifacts.bind(bound_key, Uri.parse(uri_str))
-                    except Exception:
-                        logger.warning(
-                            "failed to bind %s -> %s into parent registry",
-                            bound_key,
-                            uri_str,
-                            exc_info=True,
-                        )
+            for child_key, child_id in producers:
+                child_reg_path = sr / child_id / "registry.json"
+                child = ArtifactRegistry.from_registry_file(
+                    child_reg_path,
+                    artifact_dir=sr / child_id / "artifacts",
+                )
+                parent_state.artifacts.merge_from(
+                    child,
+                    key_prefix=child_key if multi else "",
+                    copy_files=True,
+                    dest_artifact_dir=parent_state.artifact_dir,
+                    keys={key},
+                )
 
     async def _fan_in(self) -> None:
         self._set_stage(f"{self._group_name}-fanin")

@@ -25,3 +25,14 @@ class Uri:
 
     def __str__(self) -> str:
         return f"{self.scheme}://{self.path}"
+
+    @staticmethod
+    def is_range(value: str) -> bool:
+        return value == "git://range"
+
+    @staticmethod
+    def parse_or_none(s: str) -> Uri | None:
+        try:
+            return Uri.parse(s)
+        except ValueError:
+            return None

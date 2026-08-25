@@ -5,6 +5,7 @@ import sys
 from typing import Any
 
 from gremlins.artifacts.registry import ArtifactRegistry
+from gremlins.artifacts.uri import Uri
 from gremlins.paths import project_root, state_root
 from gremlins.pipeline import Pipeline
 from gremlins.pipeline.discovery import resolve_pipeline_name
@@ -59,17 +60,19 @@ def _collect(st: Any, info: dict[str, dict[str, Any]]) -> None:
     nm = getattr(st, "name", "?")
     for k, u in getattr(st, "out_map", {}).items():
         k = k[:-1] if k.endswith("?") else k
+        uri = Uri.parse_or_none(u)
+        sch = uri.scheme if uri else "?"
         if k not in info:
             info[k] = {
                 "uri": u,
-                "scheme": extract_scheme(u),
+                "scheme": sch,
                 "producers": [],
                 "consumers": [],
             }
         d = info[k]
         if d.get("uri") == "?":
             d["uri"] = u
-            d["scheme"] = extract_scheme(u)
+            d["scheme"] = sch
         if nm not in d["producers"]:
             d["producers"].append(nm)
     for ref in getattr(st, "in_map", {}).values():
@@ -83,15 +86,11 @@ def _collect(st: Any, info: dict[str, dict[str, Any]]) -> None:
             d["consumers"].append(nm)
 
 
-def extract_scheme(u: str) -> str:
-    return u.split("://", 1)[0] if "://" in u else "?"
-
-
 def _print_live(reg: ArtifactRegistry) -> None:
     rpath = reg.registry_path
-    data: dict[str, Any] = reg.data
     print(f"live:{rpath}")
-    for k in sorted(data):
-        v = data[k]
-        sch = v.split("://", 1)[0] if isinstance(v, str) and "://" in v else "?"
+    for k in sorted(reg.keys()):
+        v = reg.raw_entry(k)
+        uri = Uri.parse_or_none(v) if isinstance(v, str) else None
+        sch = uri.scheme if uri else "?"
         print(f"  {k} {v}({sch})")

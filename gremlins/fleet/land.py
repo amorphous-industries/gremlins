@@ -12,8 +12,7 @@ from typing import Any, cast
 
 import gremlins.utils.git as _git
 from gremlins import paths
-from gremlins.artifacts.registry import ArtifactRegistry, MissingArtifact
-from gremlins.artifacts.resolve import resolve_in_map
+from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.clients.client import Client
 from gremlins.fleet.resolve import resolve_gremlin
 from gremlins.fleet.state import (
@@ -288,25 +287,31 @@ def do_rm(target: str) -> bool:
     return True
 
 
-def _compose_commit_message(plan_path: str):
-    """Return (subject, body) distilled from plan.md.
+def _registry_for_gremlin(gremlin_id: str, state: dict[str, Any]) -> ArtifactRegistry:
+    project_root = state.get("project_root") or ""
+    cwd = pathlib.Path(project_root) if project_root and os.path.isdir(project_root) else None
+    artifact_dir = paths.state_root() / gremlin_id / "artifacts"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    return ArtifactRegistry(artifact_dir=artifact_dir, cwd=cwd)
 
-    Tries sections in order: ## Context, then ## Goal.
-    Falls back to the document title (first # heading) if neither works.
-    """
+
+def _compose_commit_message(plan_path: str):
+    """Return (subject, body) distilled from plan.md."""
     try:
         with open(plan_path, encoding="utf-8") as fh:
             content = fh.read()
     except OSError:
         return _fallback_commit_subject(), ""
+    return _compose_commit_message_from_content(content)
 
-    # Try ## Context, then ## Goal
+
+def _compose_commit_message_from_content(content: str):
+    """Return (subject, body) distilled from plan.md content."""
     para = _extract_first_paragraph(content, "Context") or _extract_first_paragraph(
         content, "Goal"
     )
 
     if not para:
-        # Fall back to the document title
         title_m = re.search(r"^#\s+(.+)", content, re.MULTILINE)
         if title_m:
             para = title_m.group(1).strip()
@@ -369,26 +374,15 @@ def _extract_task_body(content: str) -> str:
 
 
 def _gather_commit_inputs(
-    wdir: str, state: dict[str, Any], branch: str, merge_base: str, cwd: str | None
+    registry: ArtifactRegistry, state: dict[str, Any], branch: str, merge_base: str, cwd: str | None
 ) -> dict[str, Any]:
     """Collect all available context for commit message synthesis."""
     inputs = {"description": state.get("description", "")}
 
     _CONTENT_CAP = 4000  # chars; enough context without blowing up the prompt
 
-    plan_path = os.path.join(wdir, "artifacts", "plan.md")
-    try:
-        with open(plan_path, encoding="utf-8") as fh:
-            inputs["plan"] = fh.read(_CONTENT_CAP)
-    except OSError:
-        inputs["plan"] = ""
-
-    spec_path = os.path.join(wdir, "artifacts", "spec.md")
-    try:
-        with open(spec_path, encoding="utf-8") as fh:
-            inputs["spec"] = fh.read(_CONTENT_CAP)
-    except OSError:
-        inputs["spec"] = ""
+    inputs["plan"] = registry.get_file_contents("plan")[:_CONTENT_CAP]
+    inputs["spec"] = registry.get_file_contents("spec")[:_CONTENT_CAP]
 
     inputs["git_log"] = "\n".join(
         _git.log_oneline(f"{merge_base}..{branch}", cwd=cwd).splitlines()[:100]
@@ -496,7 +490,7 @@ Output only the commit message text, nothing else."""
 
 
 def _build_commit_message(
-    wdir: str,
+    registry: ArtifactRegistry,
     state: dict[str, Any],
     branch: str,
     merge_base: str,
@@ -504,7 +498,7 @@ def _build_commit_message(
     client: Client,
 ) -> tuple[str, str, float]:
     """Return (subject, body, cost_usd) using AI synthesis with fallback to regex extraction."""
-    inputs = _gather_commit_inputs(wdir, state, branch, merge_base, cwd)
+    inputs = _gather_commit_inputs(registry, state, branch, merge_base, cwd)
 
     print("Composing commit message...", flush=True)
     try:
@@ -516,13 +510,11 @@ def _build_commit_message(
             f"warning: AI commit message synthesis failed ({exc}); falling back to plan.md extraction",
             flush=True,
         )
-        plan_path = os.path.join(wdir, "artifacts", "plan.md")
-        if not os.path.isfile(plan_path):
-            print(
-                f"error: plan.md not found at {plan_path} — cannot build commit message"
-            )
+        plan = registry.get_file_contents("plan")
+        if not plan:
+            print("error: plan.md not found — cannot build commit message")
             raise
-        subject, body = _compose_commit_message(plan_path)
+        subject, body = _compose_commit_message_from_content(plan)
         return subject, body, 0.0
 
 
@@ -617,7 +609,7 @@ def _squash_land(
         return False
 
     subject, body, land_cost = _build_commit_message(
-        wdir, state, source_ref, base, cwd, client
+        _registry_for_gremlin(gremlin_id, state), state, source_ref, base, cwd, client
     )
     commit_msg = f"{subject}\n\n{body}" if body else subject
 
@@ -753,10 +745,11 @@ def _land_gh(
         cwd=pathlib.Path(cwd) if cwd else None,
     )
     try:
-        pr_url = resolve_in_map(registry, {"url": "pr-url"})["url"].strip()
-    except MissingArtifact:
-        print(f"error: no PR URL recorded for {gremlin_id}")
-        return False
+        pr_url = registry.get_pr_url()
+        if not pr_url:
+            print(f"error: no PR URL recorded for {gremlin_id}")
+            return False
+        pr_url = pr_url.strip()
 
     print(f"Checking PR: {pr_url}")
     r = proc.run(

@@ -6,6 +6,7 @@ import json
 import os
 import pathlib
 import secrets
+import shutil
 from collections.abc import Iterable, Mapping
 from typing import Any
 
@@ -142,3 +143,105 @@ class ArtifactRegistry:
         if not sha:
             raise RuntimeError("could not resolve HEAD")
         self.bind(key, Uri.parse(f"git://range/{base_sha}..{sha}"))
+
+    # ------------------------------------------------------------------
+    # accessor methods
+    # ------------------------------------------------------------------
+
+    def raw_entry(self, key: str) -> str | None:
+        """Return the unresolved URI string for *key*, or None if unbound."""
+        return self.data.get(key)
+
+    def get_base_sha(self) -> str:
+        uri_str = self.data.get("base_sha")
+        if not uri_str or not isinstance(uri_str, str):
+            return ""
+        if uri_str.startswith("git://commit/"):
+            return uri_str.removeprefix("git://commit/")
+        return ""
+
+    def get_base_ref(self) -> str:
+        uri_str = self.data.get("base_ref")
+        if not uri_str or not isinstance(uri_str, str):
+            return ""
+        if uri_str.startswith("git://ref/"):
+            return uri_str.removeprefix("git://ref/")
+        return ""
+
+    def get_pr_url(self) -> str | None:
+        for key in ("pr-url", "pr"):
+            try:
+                value = self.read(key)
+            except MissingArtifact:
+                continue
+            if isinstance(value, str):
+                return value
+            if isinstance(value, dict) and "uri" in value:
+                return value["uri"]
+        return None
+
+    def get_file_contents(self, key: str, *, default: str = "") -> str:
+        try:
+            uri = self.resolve(key)
+        except MissingArtifact:
+            return default
+        if uri.scheme != "file":
+            return default
+        try:
+            return self._resolvers["file"].read(uri)
+        except Exception:
+            return default
+
+    def merge_from(
+        self,
+        other: ArtifactRegistry,
+        *,
+        key_prefix: str = "",
+        copy_files: bool = False,
+        dest_artifact_dir: pathlib.Path | None = None,
+        keys: set[str] | None = None,
+    ) -> None:
+        """Copy file artifacts and rebind non-file URIs from *other* into self.
+
+        Keys already present in self are skipped. When *key_prefix* is set,
+        each incoming key is prefixed with ``key_prefix + "/"``.
+        """
+        for key in keys if keys is not None else other.keys():
+            if key in self.data:
+                continue
+            uri_str = other.raw_entry(key)
+            if not uri_str or not isinstance(uri_str, str):
+                continue
+            bound_key = f"{key_prefix}/{key}" if key_prefix else key
+            if uri_str.startswith("file://session/") and copy_files:
+                name = uri_str[len("file://session/"):]
+                src = other._resolvers["file"]._artifact_dir / name
+                if not src.exists():
+                    continue
+                dest_dir = dest_artifact_dir or self._resolvers["file"]._artifact_dir
+                dest_name = f"{key_prefix}/{name}" if key_prefix else name
+                dest = dest_dir / dest_name
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, dest)
+                self.bind(bound_key, Uri.parse(f"file://session/{dest_name}"))
+            else:
+                try:
+                    self.bind(bound_key, Uri.parse(uri_str))
+                except Exception:
+                    pass
+
+    @classmethod
+    def from_registry_file(
+        cls,
+        path: pathlib.Path,
+        *,
+        artifact_dir: pathlib.Path,
+        cwd: pathlib.Path | None = None,
+    ) -> ArtifactRegistry:
+        """Load a registry from a registry.json at *path*."""
+        registry = cls(artifact_dir=artifact_dir, cwd=cwd)
+        if path.exists():
+            registry.data = dict(json.loads(path.read_text(encoding="utf-8")))
+            if path != registry.registry_path:
+                registry._persist()
+        return registry
