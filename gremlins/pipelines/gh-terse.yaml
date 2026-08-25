@@ -41,6 +41,7 @@ stages:
     type: normalize
     out:
       normalize-commits: git://range
-  - { type: verify,    options: { cmds: ["make check && make test"] }, prompt: verify }
+  - { name: verify-check, type: verify, options: { cmds: ["make check"] }, prompt: verify }
+  - { name: verify-test,  type: verify, options: { cmds: ["make test"] },  prompt: verify }
   - { name: open-pr,   type: gremlins:github-open-pr }
   - { name: ci-gate,   type: gremlins:github-wait-ci,  prompt: [gremlins:ci_fix.md, gremlins:bail_section_fix.md] }

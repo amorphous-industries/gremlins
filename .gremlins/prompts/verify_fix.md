@@ -3,7 +3,10 @@ The verify step failed. Read the captured output below, then fix the code so
 the commands exit 0.
 
 **Steps:**
-1. Read the failure output and diff, and fix the actual violations. Do not skip
+1. Read the failure output and diff, and fix the actual violations. Fix only the
+   specific errors reported in the output below — do not investigate git history,
+   diff against past commits, or chase unrelated tests. The failing lines name the
+   exact files and locations to fix. Do not skip
    or disable linting rules, formatter directives, or type-check annotations to
    make checks pass. Do not weaken, delete, or change the intent of test
    assertions or fixtures — fix the implementation code instead. Mechanical

@@ -15,17 +15,19 @@ stages:
         options:
           cmds:
             - "{{options.cmds}}"
-      - name: verify-diff
+      - name: verify-context
         type: exec
         out:
+          verify_summary: "file://session/verify-summary.txt"
           verify_diff: "file://session/verify-diff.txt"
         options:
           cmds:
+            - 'sed -E -e ''/^[[:space:]]*(Compiling|Checking|Finished|Downloaded|Downloading|Updating|Blocking|Locking|Fresh|Installing|Removing) /d'' -e ''/reportMissingModuleSource/d'' -e ''/there is a new pyright version/d'' -e ''/Please install the new version/d'' "{artifact_dir}/exec-cmd.log" | head -c 20000 > "{artifact_dir}/verify-summary.txt"; [ -s "{artifact_dir}/verify-summary.txt" ] || cp "{artifact_dir}/exec-cmd.log" "{artifact_dir}/verify-summary.txt"'
             - 'git diff HEAD > "{artifact_dir}/verify-diff.txt"; [ -s "{artifact_dir}/verify-diff.txt" ] || printf "(no uncommitted changes)\n" > "{artifact_dir}/verify-diff.txt"'
       - name: fix
         type: agent
         prompt:
           - "{{prompt}}"
         in:
-          verify_output: verify_log
+          verify_output: verify_summary
           diff_text: verify_diff

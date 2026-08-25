@@ -22,7 +22,7 @@ _BUNDLED_PROMPTS = (
 
 def test_local_yaml_loads_and_validates(tmp_path):
     pipeline = Pipeline.from_yaml(resolve_pipeline_path("local", tmp_path))
-    assert len(pipeline.stages) == 11
+    assert len(pipeline.stages) == 12
     names = [s.name for s in pipeline.stages]
     assert names == [
         "inputs",
@@ -35,7 +35,8 @@ def test_local_yaml_loads_and_validates(tmp_path):
         "review-code",
         "address-code",
         "normalize",
-        "verify",
+        "verify-check",
+        "verify-test",
     ]
 
 
