@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 from gremlins.clients.client import Client
-from gremlins.clients.protocol import CompletedRun
+from gremlins.clients.protocol import CompletedRun, UsageStats
 
 
 @dataclass
@@ -118,6 +118,7 @@ class FakeClient(Client):
 
         cost_usd: float | None = None
         result_text: str | None = None
+        token_usage: UsageStats | None = None
         for evt in events:
             if evt.get("type") == "result":
                 raw_cost = evt.get("total_cost_usd", evt.get("cost_usd"))
@@ -127,12 +128,16 @@ class FakeClient(Client):
                 raw_result = evt.get("result")
                 if isinstance(raw_result, str):
                     result_text = raw_result
+            raw_usage = evt.get("token_usage")
+            if isinstance(raw_usage, dict):
+                token_usage = UsageStats(**raw_usage)
 
         return CompletedRun(
             exit_code=0,
             text_result=result_text,
             events=events if capture_events else None,
             cost_usd=cost_usd,
+            token_usage=token_usage,
         )
 
     async def resume(self) -> CompletedRun:

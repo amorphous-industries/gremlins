@@ -48,6 +48,30 @@ def test_wait_blocks_and_returns_exit_code():
     assert rc == 42
 
 
+def test_telemetry_flag_parses_and_aliases():
+    parser = build_launch_parser("some-pipeline", _pipeline_with_inputs(None))
+    assert parser.parse_args([]).telemetry is False
+    assert parser.parse_args(["--telemetry"]).telemetry is True
+    assert parser.parse_args(["-v"]).telemetry is True
+
+
+def test_telemetry_flag_forwarded_to_launch():
+    fake_proc = MagicMock()
+    fake_proc.poll.return_value = None
+    fake_id = "gr-tele01"
+    parser = build_launch_parser("some-pipeline", _pipeline_with_inputs(None))
+    args = parser.parse_args(["--telemetry"])
+    with (
+        patch(
+            "gremlins.cli.launch.launch", return_value=(fake_id, fake_proc)
+        ) as mock_launch,
+        patch("gremlins.cli.launch.time.sleep"),
+        patch("gremlins.cli.launch.time.time", side_effect=[0, 100]),
+    ):
+        _self_background_main("some-pipeline", args, {}, telemetry=args.telemetry)
+    assert mock_launch.call_args.kwargs.get("telemetry") is True
+
+
 def test_pr_flag_forwarded_to_launch():
     """PR passed via --pr lands in stage_inputs, which launch reads from."""
     fake_proc = MagicMock()

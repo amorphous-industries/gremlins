@@ -736,6 +736,25 @@ def test_pipeline_survives_worktree_pipeline_rename(lenv, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# telemetry env propagation
+# ---------------------------------------------------------------------------
+
+
+def test_build_spawn_env_sets_telemetry_when_enabled(lenv):
+    from gremlins import launcher
+
+    env = launcher._build_spawn_env("gr-test", telemetry=True)
+    assert env["GREMLINS_TELEMETRY"] == "1"
+
+
+def test_build_spawn_env_omits_telemetry_by_default(lenv):
+    from gremlins import launcher
+
+    env = launcher._build_spawn_env("gr-test")
+    assert "GREMLINS_TELEMETRY" not in env
+
+
+# ---------------------------------------------------------------------------
 # .gremlins overlay placement
 # ---------------------------------------------------------------------------
 

@@ -362,6 +362,10 @@ async fn run_agent_loop_core<M: CompletionModel>(
             });
         }
 
+        // Snapshot before request construction so TTFT includes connection /
+        // queue latency, not just server-side time-to-first-token.
+        let turn_start = Instant::now();
+
         let mut builder = model
             .completion_request(next_prompt.clone())
             .preamble(opts.instructions.to_string())
@@ -380,7 +384,6 @@ async fn run_agent_loop_core<M: CompletionModel>(
             }
         };
 
-        let turn_start = Instant::now();
         let mut first_token: Option<Instant> = None;
         let mut last_token: Option<Instant> = None;
 
@@ -492,6 +495,7 @@ async fn run_agent_loop_core<M: CompletionModel>(
                     total_prompt_tokens,
                     total_completion_tokens,
                     total_cached_tokens,
+                    total_cache_creation_tokens,
                     total_reasoning_tokens,
                 );
             }
@@ -580,6 +584,7 @@ async fn run_agent_loop_core<M: CompletionModel>(
             total_prompt_tokens,
             total_completion_tokens,
             total_cached_tokens,
+            total_cache_creation_tokens,
             total_reasoning_tokens,
         );
     }

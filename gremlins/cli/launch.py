@@ -22,7 +22,7 @@ _INFRA_ARGS = frozenset(
         "client",
         "gremlin_id",
         "wait",
-        "verbose",
+        "telemetry",
     }
 )
 _INFRA_FLAG_NAMES = frozenset(
@@ -35,6 +35,7 @@ _INFRA_FLAG_NAMES = frozenset(
         "client",
         "gremlin-id",
         "wait",
+        "telemetry",
     }
 )
 _LAUNCH_BRIEF = "usage: gremlins launch <name> [opts]\nLaunch a background gremlin by pipeline name. Run 'gremlins launch --list' to see available pipelines.\n"
@@ -67,8 +68,8 @@ def build_launch_parser(
     p.add_argument("--base-ref", default=None)
     p.add_argument("--client", default=None)
     p.add_argument(
+        "--telemetry",
         "-v",
-        "--verbose",
         action="store_true",
         help="Enable per-turn telemetry (TTFT, token counts, cache hit ratio) in the gremlin log.",
     )
@@ -138,7 +139,7 @@ def launch_main(argv: list[str]) -> int:
     if stage_inputs.get("pr") and args.base_ref:
         sys.stderr.write("error: --pr and --base-ref are mutually exclusive\n")
         return 1
-    return _self_background_main(name, args, stage_inputs, telemetry=args.verbose)
+    return _self_background_main(name, args, stage_inputs, telemetry=args.telemetry)
 
 
 def _self_background_main(

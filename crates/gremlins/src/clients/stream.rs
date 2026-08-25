@@ -142,20 +142,21 @@ pub(crate) fn emit_turn_metrics(
         "-".into()
     };
 
-    let reasoning_chars = reasoning.len();
-    let text_chars = text.len();
-    let total_chars = reasoning_chars + text_chars;
-    let reasoning_ratio = if total_chars > 0 {
+    // Byte lengths (not char counts) — a cheap proxy for output volume.
+    let reasoning_bytes = reasoning.len();
+    let text_bytes = text.len();
+    let total_bytes = reasoning_bytes + text_bytes;
+    let reasoning_byte_ratio = if total_bytes > 0 {
         format!(
             "{:.0}%",
-            (reasoning_chars as f64 / total_chars as f64) * 100.0
+            (reasoning_bytes as f64 / total_bytes as f64) * 100.0
         )
     } else {
         "-".into()
     };
 
     eprintln!(
-        "{} {}metrics: turn={} ttft={} gen={} tools={} prompt={} completion={} cached={}({}) reasoning_tok={} reasoning_ratio={}",
+        "{} {}metrics: turn={} ttft={} gen={} tools={} prompt={} completion={} cached={}({}) reasoning_tok={} reasoning_byte_ratio={}",
         ts_internal(),
         prefix,
         turn,
@@ -167,7 +168,7 @@ pub(crate) fn emit_turn_metrics(
         cached,
         cache_pct,
         reasoning_tok,
-        reasoning_ratio,
+        reasoning_byte_ratio,
     );
     flush();
 }
@@ -181,6 +182,7 @@ pub(crate) fn emit_summary(
     total_prompt: u64,
     total_completion: u64,
     total_cached: u64,
+    total_cache_creation: u64,
     total_reasoning: u64,
 ) {
     let wall = loop_start.elapsed();
@@ -204,17 +206,19 @@ pub(crate) fn emit_summary(
     } else {
         "-".into()
     };
-    let reasoning_pct = if token_total > 0 {
+    // Reasoning tokens are a subset of completion/output tokens, so report the
+    // ratio against completion — "how much of the model's output was reasoning".
+    let reasoning_pct = if total_completion > 0 {
         format!(
             "{:.0}%",
-            (total_reasoning as f64 / token_total as f64) * 100.0
+            (total_reasoning as f64 / total_completion as f64) * 100.0
         )
     } else {
         "-".into()
     };
 
     eprintln!(
-        "{} {}summary: turns={} wall={:.1}s token_total={} prompt_avg={} completion_avg={} cached_avg={} reasoning_pct={}",
+        "{} {}summary: turns={} wall={:.1}s token_total={} prompt_avg={} completion_avg={} cached_avg={} cache_creation={} reasoning_pct={}",
         ts_internal(),
         prefix,
         turns,
@@ -223,6 +227,7 @@ pub(crate) fn emit_summary(
         prompt_avg,
         completion_avg,
         cached_avg,
+        total_cache_creation,
         reasoning_pct,
     );
     flush();
