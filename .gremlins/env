@@ -12,6 +12,36 @@
 export GREMLINS_OPENAI_AGENTS_MAX_TURNS='1000'
 
 
+# ---- Virtual environment selection ------------------------------------------
+#
+# Each gremlin worktree builds its own venv at <worktree>/.venv during
+# bootstrap (`uv venv .venv`). uv then auto-discovers that `.venv` when a
+# later `uv pip install` runs in the same directory — no `--python` needed.
+#
+# The one thing that can defeat discovery is a venv inherited from the
+# caller's environment. VIRTUAL_ENV is uv's "active environment" (the env-var
+# form of `--active`); UV_PYTHON is the env-var form of `--python`. Both take
+# precedence over `.venv` discovery. UV_PROJECT_ENVIRONMENT pins the venv for
+# `uv sync`/`uv run`, and UV_SYSTEM_PYTHON forces the system interpreter.
+# Clear all four so the worktree venv always wins, no matter where the gremlin
+# was launched from.
+#
+# PYTHONPATH is not a venv selector, but it is the same class of inherited
+# leak: its entries are prepended to sys.path and shadow the editable install
+# in the worktree venv (a stale PYTHONPATH pointing at another checkout would
+# make pytest/pyright run against the wrong source tree). The Makefile already
+# clears it for `make test`/`make check`, but not for direct
+# `.venv/bin/python -m pytest` runs. Clear it here too.
+#
+# We intentionally do NOT set VIRTUAL_ENV here: the venv path is per-worktree,
+# and parallel children inherit os.environ without re-sourcing this file, so a
+# single path would point every child at the wrong worktree. The bootstrap
+# (which runs in each worktree with GREMLINS_BOOTSTRAP_CWD set) is where the
+# venv is created and discovered.
+
+unset VIRTUAL_ENV UV_PYTHON UV_PROJECT_ENVIRONMENT UV_SYSTEM_PYTHON PYTHONPATH || true
+
+
 # ---- Rust build cache -------------------------------------------------------
 #
 # Gremlin worktrees live in temp dirs, so cargo builds from scratch every
