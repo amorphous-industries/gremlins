@@ -22,27 +22,23 @@ export GREMLINS_OPENAI_AGENTS_MAX_TURNS='1000'
 # ---------------------------------------------------------------------------
 # 2. User environment essentials
 #
-# PATH and HOME are provided by the harness. Forward everything else the
-# project needs at runtime: SSH agent (git push), locale (tool warnings),
-# toolchain home dirs (cargo / rustup), and identity.
+# PATH and HOME are always provided by the harness. Forward everything else
+# the project needs at runtime: SSH agent, locale, toolchain dirs, identity.
 # ---------------------------------------------------------------------------
 
-# SSH agent — needed for gh pipeline stages that push branches.
-[ -n "${SSH_AUTH_SOCK:-}" ] && export SSH_AUTH_SOCK
-
-# Locale — suppress "setlocale: LC_ALL cannot change locale" noise from
-# every subprocess tool (cargo, ruff, claude, …).
-[ -n "${LANG:-}" ] && export LANG
-[ -n "${LC_ALL:-}" ] && export LC_ALL
-[ -n "${LC_CTYPE:-}" ] && export LC_CTYPE
-
-# Toolchain home dirs — cargo/rustup default to ~/.cargo and ~/.rustup,
-# but users who override them need the overrides forwarded.
-[ -n "${CARGO_HOME:-}" ] && export CARGO_HOME
-[ -n "${RUSTUP_HOME:-}" ] && export RUSTUP_HOME
-
-# Identity — git and assorted tools fall back to USER when not in a repo.
-[ -n "${USER:-}" ] && export USER
+_essentials=(
+    SSH_AUTH_SOCK   # git push during gh pipeline stages
+    LANG            # suppress setlocale noise from subprocess tools
+    LC_ALL
+    LC_CTYPE
+    CARGO_HOME      # user toolchain home overrides
+    RUSTUP_HOME
+    USER            # git config fallback, general tool identity
+)
+for _v in "${_essentials[@]}"; do
+    [ -n "${!_v:-}" ] && export "$_v"
+done
+unset _v _essentials
 
 
 # ---------------------------------------------------------------------------
