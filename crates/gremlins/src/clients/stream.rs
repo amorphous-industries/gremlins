@@ -1,8 +1,8 @@
 use std::io::Write;
 use std::time::{Instant, SystemTime};
 
-use rig_core::message::ToolCall;
 use rig_core::completion::Usage;
+use rig_core::message::ToolCall;
 
 pub(crate) fn ts_internal() -> String {
     // Manual UTC formatting to avoid chrono dependency
@@ -137,10 +137,7 @@ pub(crate) fn emit_turn_metrics(
     let reasoning_tok = usage.map(|u| u.reasoning_tokens).unwrap_or(0);
 
     let cache_pct = if prompt > 0 {
-        format!(
-            "{:.0}%",
-            (cached as f64 / (prompt as f64).max(1.0)) * 100.0
-        )
+        format!("{:.0}%", (cached as f64 / (prompt as f64).max(1.0)) * 100.0)
     } else {
         "-".into()
     };
@@ -149,7 +146,10 @@ pub(crate) fn emit_turn_metrics(
     let text_chars = text.len();
     let total_chars = reasoning_chars + text_chars;
     let reasoning_ratio = if total_chars > 0 {
-        format!("{:.0}%", (reasoning_chars as f64 / total_chars as f64) * 100.0)
+        format!(
+            "{:.0}%",
+            (reasoning_chars as f64 / total_chars as f64) * 100.0
+        )
     } else {
         "-".into()
     };
@@ -197,7 +197,10 @@ pub(crate) fn emit_summary(
         0
     };
     let cached_avg = if total_prompt > 0 {
-        format!("{:.0}%", (total_cached as f64 / total_prompt as f64) * 100.0)
+        format!(
+            "{:.0}%",
+            (total_cached as f64 / total_prompt as f64) * 100.0
+        )
     } else {
         "-".into()
     };
