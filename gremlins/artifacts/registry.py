@@ -158,7 +158,7 @@ class ArtifactRegistry:
     # accessor methods
     # ------------------------------------------------------------------
 
-    def raw_entry(self, key: str) -> Any:
+    def raw_entry(self, key: str) -> Any | None:
         """Return the raw stored value for *key*, or None if unbound."""
         return self.data.get(key)
 
@@ -223,12 +223,12 @@ class ArtifactRegistry:
         each incoming key is suffixed with ``"/" + key_prefix``.
         """
         for key in keys if keys is not None else other.keys():
-            if key in self.data:
-                continue
             uri_str = other.raw_entry(key)
             if not isinstance(uri_str, str):
                 continue
             bound_key = f"{key}/{key_prefix}" if key_prefix else key
+            if bound_key in self.data:
+                continue
             if uri_str.startswith("file://session/") and copy_files:
                 name = uri_str[len("file://session/") :]
                 src = other.file_resolver.path_for(Uri.parse(uri_str))
