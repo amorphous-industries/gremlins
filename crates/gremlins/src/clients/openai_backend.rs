@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use futures::future::join_all;
@@ -17,10 +17,11 @@ use tokio::sync::Notify;
 
 use super::backend::{Backend, ClientError, RunParams};
 use super::config::{self, validate_max_retries, STREAM_IDLE_BACKOFF};
-use super::protocol::CompletedRun;
+use super::protocol::{CompletedRun, UsageStats};
 use super::retry;
 use super::stream;
 use super::tools::{self, ToolContext};
+use rig_core::completion::{GetTokenUsage, Usage};
 
 const DEFAULT_TEMPERATURE: f64 = 0.4;
 
@@ -334,9 +335,18 @@ async fn run_agent_loop_core<M: CompletionModel>(
     let mut history: Vec<Message> = Vec::new();
     let mut next_prompt = Message::user(prompt.to_string());
     let mut turns: usize = 0;
+    let mut turn_num: usize = 0;
     let mut final_text = String::new();
     let mut timed_out = false;
     let mut stream_error: Option<String> = None;
+    let loop_start = Instant::now();
+
+    // Accumulated token totals (summed across turns)
+    let mut total_prompt_tokens: u64 = 0;
+    let mut total_completion_tokens: u64 = 0;
+    let mut total_cached_tokens: u64 = 0;
+    let mut total_cache_creation_tokens: u64 = 0;
+    let mut total_reasoning_tokens: u64 = 0;
 
     struct Job {
         id: String,
@@ -370,10 +380,15 @@ async fn run_agent_loop_core<M: CompletionModel>(
             }
         };
 
+        let turn_start = Instant::now();
+        let mut first_token: Option<Instant> = None;
+        let mut last_token: Option<Instant> = None;
+
         let mut text = String::new();
         let mut reasoning = String::new();
         let mut tool_calls: Vec<ToolCall> = Vec::new();
         let mut ended = false;
+        let mut turn_usage: Option<Usage> = None;
 
         loop {
             let item = tokio::select! {
@@ -403,7 +418,18 @@ async fn run_agent_loop_core<M: CompletionModel>(
                     break;
                 }
                 Ok(Some(Ok(chunk))) => {
-                    apply_chunk(chunk, &mut text, &mut reasoning, &mut tool_calls);
+                    let now = Instant::now();
+                    if first_token.is_none() {
+                        first_token = Some(now);
+                    }
+                    last_token = Some(now);
+                    apply_chunk(
+                        chunk,
+                        &mut text,
+                        &mut reasoning,
+                        &mut tool_calls,
+                        &mut turn_usage,
+                    );
                 }
             }
         }
@@ -431,16 +457,57 @@ async fn run_agent_loop_core<M: CompletionModel>(
             final_text = text.clone();
         }
 
+        if !nested {
+            stream::emit_turn_metrics(
+                prefix,
+                turn_num,
+                first_token,
+                last_token,
+                turn_start,
+                &reasoning,
+                &text,
+                &tool_calls,
+                turn_usage.as_ref(),
+            );
+        }
+
+        if let Some(ref u) = turn_usage {
+            total_prompt_tokens += u.input_tokens;
+            total_completion_tokens += u.output_tokens;
+            total_cached_tokens += u.cached_input_tokens;
+            total_cache_creation_tokens += u.cache_creation_input_tokens;
+            total_reasoning_tokens += u.reasoning_tokens;
+        }
+
+        turn_num += 1;
+
         if tool_calls.is_empty() {
             if !nested {
                 stream::flush();
                 emit_final(prefix, turns, "");
+                stream::emit_summary(
+                    prefix,
+                    turn_num,
+                    loop_start,
+                    total_prompt_tokens,
+                    total_completion_tokens,
+                    total_cached_tokens,
+                    total_reasoning_tokens,
+                );
             }
             return Ok(CompletedRun {
                 exit_code: 0,
                 text_result: Some(final_text),
                 events: captured.clone(),
                 cost_usd: None,
+                token_usage: Some(UsageStats {
+                    prompt_tokens: total_prompt_tokens,
+                    completion_tokens: total_completion_tokens,
+                    cached_input_tokens: total_cached_tokens,
+                    cache_creation_input_tokens: total_cache_creation_tokens,
+                    reasoning_tokens: total_reasoning_tokens,
+                    turns: turn_num,
+                }),
             });
         }
 
@@ -506,6 +573,15 @@ async fn run_agent_loop_core<M: CompletionModel>(
             ""
         };
         emit_final(prefix, turns, suffix);
+        stream::emit_summary(
+            prefix,
+            turn_num,
+            loop_start,
+            total_prompt_tokens,
+            total_completion_tokens,
+            total_cached_tokens,
+            total_reasoning_tokens,
+        );
     }
 
     if timed_out {
@@ -569,11 +645,12 @@ fn build_extra_params(
     }
 }
 
-fn apply_chunk<R>(
+fn apply_chunk<R: GetTokenUsage>(
     chunk: StreamedAssistantContent<R>,
     text: &mut String,
     reasoning: &mut String,
     tool_calls: &mut Vec<ToolCall>,
+    usage: &mut Option<Usage>,
 ) {
     match chunk {
         StreamedAssistantContent::Text(t) => text.push_str(&t.text),
@@ -581,7 +658,10 @@ fn apply_chunk<R>(
         StreamedAssistantContent::ToolCallDelta { .. } => {}
         StreamedAssistantContent::Reasoning(r) => reasoning.push_str(&r.display_text()),
         StreamedAssistantContent::ReasoningDelta { reasoning: r, .. } => reasoning.push_str(&r),
-        StreamedAssistantContent::Final(_) | StreamedAssistantContent::Unknown(_) => {}
+        StreamedAssistantContent::Final(res) => {
+            *usage = Some(res.token_usage());
+        }
+        StreamedAssistantContent::Unknown(_) => {}
     }
 }
 

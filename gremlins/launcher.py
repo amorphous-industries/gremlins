@@ -56,7 +56,7 @@ def _resolve_description_and_slug(
     return "", False, "gremlin"
 
 
-def _build_spawn_env(gremlin_id: str) -> dict[str, str]:
+def _build_spawn_env(gremlin_id: str, *, telemetry: bool = False) -> dict[str, str]:
     env = dict(os.environ)
     pkg_root = str(pathlib.Path(__file__).resolve().parent.parent)
     existing_pp = env.get("PYTHONPATH", "")
@@ -67,6 +67,8 @@ def _build_spawn_env(gremlin_id: str) -> dict[str, str]:
     env["GREMLINS_OVERLAY_DIR"] = str(
         _state_root() / gremlin_id / _paths.OVERLAY_DIRNAME
     )
+    if telemetry:
+        env["GREMLINS_TELEMETRY"] = "1"
     return env
 
 
@@ -85,6 +87,7 @@ class _Inputs:
     base_ref_name: str
     base_ref_sha: str
     stage_inputs: dict[str, Any]
+    telemetry: bool
     loaded_pipeline: _PipelineData | None = None
 
 
@@ -170,6 +173,7 @@ def _resolve_inputs(
     base_ref: str | None,
     pipeline_args: tuple[str, ...],
     gremlin_id: str | None,
+    telemetry: bool = False,
 ) -> _Inputs:
     from gremlins.cli.pipeline_args import launch_client_label, resolve_pipeline
 
@@ -236,6 +240,7 @@ def _resolve_inputs(
         base_ref_name=base_ref_name,
         base_ref_sha=base_ref_sha,
         stage_inputs=stage_inputs,
+        telemetry=telemetry,
         loaded_pipeline=loaded_pipeline,
     )
 
@@ -341,7 +346,10 @@ def _spawn(gremlin_id: str, inputs: _Inputs, state_dir: pathlib.Path) -> Any:
         *spawn_args,
     ]
     return _spawn_logged_process(
-        cmd, inputs.project_root, _build_spawn_env(gremlin_id), state_dir / "log"
+        cmd,
+        inputs.project_root,
+        _build_spawn_env(gremlin_id, telemetry=inputs.telemetry),
+        state_dir / "log",
     )
 
 
@@ -389,6 +397,7 @@ def launch(
     base_ref: str | None = None,
     pipeline_args: tuple[str, ...] = (),
     gremlin_id: str | None = None,
+    telemetry: bool = False,
 ) -> tuple[str, subprocess.Popen[bytes]]:
     """Set up state dir, spawn the pipeline detached, return (gremlin_id, process).
 
@@ -406,6 +415,7 @@ def launch(
         base_ref,
         pipeline_args,
         gremlin_id,
+        telemetry=telemetry,
     )
     state_dir = _state_root() / inputs.gremlin_id
     try:
