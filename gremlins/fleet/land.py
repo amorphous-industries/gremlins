@@ -801,6 +801,7 @@ def _land_gh(
         print("PR already merged.")
         _fast_forward_main(cwd)
         _remove_worktree(wdir, state, cwd)
+        _remove_scratch(gremlin_id)
         _finalize_cleanup(gremlin_id, wdir, state, cwd, remove_state_dir=False)
         return True
 
@@ -810,6 +811,7 @@ def _land_gh(
                 "PR is closed (not merged) — force flag set, cleaning up without merge."
             )
             _remove_worktree(wdir, state, cwd)
+            _remove_scratch(gremlin_id)
             _finalize_cleanup(
                 gremlin_id,
                 wdir,
@@ -896,6 +898,7 @@ def _land_gh(
         print("PR merged.")
 
     _fast_forward_main(cwd)
+    _remove_scratch(gremlin_id)
     _finalize_cleanup(gremlin_id, wdir, state, cwd, remove_state_dir=False)
     return True
 
@@ -967,6 +970,7 @@ def _land_with_stage(
     if setup_kind in ("worktree-detached", "worktree-detached-from-ref"):
         _fast_forward_main(cwd)
 
+    _remove_scratch(gremlin_id)
     _finalize_cleanup(gremlin_id, wdir, state, cwd, remove_state_dir=False)
     return True
 
