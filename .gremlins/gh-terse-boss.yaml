@@ -10,7 +10,7 @@ prompts:
 
 bootstrap:
   - uv venv .venv
-  - uv pip install --python .venv -e ".[dev]"
+  - uv pip install -e ".[dev]"
 
 stages:
   - name: chain

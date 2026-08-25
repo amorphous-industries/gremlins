@@ -29,7 +29,7 @@ stage-definitions:
 
 bootstrap:
   - uv venv .venv
-  - uv pip install --python .venv -e ".[dev]"
+  - uv pip install -e ".[dev]"
 
 stages:
   - { type: gremlins:plan,      prompt: [code-style, terse, gremlins:plan.md] }
