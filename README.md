@@ -538,6 +538,40 @@ the boss halts if a child bails. At this point:
 The boss resumes from its child-spawn stage and proceeds with the next iteration
 (re-planning, re-implementing, or wrapping up, depending on the pipeline).
 
+## Environment variables
+
+### Runtime behaviour
+
+| Variable | Default | Description |
+|---|---|---|
+| `GREMLINS_REASONING_EFFORT` | *(unset)* | Reasoning effort for OpenAI-compatible backends (`openai`, `xai`, `openrouter`). One of `low`, `medium`, `high`. Unset disables reasoning entirely (no token cost). Only takes effect for models that support reasoning. |
+| `GREMLINS_STREAM_IDLE_TIMEOUT` | `600` | Stream idle timeout in seconds for OpenAI-compatible backends. If the model produces no output for this duration the stream is cancelled and the call is retried. |
+| `GREMLINS_OPENAI_AGENTS_MAX_TURNS` | `100` | Maximum agent loop turns for OpenAI-compatible backends. Guards against runaway tool-call loops. |
+| `GREMLINS_LOG_LEVEL` | `INFO` | Log level for gremlins output. One of `DEBUG`, `INFO`, `WARNING`, `ERROR`. |
+
+### Filesystem overrides
+
+These are primarily for testing but can be used to redirect gremlins I/O:
+
+| Variable | Description |
+|---|---|
+| `GREMLINS_SANDBOX_ROOT` | Re-bases `state_root()`, `work_root()`, and `user_config_root()` under a single directory. When set, all gremlin state and worktrees live under this path. |
+| `GREMLINS_PROJECT_ROOT` | Overrides the project root directory (normally the cwd at launch time). |
+| `GREMLINS_OVERLAY_DIR` | Overrides the `.gremlins` config directory for pipeline/prompt discovery. |
+
+### Internal (set by gremlins itself)
+
+These are set by the launcher or executor and should not be set manually:
+
+| Variable | Set by | Description |
+|---|---|---|
+| `GREMLINS_GREMLIN_ID` | Launcher | The current gremlin's unique ID. Stages and state bookkeeping no-op without it. |
+| `GREMLINS_WORKTREE_PATH` | Executor | Path to the gremlin's git worktree. |
+| `GREMLINS_ARTIFACT_DIR` | Executor | Path to the gremlin's artifact directory. |
+| `GREMLINS_RESUME_FROM` | CLI | Stage name to resume from. |
+| `GREMLINS_CWD_OF_CLI_CMD` | CLI | Working directory for CLI-spawned commands. |
+| `GREMLINS_BOOTSTRAP_CWD` | Launcher | The original cwd captured at launch time. |
+
 ## What can a gremlin do to my machine?
 
 Gremlins are restricted to an allowlist of tools (Read, Edit, Write, Bash,

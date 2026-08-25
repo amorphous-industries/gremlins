@@ -15,7 +15,9 @@ def _openai_instructions() -> str:
     return load_bundled_prompt("default_openai_agents_instructions.md")
 
 
-def _make_openai_client(model: str | None) -> object:
+def _make_openai_client(
+    model: str | None, extra_params: dict[str, str] | None = None
+) -> object:
     from _gremlins_core.clients import RustClient
 
     return RustClient(
@@ -23,10 +25,13 @@ def _make_openai_client(model: str | None) -> object:
         model or "",
         dict(_DEFAULT_BLOCK),
         instructions=_openai_instructions(),
+        extra_params=extra_params or {},
     )
 
 
-def _make_xai_client(model: str | None) -> object:
+def _make_xai_client(
+    model: str | None, extra_params: dict[str, str] | None = None
+) -> object:
     from _gremlins_core.clients import RustClient
 
     return RustClient(
@@ -34,10 +39,13 @@ def _make_xai_client(model: str | None) -> object:
         model or "grok-4",
         dict(_DEFAULT_BLOCK),
         instructions=_openai_instructions(),
+        extra_params=extra_params or {},
     )
 
 
-def _make_openrouter_client(model: str | None) -> object:
+def _make_openrouter_client(
+    model: str | None, extra_params: dict[str, str] | None = None
+) -> object:
     from _gremlins_core.clients import RustClient
 
     return RustClient(
@@ -45,15 +53,18 @@ def _make_openrouter_client(model: str | None) -> object:
         model or "",
         dict(_DEFAULT_BLOCK),
         instructions=_openai_instructions(),
+        extra_params=extra_params or {},
     )
 
 
-def _make_cmd_client(command: str | None) -> object:
-    if not command:
+def _make_cmd_client(
+    model: str | None, extra_params: dict[str, str] | None = None
+) -> object:
+    if not model:
         raise ValueError("cmd: command is required")
     from _gremlins_core.clients import RustClient
 
-    return RustClient.cmd(command)
+    return RustClient.cmd(model)
 
 
 register_client_factory("openai", _make_openai_client)
