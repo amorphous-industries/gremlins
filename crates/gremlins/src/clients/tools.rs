@@ -41,10 +41,12 @@ pub fn worktree_root(cwd: Option<&Path>) -> PathBuf {
 }
 
 pub fn scratch_root() -> Option<PathBuf> {
-    std::env::var("GREMLINS_SCRATCH_DIR")
+    let path: PathBuf = std::env::var("GREMLINS_SCRATCH_DIR")
         .ok()
-        .filter(|s| !s.is_empty())
-        .map(PathBuf::from)
+        .filter(|s| !s.is_empty())?
+        .into();
+    std::fs::create_dir_all(&path).ok()?;
+    Some(path)
 }
 
 pub fn audit_log_path(raw_path: &Path) -> PathBuf {
@@ -148,11 +150,9 @@ pub fn within_worktree(p: &Path, roots: &[PathBuf]) -> bool {
         Some(n) => n,
         None => return false,
     };
-    roots.iter().any(|root| {
-        match normalize_path(root) {
-            Some(r) => p_norm.starts_with(&r),
-            None => false,
-        }
+    roots.iter().any(|root| match normalize_path(root) {
+        Some(r) => p_norm.starts_with(&r),
+        None => false,
     })
 }
 
@@ -321,10 +321,7 @@ pub fn bash_check(roots: &[PathBuf], cmd: &str, cwd: Option<&Path>) -> Option<St
         return Some(err);
     }
     // Canonicalize roots once — avoid re-resolving per token.
-    let canonical_roots: Vec<PathBuf> = roots
-        .iter()
-        .filter_map(|r| normalize_path(r))
-        .collect();
+    let canonical_roots: Vec<PathBuf> = roots.iter().filter_map(|r| normalize_path(r)).collect();
     if canonical_roots.is_empty() {
         return Some("Error: invalid worktree root".into());
     }
@@ -1321,13 +1318,23 @@ mod tests {
     #[test]
     fn within_worktree_child() {
         let dir = tmp();
-        assert!(within_worktree(&dir.join("sub").join("file.txt"), &[dir.clone()]));
+        assert!(within_worktree(
+            &dir.join("sub").join("file.txt"),
+            &[dir.clone()]
+        ));
     }
 
     #[test]
     fn within_worktree_outside() {
         let dir = tmp();
         assert!(!within_worktree(&dir, &[dir.join("sub")]));
+    }
+
+    #[test]
+    fn within_worktree_second_root() {
+        let dir1 = tmp();
+        let dir2 = tmp();
+        assert!(within_worktree(&dir2.join("file.txt"), &[dir1, dir2]));
     }
 
     #[test]
@@ -1423,8 +1430,7 @@ mod tests {
     #[test]
     fn bash_check_intermediate_traversal() {
         let dir = tmp();
-        let err =
-            bash_check(&[dir.clone()], "cat subdir/../../etc/passwd", Some(&dir)).unwrap();
+        let err = bash_check(&[dir.clone()], "cat subdir/../../etc/passwd", Some(&dir)).unwrap();
         assert!(err.contains("outside worktree"));
     }
 
@@ -1633,8 +1639,7 @@ mod tests {
         let link = worktree.join("link");
         std::os::unix::fs::symlink(&outside, &link).unwrap();
         // cd link — bare name, no /, caught by check_cd.
-        let err =
-            bash_check(&[worktree.clone()], "cd link; cat secret", Some(&worktree)).unwrap();
+        let err = bash_check(&[worktree.clone()], "cd link; cat secret", Some(&worktree)).unwrap();
         assert!(err.contains("cd target outside worktree"), "got: {err}");
     }
 
@@ -1698,8 +1703,7 @@ mod tests {
         // Dangling symlink to outside/new — target doesn't exist yet.
         let link = worktree.join("link");
         std::os::unix::fs::symlink(outside.join("new"), &link).unwrap();
-        let err =
-            bash_check(&[worktree.clone()], "cd link; cat secret", Some(&worktree)).unwrap();
+        let err = bash_check(&[worktree.clone()], "cd link; cat secret", Some(&worktree)).unwrap();
         assert!(err.contains("cd target outside worktree"), "got: {err}");
     }
 

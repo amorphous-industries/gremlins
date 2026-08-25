@@ -191,10 +191,12 @@ def pytest_runtest_makereport(item, call):
 @pytest.fixture(autouse=True)
 def sandbox(monkeypatch, request):
     node_id = re.sub(r"[^\w]", "_", request.node.nodeid)[-60:]
+    scratch_dir = os.environ.get("GREMLINS_SCRATCH_DIR", "/tmp")
+    os.makedirs(scratch_dir, exist_ok=True)
     root = pathlib.Path(
         tempfile.mkdtemp(
             prefix=f"grem_{node_id}_",
-            dir=os.environ.get("GREMLINS_SCRATCH_DIR", "/tmp"),
+            dir=scratch_dir,
         )
     )
     original_cwd = pathlib.Path.cwd()
@@ -274,10 +276,12 @@ def child_sandbox(sandbox, request):
 
     def _fresh() -> _ChildSandbox:
         node_id = re.sub(r"[^\w]", "_", request.node.nodeid)[-60:]
+        scratch_dir = os.environ.get("GREMLINS_SCRATCH_DIR", "/tmp")
+        os.makedirs(scratch_dir, exist_ok=True)
         root = pathlib.Path(
             tempfile.mkdtemp(
                 prefix=f"grem_{node_id}_child_",
-                dir=os.environ.get("GREMLINS_SCRATCH_DIR", "/tmp"),
+                dir=scratch_dir,
             )
         )
         cs = _ChildSandbox(
