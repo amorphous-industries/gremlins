@@ -158,8 +158,8 @@ class ArtifactRegistry:
     # accessor methods
     # ------------------------------------------------------------------
 
-    def raw_entry(self, key: str) -> str | None:
-        """Return the unresolved URI string for *key*, or None if unbound."""
+    def raw_entry(self, key: str) -> Any:
+        """Return the raw stored value for *key*, or None if unbound."""
         return self.data.get(key)
 
     def get_base_sha(self) -> str:
@@ -220,13 +220,13 @@ class ArtifactRegistry:
         """Copy file artifacts and rebind non-file URIs from *other* into self.
 
         Keys already present in self are skipped. When *key_prefix* is set,
-        each incoming key is prefixed with ``key_prefix + "/"``.
+        each incoming key is suffixed with ``"/" + key_prefix``.
         """
         for key in keys if keys is not None else other.keys():
             if key in self.data:
                 continue
             uri_str = other.raw_entry(key)
-            if not uri_str:
+            if not isinstance(uri_str, str):
                 continue
             bound_key = f"{key}/{key_prefix}" if key_prefix else key
             if uri_str.startswith("file://session/") and copy_files:
@@ -264,8 +264,8 @@ class ArtifactRegistry:
     ) -> ArtifactRegistry:
         """Load a registry from a registry.json at *path*."""
         registry = cls(artifact_dir=artifact_dir, cwd=cwd)
-        if path.exists():
-            registry.data = dict(json.loads(path.read_text(encoding="utf-8")))
-            if path != registry.registry_path:
+        if path != registry.registry_path:
+            if path.exists():
+                registry.data = dict(json.loads(path.read_text(encoding="utf-8")))
                 registry._persist()
         return registry

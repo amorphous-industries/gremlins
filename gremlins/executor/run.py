@@ -193,9 +193,16 @@ async def run_pipeline(
     stage_inputs: dict[str, Any] = dict(state_json.get("stage_inputs") or {})
 
     # base_ref_sha and base_ref are bound in registry.json at launch time
-    _registry = ArtifactRegistry(artifact_dir=artifact_dir, cwd=worktree_dir)
-    base_ref_sha = _registry.get_base_sha()
-    base_ref = _registry.get_base_ref()
+    try:
+        _registry = ArtifactRegistry(artifact_dir=artifact_dir, cwd=worktree_dir)
+        base_ref_sha = _registry.get_base_sha()
+        base_ref = _registry.get_base_ref()
+    except Exception:
+        logger.warning(
+            "failed to read base_sha/base_ref from registry.json", exc_info=True
+        )
+        base_ref_sha = ""
+        base_ref = ""
 
     # PR refs like pull/<N>/head need to be fetched from the remote
     fetch_worktree = base_ref.startswith("pull/") and base_ref.endswith("/head")

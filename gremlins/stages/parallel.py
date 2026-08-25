@@ -487,8 +487,8 @@ class _ParallelExecutor:
         sr = paths.state_root()
         parent_keys: set[str] = set(parent_state.artifacts.keys())
 
-        # key -> list of (child_key, child_id)
-        per_key: dict[str, list[tuple[str, str]]] = {}
+        # key -> list of (child_key, child_id, child_registry)
+        per_key: dict[str, list[tuple[str, str, ArtifactRegistry]]] = {}
         for child_key in self._stages_by_key:
             child_id = f"{parent_gid}--{self._group_name}--{child_key}"
             child_reg_path = sr / child_id / "registry.json"
@@ -501,16 +501,11 @@ class _ParallelExecutor:
             for k in child.keys():
                 if k in parent_keys:
                     continue
-                per_key.setdefault(k, []).append((child_key, child_id))
+                per_key.setdefault(k, []).append((child_key, child_id, child))
 
         for key, producers in per_key.items():
             multi = len(producers) > 1
-            for child_key, child_id in producers:
-                child_reg_path = sr / child_id / "registry.json"
-                child = ArtifactRegistry.from_registry_file(
-                    child_reg_path,
-                    artifact_dir=sr / child_id / "artifacts",
-                )
+            for child_key, _, child in producers:
                 parent_state.artifacts.merge_from(
                     child,
                     key_prefix=child_key if multi else "",
