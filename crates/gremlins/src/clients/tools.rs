@@ -201,7 +201,7 @@ fn expand_user(s: &str) -> String {
 pub fn enforce(roots: &[PathBuf], pth: &str, cwd: Option<&Path>) -> Option<String> {
     let p = resolve(pth, cwd);
     if !within_worktree(&p, roots) {
-        return Some(format!("Error: path outside worktree: {pth}"));
+        return Some(format!("Error: path outside sandbox: {pth}"));
     }
     None
 }
@@ -210,6 +210,12 @@ pub fn enforce(roots: &[PathBuf], pth: &str, cwd: Option<&Path>) -> Option<Strin
 /// [`canonicalize_or_ancestor`] to resolve the real path, including dangling
 /// symlinks that would otherwise escape containment. Returns Some(error) or
 /// None if the path is safe.
+///
+/// Fail-closed by design: if a root fails to canonicalize it is skipped
+/// (via `continue`). If *every* root fails, `allowed` stays false and the
+/// path is denied. This is stricter and safer than the old single-root
+/// behavior, which returned `None` (allow) on canonicalization failure —
+/// a "paranoid, shouldn't happen" branch that was effectively fail-open.
 pub fn io_enforce(path: &Path, roots: &[PathBuf]) -> Option<String> {
     let real = canonicalize_or_ancestor(path);
     let mut allowed = false;
@@ -225,7 +231,7 @@ pub fn io_enforce(path: &Path, roots: &[PathBuf]) -> Option<String> {
     }
     if !allowed {
         return Some(format!(
-            "Error: path outside worktree (resolved): {}",
+            "Error: path outside sandbox (resolved): {}",
             real.display()
         ));
     }
@@ -301,7 +307,7 @@ fn check_cd(roots: &[PathBuf], cmd: &str, cwd: Option<&Path>) -> Option<String> 
         let expanded = expand_user(arg);
         let p = resolve(&expanded, cwd);
         if !within_worktree(&p, roots) {
-            return Some(format!("Error: cd target outside worktree: {arg}"));
+            return Some(format!("Error: cd target outside sandbox: {arg}"));
         }
     }
     None
@@ -316,14 +322,14 @@ pub fn bash_check(roots: &[PathBuf], cmd: &str, cwd: Option<&Path>) -> Option<St
     if let Some(err) = check_ln_symlink(s) {
         return Some(err);
     }
-    // Guard against cd into symlinked directories outside worktree.
+    // Guard against cd into symlinked directories outside sandbox.
     if let Some(err) = check_cd(roots, s, cwd) {
         return Some(err);
     }
     // Canonicalize roots once — avoid re-resolving per token.
     let canonical_roots: Vec<PathBuf> = roots.iter().filter_map(|r| normalize_path(r)).collect();
     if canonical_roots.is_empty() {
-        return Some("Error: invalid worktree root".into());
+        return Some("Error: invalid sandbox root".into());
     }
     for raw_tok in s.split_whitespace() {
         let tok = raw_tok.trim_matches(|c| c == '\'' || c == '"');
@@ -347,7 +353,7 @@ pub fn bash_check(roots: &[PathBuf], cmd: &str, cwd: Option<&Path>) -> Option<St
         // in-worktree (e.g. `.venv/bin/python`) is allowed. See
         // within_worktree_lexical for the rationale and the anti-regression note.
         if !within_worktree_lexical(&p, &canonical_roots) {
-            return Some(format!("Error: path outside worktree: {raw_tok}"));
+            return Some(format!("Error: path outside sandbox: {raw_tok}"));
         }
     }
     None
@@ -1370,7 +1376,7 @@ mod tests {
         let dir = tmp();
         let outside = dir.parent().unwrap().join("secret.txt");
         let err = enforce(&[dir.clone()], outside.to_str().unwrap(), None).unwrap();
-        assert!(err.contains("outside worktree"));
+        assert!(err.contains("outside sandbox"));
     }
 
     #[test]
@@ -1383,7 +1389,7 @@ mod tests {
     fn enforce_relative_path_escapes_via_cwd() {
         let dir = tmp();
         let err = enforce(&[dir.clone()], "../../../etc/passwd", Some(&dir)).unwrap();
-        assert!(err.contains("outside worktree"));
+        assert!(err.contains("outside sandbox"));
     }
 
     #[test]
@@ -1396,7 +1402,7 @@ mod tests {
     fn bash_check_absolute_outside() {
         let dir = tmp();
         let err = bash_check(&[dir.clone()], "cat /etc/passwd", Some(&dir)).unwrap();
-        assert!(err.contains("outside worktree"));
+        assert!(err.contains("outside sandbox"));
     }
 
     #[test]
@@ -1413,7 +1419,7 @@ mod tests {
         let prev = std::env::var("HOME").ok();
         unsafe { std::env::set_var("HOME", "/nonexistent-home") };
         let err = bash_check(&[dir.clone()], "cat ~/.ssh/id_rsa", Some(&dir)).unwrap();
-        assert!(err.contains("outside worktree"));
+        assert!(err.contains("outside sandbox"));
         match prev {
             Some(h) => unsafe { std::env::set_var("HOME", h) },
             None => unsafe { std::env::remove_var("HOME") },
@@ -1424,14 +1430,14 @@ mod tests {
     fn bash_check_dotdot_escapes() {
         let dir = tmp();
         let err = bash_check(&[dir.clone()], "cat ../secret", Some(&dir)).unwrap();
-        assert!(err.contains("outside worktree"));
+        assert!(err.contains("outside sandbox"));
     }
 
     #[test]
     fn bash_check_intermediate_traversal() {
         let dir = tmp();
         let err = bash_check(&[dir.clone()], "cat subdir/../../etc/passwd", Some(&dir)).unwrap();
-        assert!(err.contains("outside worktree"));
+        assert!(err.contains("outside sandbox"));
     }
 
     #[test]
@@ -1497,7 +1503,7 @@ mod tests {
         let outside = dir.parent().unwrap().join("secret.txt");
         let args = serde_json::json!({"file_path": outside.to_str().unwrap()}).to_string();
         let result = invoke("Read", &c, &args).await;
-        assert!(result.contains("outside worktree"));
+        assert!(result.contains("outside sandbox"));
         let entry: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&log).unwrap()).unwrap();
         assert_eq!(entry["status"], "denied");
@@ -1541,7 +1547,7 @@ mod tests {
         c.audit_log = Some(log.clone());
         let args = serde_json::json!({"command": "cat /etc/passwd"}).to_string();
         let result = invoke("Bash", &c, &args).await;
-        assert!(result.contains("outside worktree"));
+        assert!(result.contains("outside sandbox"));
         let entry: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&log).unwrap()).unwrap();
         assert_eq!(entry["status"], "denied");
@@ -1640,7 +1646,7 @@ mod tests {
         std::os::unix::fs::symlink(&outside, &link).unwrap();
         // cd link — bare name, no /, caught by check_cd.
         let err = bash_check(&[worktree.clone()], "cd link; cat secret", Some(&worktree)).unwrap();
-        assert!(err.contains("cd target outside worktree"), "got: {err}");
+        assert!(err.contains("cd target outside sandbox"), "got: {err}");
     }
 
     // ANTI-REGRESSION: agent self-verify needs to execute the bootstrap venv,
@@ -1689,7 +1695,7 @@ mod tests {
         let link = worktree.join(".venv/bin/python");
         std::os::unix::fs::symlink(&secret, &link).unwrap();
         let err = io_enforce(&link, &[worktree.clone()]).unwrap();
-        assert!(err.contains("outside worktree"), "got: {err}");
+        assert!(err.contains("outside sandbox"), "got: {err}");
     }
 
     #[test]
@@ -1704,7 +1710,7 @@ mod tests {
         let link = worktree.join("link");
         std::os::unix::fs::symlink(outside.join("new"), &link).unwrap();
         let err = bash_check(&[worktree.clone()], "cd link; cat secret", Some(&worktree)).unwrap();
-        assert!(err.contains("cd target outside worktree"), "got: {err}");
+        assert!(err.contains("cd target outside sandbox"), "got: {err}");
     }
 
     #[test]
@@ -1740,7 +1746,7 @@ mod tests {
         std::os::unix::fs::symlink(&outside, &link).unwrap();
         // Canonical containment: symlink resolves outside the worktree.
         let err = enforce(&[worktree.clone()], link.to_str().unwrap(), None).unwrap();
-        assert!(err.contains("outside worktree"));
+        assert!(err.contains("outside sandbox"));
     }
 
     #[test]
@@ -1756,7 +1762,7 @@ mod tests {
         let link = worktree.join("link");
         std::os::unix::fs::symlink(outside.join("new.txt"), &link).unwrap();
         let err = enforce(&[worktree.clone()], link.to_str().unwrap(), None).unwrap();
-        assert!(err.contains("outside worktree"), "got: {err}");
+        assert!(err.contains("outside sandbox"), "got: {err}");
     }
 
     #[test]
@@ -1969,7 +1975,7 @@ mod tests {
         std::fs::write(&target, "x").unwrap();
         // target is outside the worktree (sibling, not child).
         let err = io_enforce(&target, &[dir.clone()]).unwrap();
-        assert!(err.contains("outside worktree"), "got: {err}");
+        assert!(err.contains("outside sandbox"), "got: {err}");
     }
 
     #[test]
@@ -1985,7 +1991,7 @@ mod tests {
         std::os::unix::fs::symlink(outside.join("secret.txt"), &link).unwrap();
         // Lexically inside the worktree, but symlink resolves outside.
         let err = io_enforce(&link, &[worktree.clone()]).unwrap();
-        assert!(err.contains("outside worktree"), "got: {err}");
+        assert!(err.contains("outside sandbox"), "got: {err}");
     }
 
     #[test]
@@ -2002,7 +2008,7 @@ mod tests {
         // The leaf doesn't exist yet, but its parent resolves outside.
         let target = link_dir.join("newfile.txt");
         let err = io_enforce(&target, &[worktree.clone()]).unwrap();
-        assert!(err.contains("outside worktree"), "got: {err}");
+        assert!(err.contains("outside sandbox"), "got: {err}");
     }
 
     #[test]
@@ -2034,6 +2040,67 @@ mod tests {
         let link = worktree.join("link");
         std::os::unix::fs::symlink(outside.join("new.txt"), &link).unwrap();
         let err = io_enforce(&link, &[worktree.clone()]).unwrap();
-        assert!(err.contains("outside worktree"), "got: {err}");
+        assert!(err.contains("outside sandbox"), "got: {err}");
+    }
+
+    // Integration: multi-root containment with worktree + scratch.
+    // Regression guard for the executor wiring that sets GREMLINS_SCRATCH_DIR
+    // and assembles allowed_roots = [worktree, scratch].
+    #[test]
+    fn multi_root_io_enforce_allows_scratch_denies_elsewhere() {
+        let worktree = tmp();
+        let scratch = tmp();
+        // Simulate a file the agent writes into the scratch dir.
+        let scratch_file = scratch.join("cached.dat");
+        std::fs::write(&scratch_file, "hello").unwrap();
+        // A file outside both roots.
+        let outside = tmp();
+        let outside_file = outside.join("secret.txt");
+        std::fs::write(&outside_file, "x").unwrap();
+
+        let roots = [worktree.clone(), scratch.clone()];
+
+        // Scratch file is allowed.
+        assert!(io_enforce(&scratch_file, &roots).is_none());
+        // Outside-both file is denied.
+        let err = io_enforce(&outside_file, &roots).unwrap();
+        assert!(err.contains("outside sandbox"), "got: {err}");
+        // Worktree file is still allowed (regression check).
+        let wt_file = worktree.join("main.rs");
+        std::fs::write(&wt_file, "fn main() {}").unwrap();
+        assert!(io_enforce(&wt_file, &roots).is_none());
+    }
+
+    #[test]
+    fn multi_root_enforce_allows_scratch_denies_elsewhere() {
+        let worktree = tmp();
+        let scratch = tmp();
+        let outside = tmp();
+
+        let roots = [worktree.clone(), scratch.clone()];
+
+        let scratch_file = scratch.join("build-cache.log");
+        assert!(enforce(&roots, scratch_file.to_str().unwrap(), None).is_none());
+
+        let outside_file = outside.join("bad.txt");
+        let err = enforce(&roots, outside_file.to_str().unwrap(), None).unwrap();
+        assert!(err.contains("outside sandbox"));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn multi_root_bash_check_allows_scratch_path() {
+        let worktree = tmp();
+        let scratch = tmp();
+        let scratch_file = scratch.join("downloaded.tar.gz");
+        std::fs::write(&scratch_file, "binary").unwrap();
+
+        let roots = [worktree.clone(), scratch.clone()];
+
+        // A bash command referencing a file in scratch should pass.
+        assert!(bash_check(&roots, "cat downloaded.tar.gz", Some(&scratch)).is_none());
+        // A bare absolute path outside both should be denied.
+        let err = bash_check(&roots, "cat /etc/passwd", Some(&worktree)).unwrap();
+        assert!(err.contains("outside sandbox"), "got: {err}");
     }
 }

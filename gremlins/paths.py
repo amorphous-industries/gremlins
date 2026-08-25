@@ -82,7 +82,7 @@ def project_overlay_dir(project_root: pathlib.Path) -> pathlib.Path:
 
 
 def scratch_root(gremlin_id: str | None) -> pathlib.Path:
-    """Per-gremlin scratch directory. Ephemeral when under system temp."""
+    """Per-gremlin scratch directory. Cleaned up by the OS on reboot."""
     sandbox = os.environ.get("GREMLINS_SANDBOX_ROOT", "")
     if sandbox:
         path = pathlib.Path(sandbox) / "scratch" / (gremlin_id or "direct")
