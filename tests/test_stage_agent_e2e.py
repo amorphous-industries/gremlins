@@ -8,6 +8,8 @@ prompts, which is what the runtime sees after preprocessing — same execution p
 from __future__ import annotations
 
 import asyncio
+import pathlib
+import re
 
 from conftest import MINIMAL_EVENTS, MockGremlin
 
@@ -26,7 +28,7 @@ def test_agent_stage_e2e_reads_artifact_and_writes_output(tmp_path):
         {
             "name": "summarise",
             "type": "agent",
-            "prompt": ["Summarise the following:\n\n{src}"],
+            "prompt": ["Summarise the following and write to `{out_file}`:\n\n{src}"],
             "in": {"src": "source-doc"},
             "out": {"summary": "file://session/summary.md"},
         }
@@ -43,12 +45,16 @@ def test_agent_stage_e2e_reads_artifact_and_writes_output(tmp_path):
     registry = ArtifactRegistry(tmp_path, cwd=tmp_path)
     registry.bind("source-doc", Uri.parse("file://session/source.md"))
 
-    # Client writes the expected output file when called
-    summary_file = tmp_path / "summary.md"
+    # Client writes the expected output file when called — extract the
+    # slugged path from {out_file} in the prompt.
 
     class WritingClient(FakeClient):
         async def run(self, prompt, *, label, **kwargs):
-            summary_file.write_text("# Summary\nHello World")
+            m = re.search(r"`(\S*[0-9a-f]+_summary\.md)`", prompt)
+            assert m, prompt
+            p = pathlib.Path(m.group(1))
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text("# Summary\nHello World", encoding="utf-8")
             return await super().run(prompt, label=label, **kwargs)
 
     client = WritingClient(fixtures={"summarise": MINIMAL_EVENTS})
@@ -68,8 +74,8 @@ def test_agent_stage_e2e_reads_artifact_and_writes_output(tmp_path):
     assert "# Hello" in client.calls[0].prompt
     # Output artifact is bound in the registry
     assert registry.produced("summary")
-    # Output file exists
-    assert summary_file.exists()
+    # Output file exists (at slugged path)
+    assert len(list(tmp_path.glob("*_summary.md"))) == 1
 
 
 def test_agent_parse_stages_registers_type():

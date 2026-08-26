@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from gremlins.executor.gremlin import Gremlin
 
 _READ_SUB = re.compile(r"\{read:([-\w]+)\}")
+_ARTIFACT_SUB = re.compile(r"\{artifact:([-\w]+)\}")
 _STATUS_KEY = "status"
 _BAIL_KEY = "bail"
 
@@ -37,6 +38,20 @@ def _sub_reads(s: str, artifacts: ArtifactRegistry) -> str:
         return raw.strip()
 
     return _READ_SUB.sub(_r, s)
+
+
+def _sub_artifact_paths(s: str, artifacts: ArtifactRegistry) -> str:
+    """Replace {artifact:key} with the absolute filesystem path of a
+    file://session/ artifact, or raise MissingArtifact if unbound."""
+
+    def _r(m: re.Match[str]) -> str:
+        key = m.group(1)
+        p = artifacts.path_for(key)
+        if p is None:
+            raise MissingArtifact(key)
+        return str(p)
+
+    return _ARTIFACT_SUB.sub(_r, s)
 
 
 class Exec(Stage):
@@ -90,7 +105,10 @@ class Exec(Stage):
             pre_sha = snapshot_head_before(cwd=pathlib.Path(state.cwd))
 
         cmds = [
-            self.substitute_vars(c.rstrip(), state, extra_env)
+            _sub_artifact_paths(
+                self.substitute_vars(c.rstrip(), state, extra_env),
+                state.artifacts,
+            )
             for c in self.options.get("cmds", [])
             if c.strip()
         ]

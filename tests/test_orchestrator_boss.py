@@ -46,8 +46,18 @@ class _SignalClient(FakeClient):
 
     async def run(self, prompt, *, label, **kwargs):
         if label == "handoff":
-            signal_path = self._find_slugged("signal.json", prompt)
-            self._write(signal_path, json.dumps(self._signal))
+            # Write each out: file at the slugged path the agent promised
+            # to produce, so verify_produced passes. Copy content from any
+            # unslugged counterpart in the artifact dir.
+            for fname in ("signal.json", "rolling-plan.md", "child-plan.md"):
+                slugged = self._find_slugged(fname, prompt)
+                if slugged.exists():
+                    continue
+                src = self._artifact_dir / fname
+                if fname == "signal.json":
+                    self._write(slugged, json.dumps(self._signal))
+                elif src.exists():
+                    self._write(slugged, src.read_text(encoding="utf-8"))
         elif label == "sanitize":
             plan_path = self._find_slugged("rolling-plan.md", prompt)
             # Copy the pre-sanitize backup into the slugged path so

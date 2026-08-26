@@ -119,8 +119,9 @@ class Agent(Stage):
                 slugged_out[k] = v
 
         for key, uri_str in slugged_out.items():
-            if not state.artifacts.produced(key):
-                state.artifacts.bind(key, Uri.parse(uri_str))
+            if state.artifacts.produced(key):
+                state.artifacts.unbind(key)
+            state.artifacts.bind(key, Uri.parse(uri_str))
 
         ad = str(state.artifact_dir)
         if len(file_names) == 1:

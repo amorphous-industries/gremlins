@@ -129,6 +129,20 @@ class ArtifactRegistry:
         except Exception:
             return False
 
+    def path_for(self, key: str) -> pathlib.Path | None:
+        """Return the absolute filesystem path for a file://session/ artifact.
+
+        Returns None if the key is not bound or does not resolve to a
+        file://session/ URI.
+        """
+        try:
+            uri = self.resolve(key)
+        except MissingArtifact:
+            return None
+        if uri.scheme != "file" or not uri.path.startswith("session/"):
+            return None
+        return self.file_resolver.path_for(uri)
+
     def keys(self) -> Iterable[str]:
         return self.data.keys()
 
