@@ -239,6 +239,9 @@ async fn run_agent_loop<M: CompletionModel + Clone + Send + Sync + 'static>(
     let audit_log = raw_path.as_ref().map(|p| tools::audit_log_path(p));
     let max_turns = config::openai_agents_max_turns();
     let mut allowed_roots = vec![worktree];
+    if let Some(ref artifact_dir) = ctx.params.artifact_dir {
+        allowed_roots.push(artifact_dir.clone());
+    }
     if let Some(scratch) = tools::scratch_root() {
         allowed_roots.push(scratch);
     }
@@ -1055,6 +1058,7 @@ mod tests {
                 on_timeout_prompt: None,
                 max_retries: 0,
                 cwd,
+                artifact_dir: None,
                 idle_timeout: Some(0.05),
                 extra_env: None,
             },

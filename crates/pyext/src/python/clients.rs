@@ -88,7 +88,7 @@ impl RustClient {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (prompt, label, model=None, raw_path=None, capture_events=false, on_timeout_prompt=None, max_retries=0, cwd=None, idle_timeout=None, extra_env=None))]
+    #[pyo3(signature = (prompt, label, model=None, raw_path=None, capture_events=false, on_timeout_prompt=None, max_retries=0, cwd=None, artifact_dir=None, idle_timeout=None, extra_env=None))]
     fn run<'py>(
         &self,
         py: Python<'py>,
@@ -100,6 +100,7 @@ impl RustClient {
         on_timeout_prompt: Option<String>,
         max_retries: usize,
         cwd: Option<PathBuf>,
+        artifact_dir: Option<PathBuf>,
         idle_timeout: Option<f64>,
         extra_env: Option<HashMap<String, String>>,
     ) -> PyResult<Bound<'py, PyAny>> {
@@ -114,6 +115,7 @@ impl RustClient {
                 on_timeout_prompt,
                 max_retries,
                 cwd,
+                artifact_dir,
                 idle_timeout,
                 extra_env,
             };

@@ -118,6 +118,7 @@ class Client:
         on_timeout_prompt: str | None = None,
         max_retries: int = 3,
         cwd: pathlib.Path | None = None,
+        artifact_dir: pathlib.Path | None = None,
         idle_timeout: float | None = None,
         extra_env: dict[str, str] | None = None,
     ) -> CompletedRun:
@@ -130,6 +131,7 @@ class Client:
             on_timeout_prompt=on_timeout_prompt,
             max_retries=max_retries,
             cwd=cwd,
+            artifact_dir=artifact_dir,
             idle_timeout=idle_timeout,
             extra_env=extra_env,
         )
