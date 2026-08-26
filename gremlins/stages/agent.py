@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import secrets
 from typing import TYPE_CHECKING, Any, cast
 
@@ -30,16 +29,16 @@ class Agent(Stage):
     When out: declares file://session/<name> bindings, the agent is instructed
     via the {out_file} prompt variable (single output) or the {out_files} JSON
     mapping (multiple outputs) to write each file to
-    {artifact_dir}/<uuid-slug>_<name>. After the agent completes, the slug
-    prefix is stripped via rename to {artifact_dir}/<name>.
+    {artifact_dir}/<uuid-slug>_<name>. The slug is bound into the artifact
+    registry URI (file://session/<slug>_<name>) and never stripped, giving
+    each run a unique file footprint that prevents agents from accidentally
+    reading or overwriting artifacts from prior stages in the same artifact
+    directory.
 
     A single-output stage is strict: verification raises if the file is
     missing or empty. Multi-output stages are best-effort — the agent may
     write any subset, so files it did not write are skipped without error
     (they stay bound but read back empty downstream).
-
-    The uuid-slug prevents agents from accidentally reading or overwriting
-    artifacts from prior stages in the same artifact directory.
 
     Unknown {keys} pass through unchanged (so code examples with braces work),
     but this also means typos like {plann} produce no error.
@@ -104,13 +103,25 @@ class Agent(Stage):
             )
             for k, v in self.out_map.items()
         }
-        for key, uri_str in out_map.items():
-            if not state.artifacts.produced(key):
-                state.artifacts.bind(key, Uri.parse(uri_str))
-
         file_names = self._file_outputs(out_map)
         slug = secrets.token_hex(4)
         slugged = {name: f"{slug}_{name}" for name in file_names}
+
+        # Rewrite out_map URIs to include the slug so the registry binds
+        # the actual on-disk filename.
+        slugged_out: dict[str, str] = {}
+        for k, v in out_map.items():
+            uri = Uri.parse(v)
+            if uri.scheme == "file" and uri.path.startswith("session/"):
+                name = uri.path[len("session/") :]
+                slugged_out[k] = f"file://session/{slugged[name]}"
+            else:
+                slugged_out[k] = v
+
+        for key, uri_str in slugged_out.items():
+            if not state.artifacts.produced(key):
+                state.artifacts.bind(key, Uri.parse(uri_str))
+
         ad = str(state.artifact_dir)
         if len(file_names) == 1:
             resolved["out_file"] = f"{ad}/{slugged[file_names[0]]}"
@@ -128,14 +139,8 @@ class Agent(Stage):
             state, prompt, label=self.name, raw_path=raw_path, model=model, **opts
         )
 
-        for name in file_names:
-            src = state.artifact_dir / slugged[name]
-            dst = state.artifact_dir / name
-            if src.exists():
-                os.replace(src, dst)
-
         single = len(file_names) == 1
-        for key, uri_str in out_map.items():
+        for key, uri_str in slugged_out.items():
             uri = Uri.parse(uri_str)
             if not single and uri.scheme == "file" and uri.path.startswith("session/"):
                 # Multi-output stages are best-effort: the agent may have
