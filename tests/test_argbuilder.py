@@ -8,8 +8,7 @@ import pytest
 
 from gremlins.cli.launch import build_launch_parser
 from gremlins.pipeline import Pipeline
-from gremlins.pipeline.bootstrap import Bootstrap
-from gremlins.pipeline.inputs import InputSource, InputSources
+from gremlins.pipeline.bootstrap import Bootstrap, InputSource, InputSources
 
 
 def _pipeline_with_source(

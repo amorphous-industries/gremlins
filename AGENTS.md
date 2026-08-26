@@ -22,7 +22,7 @@ gremlins/                    Python package — see gremlins/AGENTS.md
   cli/                       Subcommand entry points — one file per subcommand group
   clients/                   Client classes + provider impls — see gremlins/clients/AGENTS.md
   stages/                    Stage classes: agent, exec, loop, composite, parallel, sequence — see gremlins/stages/AGENTS.md
-  pipeline/                  YAML loader, discovery, preprocessor, input sources
+  pipeline/                  YAML loader, discovery, preprocessor, bootstrap
   pipelines/                 Bundled YAML pipelines (gh, gh-terse, local, boss, pr-extend)
   prompts/                   Bundled prompt templates
   executor/                  Run-time orchestrator — see gremlins/executor/AGENTS.md

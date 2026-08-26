@@ -134,7 +134,7 @@ impl Pipeline {
                     pyo3::exceptions::PyValueError::new_err("'inputs.sources' must be a mapping")
                 })?;
                 let input_sources_cls = py
-                    .import("gremlins.pipeline.inputs")?
+                    .import("gremlins.pipeline.bootstrap")?
                     .getattr("InputSources")?;
                 input_sources = Some(
                     input_sources_cls

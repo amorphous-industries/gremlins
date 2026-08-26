@@ -6,7 +6,7 @@ import textwrap
 import pytest
 
 from gremlins.pipeline import Pipeline
-from gremlins.pipeline.inputs import InputSource, InputSources
+from gremlins.pipeline.bootstrap import InputSource, InputSources
 
 
 class TestInputSources:

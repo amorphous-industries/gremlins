@@ -1,5 +1,5 @@
 pub mod error;
-pub mod inputs;
+pub mod bootstrap;
 pub mod loader;
 pub mod pipeline;
 pub mod preprocess;
