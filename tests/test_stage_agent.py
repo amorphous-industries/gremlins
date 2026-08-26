@@ -99,18 +99,19 @@ def test_no_in_map_runs_prompt_unchanged(tmp_path):
 
 
 def test_verify_produced_passes_when_out_file_written(tmp_path):
-    output_file = tmp_path / "artifacts" / "output.md"
-    output_file.parent.mkdir(exist_ok=True)
-
     class WritingClient(FakeClient):
         async def run(self, prompt, *, label, **kwargs):
-            output_file.write_text("# Output")
+            # Extract the slugged path from {out_file} in the prompt.
+            m = re.search(r"`(\S*[0-9a-f]+_output\.md)`", prompt)
+            assert m, prompt
+            pathlib.Path(m.group(1)).parent.mkdir(parents=True, exist_ok=True)
+            pathlib.Path(m.group(1)).write_text("# Output")
             return await super().run(prompt, label=label, **kwargs)
 
     client = WritingClient(fixtures={"my-agent": MINIMAL_EVENTS})
     state = _make_state(tmp_path, client)
     agent = _make_agent(
-        prompts=["Write output"],
+        prompts=["Write output to `{out_file}`"],
         out_map={"result": "file://session/output.md"},
     )
 
@@ -134,23 +135,26 @@ def test_verify_produced_fails_when_out_file_missing(tmp_path):
 
 
 def test_out_uri_bound_in_registry_before_agent_runs(tmp_path):
-    output_file = tmp_path / "artifacts" / "output.md"
-    output_file.parent.mkdir(exist_ok=True)
     seen_bound_before_run: list[bool] = []
 
     class CheckingClient(FakeClient):
         async def run(self, prompt, *, label, **kwargs):
-            # Check that the out: key is bound before the agent runs
             registry = state.artifacts
             seen_bound_before_run.append(
                 registry is not None and registry.produced("result")
             )
-            output_file.write_text("# Output")
+            # Extract slugged path from {out_file} and write so verify passes.
+            m = re.search(r"`(\S*[0-9a-f]+_output\.md)`", prompt)
+            if m:
+                p = pathlib.Path(m.group(1))
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_text("# Output", encoding="utf-8")
             return await super().run(prompt, label=label, **kwargs)
 
     client = CheckingClient(fixtures={"my-agent": MINIMAL_EVENTS})
     state = _make_state(tmp_path, client)
     agent = _make_agent(
+        prompts=["Write output to `{out_file}`"],
         out_map={"result": "file://session/output.md"},
     )
 
@@ -221,6 +225,9 @@ def test_single_file_out_prompt_gets_slug_prefixed_name(tmp_path):
 
 
 def test_single_file_out_strips_slug_in_artifact_dir(tmp_path):
+    """Slugged file remains on disk after the agent completes — the slug is
+    never stripped, giving each run a unique file footprint."""
+
     class WritingClient(FakeClient):
         async def run(self, prompt, *, label, cwd=None, **kwargs):
             m = re.search(r"`(\S*[0-9a-f]+_output\.md)`", prompt)
@@ -238,9 +245,12 @@ def test_single_file_out_strips_slug_in_artifact_dir(tmp_path):
 
     result = asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
     assert isinstance(result, Done)
-    assert (state.artifact_dir / "output.md").read_text(encoding="utf-8") == "# Output"
-    # After the rename, only the final name exists — no slugged file remains.
-    assert list(state.artifact_dir.glob("*_output.md")) == []
+    # The slugged file is what the agent was told to write — it stays on disk.
+    slugged = list(state.artifact_dir.glob("*_output.md"))
+    assert len(slugged) == 1, f"expected 1 slugged output.md, got {slugged}"
+    assert slugged[0].read_text(encoding="utf-8") == "# Output"
+    # No unslugged output.md (slug is not stripped).
+    assert not (state.artifact_dir / "output.md").exists()
 
 
 def test_single_file_out_uses_substituted_out_map_name(tmp_path):
@@ -262,9 +272,9 @@ def test_single_file_out_uses_substituted_out_map_name(tmp_path):
 
     result = asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
     assert isinstance(result, Done)
-    assert (state.artifact_dir / "review-code.md").read_text(
-        encoding="utf-8"
-    ) == "# Review"
+    slugged = list(state.artifact_dir.glob("*_review-code.md"))
+    assert len(slugged) == 1
+    assert slugged[0].read_text(encoding="utf-8") == "# Review"
 
 
 def test_single_file_out_missing_source_raises(tmp_path):
@@ -331,8 +341,14 @@ def test_multi_file_out_renames_only_written_files(tmp_path):
 
     result = asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
     assert isinstance(result, Done)
-    assert (state.artifact_dir / "blah.md").read_text(encoding="utf-8") == "# blah.md"
-    assert (state.artifact_dir / "foo.md").read_text(encoding="utf-8") == "# foo.md"
+    # Files stay at slugged paths — the slug is never stripped.
+    slugged_blah = list(state.artifact_dir.glob("*_blah.md"))
+    slugged_foo = list(state.artifact_dir.glob("*_foo.md"))
+    assert len(slugged_blah) == 1
+    assert len(slugged_foo) == 1
+    assert slugged_blah[0].read_text(encoding="utf-8") == "# blah.md"
+    assert slugged_foo[0].read_text(encoding="utf-8") == "# foo.md"
+    assert not (state.artifact_dir / "blah.md").exists()
     assert not (state.artifact_dir / "biz.md").exists()
 
 

@@ -32,7 +32,12 @@ _CHAIN_YAML = textwrap.dedent("""\
 
 
 class _SignalClient(FakeClient):
-    """Writes signal.json when the handoff agent runs."""
+    """Writes signal.json and rolling-plan.md when agent stages run.
+
+    Extracts the slugged output paths from the prompt so the written
+    files match the paths the agent was instructed to use and
+    verify_produced can find them.
+    """
 
     def __init__(self, signal: dict, artifact_dir: pathlib.Path) -> None:
         super().__init__(fixtures={"handoff": _MINIMAL, "sanitize": _MINIMAL})
@@ -41,10 +46,31 @@ class _SignalClient(FakeClient):
 
     async def run(self, prompt, *, label, **kwargs):
         if label == "handoff":
-            (self._artifact_dir / "signal.json").write_text(
-                json.dumps(self._signal), encoding="utf-8"
-            )
+            signal_path = self._find_slugged("signal.json", prompt)
+            self._write(signal_path, json.dumps(self._signal))
+        elif label == "sanitize":
+            plan_path = self._find_slugged("rolling-plan.md", prompt)
+            # Copy the pre-sanitize backup into the slugged path so
+            # verify_produced finds it.
+            pre = self._artifact_dir / "rolling-plan-pre-sanitize.md"
+            if pre.exists():
+                self._write(plan_path, pre.read_text(encoding="utf-8"))
         return await super().run(prompt, label=label, **kwargs)
+
+    def _find_slugged(self, name: str, prompt: str) -> pathlib.Path:
+        """Extract the slugged path for *name* from the prompt."""
+        import re
+
+        ad = re.escape(str(self._artifact_dir))
+        m = re.search(ad + r"/[a-f0-9]+" + re.escape("_" + name), prompt)
+        if m:
+            return pathlib.Path(m.group(0))
+        return self._artifact_dir / name
+
+    @staticmethod
+    def _write(path: pathlib.Path, content: str) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
 
 
 def _make_loop(tmp_path: pathlib.Path, worktree: pathlib.Path, signal: dict):

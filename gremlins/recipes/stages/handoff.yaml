@@ -50,8 +50,17 @@ stages:
         options:
           cmds:
             - |
-              cp "{artifact_dir}/rolling-plan.md" "{artifact_dir}/rolling-plan-pre-sanitize.md"
-              SIGNAL="{artifact_dir}/signal.json"
+              for f in "{artifact_dir}/"*"_signal.json"; do
+                if [ -f "$f" ]; then SIGNAL="$f"; break; fi
+              done
+              if [ -z "$SIGNAL" ]; then SIGNAL="{artifact_dir}/signal.json"; fi
+
+              ROLLING="{artifact_dir}/rolling-plan.md"
+              for f in "{artifact_dir}/"*"_rolling-plan.md"; do
+                if [ -f "$f" ]; then ROLLING="$f"; break; fi
+              done
+              cp "$ROLLING" "{artifact_dir}/rolling-plan-pre-sanitize.md"
+
               if [ ! -f "$SIGNAL" ]; then
                 printf 'signal.json not written by agent' > "{artifact_dir}/bail-reason.txt"
                 exit 2
@@ -110,7 +119,11 @@ stages:
         options:
           cmds:
             - |
-              if [ ! -s "{artifact_dir}/rolling-plan.md" ]; then
+              ROLLING="{artifact_dir}/rolling-plan.md"
+              for f in "{artifact_dir}/"*"_rolling-plan.md"; do
+                if [ -f "$f" ]; then ROLLING="$f"; break; fi
+              done
+              if [ ! -s "$ROLLING" ]; then
                 cp "{artifact_dir}/rolling-plan-pre-sanitize.md" \
                   "{artifact_dir}/rolling-plan.md"
               fi
