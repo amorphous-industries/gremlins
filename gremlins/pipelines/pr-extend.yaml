@@ -7,6 +7,25 @@ base_ref: main
 
 github_integration: true
 
+bootstrap:
+  source:
+    instructions:
+      type: string
+      optional: true
+    plan:
+      type: [filepath, string]
+      optional: true
+    pr:
+      type: string
+  launch_cmds:
+    - |
+      if [ -n "${plan+x}" ]; then printf '%s' "$plan" > "{artifact_dir}/plan.txt"; fi
+    - |
+      if [ -n "${instructions+x}" ]; then printf '%s' "$instructions" > "{artifact_dir}/instructions.txt"; fi
+  cli_out:
+    plan?: file://session/plan.txt
+    instructions?: file://session/instructions.txt
+
 prompts:
   code-style: gremlins:code_style.md
   verify: [gremlins:verify_fix.md, gremlins:bail_section_fix.md]

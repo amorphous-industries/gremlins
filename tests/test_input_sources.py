@@ -74,10 +74,8 @@ class TestPipelineInputSources:
             tmp_path,
             """\
             default_client: openai:gpt-4o
-            inputs:
-              in:
-                PLAN: plan-document?
-              sources:
+            bootstrap:
+              source:
                 plan:
                   type: [filepath, string]
                   optional: true
@@ -89,8 +87,8 @@ class TestPipelineInputSources:
             """,
         )
         pipeline = Pipeline.from_yaml(p)
-        assert pipeline.input_sources is not None
-        plan = pipeline.input_sources.get("plan")
+        assert pipeline.bootstrap.source is not None
+        plan = pipeline.bootstrap.source.get("plan")
         assert plan is not None
         assert plan.types == ["filepath", "string"]
         assert plan.optional is True
@@ -100,26 +98,23 @@ class TestPipelineInputSources:
             tmp_path,
             """\
             default_client: openai:gpt-4o
-            inputs:
-              in:
-                PLAN: plan-document?
             stages:
               - { name: plan, type: agent }
             """,
         )
         pipeline = Pipeline.from_yaml(p)
-        assert pipeline.input_sources is None
+        assert pipeline.bootstrap.source is None
 
     def test_invalid_sources_block_rejected(self, tmp_path: pathlib.Path) -> None:
         p = self._write_pipeline(
             tmp_path,
             """\
             default_client: openai:gpt-4o
-            inputs:
-              sources: ["not-a-mapping"]
+            bootstrap:
+              source: ["not-a-mapping"]
             stages:
               - { name: plan, type: agent }
             """,
         )
-        with pytest.raises(ValueError, match="'inputs.sources' must be a mapping"):
+        with pytest.raises(ValueError, match="'bootstrap.source' must be a mapping"):
             Pipeline.from_yaml(p)

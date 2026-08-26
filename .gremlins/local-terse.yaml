@@ -2,14 +2,25 @@ default_client: openrouter:deepseek-v4-pro
 base_ref: current
 prompt_dir: prompts
 
-inputs:
-  in:
-    INSTRUCTIONS: instructions?
-    PLAN: plan?
-  sources:
+bootstrap:
+  source:
+    instructions:
+      type: string
+      optional: true
     plan:
       type: filepath
       optional: true
+  launch_cmds:
+    - |
+      if [ -n "${plan+x}" ]; then printf '%s' "$plan" > "{artifact_dir}/plan.txt"; fi
+    - |
+      if [ -n "${instructions+x}" ]; then printf '%s' "$instructions" > "{artifact_dir}/instructions.txt"; fi
+  cli_out:
+    plan?: file://session/plan.txt
+    instructions?: file://session/instructions.txt
+  cmds:
+    - uv venv .venv
+    - uv pip install -e ".[dev]"
 
 prompts:
   code-style: gremlins:code_style.md
@@ -26,10 +37,6 @@ stage-definitions:
         - "ruff check --fix ."
         - "git add -A"
         - "git diff --cached --quiet || git commit -m 'normalize'"
-
-bootstrap:
-  - uv venv .venv
-  - uv pip install -e ".[dev]"
 
 stages:
   - { type: gremlins:plan,      prompt: [code-style, terse, gremlins:plan.md] }

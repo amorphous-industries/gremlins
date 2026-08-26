@@ -11,15 +11,23 @@ from gremlins.cli.launch import (
     build_launch_parser,  # type: ignore[reportPrivateUsage]
 )
 from gremlins.pipeline import Pipeline
-from gremlins.stages.exec import Exec
+from gremlins.pipeline.bootstrap import Bootstrap
+from gremlins.pipeline.inputs import InputSource, InputSources
 
 
-def _pipeline_with_inputs(in_map: dict[str, str] | None) -> Pipeline:
-    inputs_stage = None
-    if in_map is not None:
-        inputs_stage = Exec("inputs", {}, in_map=in_map)
+def _pipeline_with_source(
+    sources: dict[str, tuple[list[str], bool]] | None,
+) -> Pipeline:
+    bootstrap = Bootstrap()
+    if sources is not None:
+        bootstrap.source = InputSources(
+            {
+                name: InputSource(name=name, types=types, optional=optional)
+                for name, (types, optional) in sources.items()
+            }
+        )
     p = MagicMock(spec=Pipeline)
-    p.inputs = inputs_stage
+    p.bootstrap = bootstrap
     return p
 
 
@@ -49,7 +57,7 @@ def test_wait_blocks_and_returns_exit_code():
 
 
 def test_telemetry_flag_parses_and_aliases():
-    parser = build_launch_parser("some-pipeline", _pipeline_with_inputs(None))
+    parser = build_launch_parser("some-pipeline", _pipeline_with_source(None))
     assert parser.parse_args([]).telemetry is False
     assert parser.parse_args(["--telemetry"]).telemetry is True
     assert parser.parse_args(["-v"]).telemetry is True
@@ -59,7 +67,7 @@ def test_telemetry_flag_forwarded_to_launch():
     fake_proc = MagicMock()
     fake_proc.poll.return_value = None
     fake_id = "gr-tele01"
-    parser = build_launch_parser("some-pipeline", _pipeline_with_inputs(None))
+    parser = build_launch_parser("some-pipeline", _pipeline_with_source(None))
     args = parser.parse_args(["--telemetry"])
     with (
         patch(
@@ -77,7 +85,9 @@ def test_pr_flag_forwarded_to_launch():
     fake_proc = MagicMock()
     fake_proc.poll.return_value = None
     fake_id = "gr-prtest1"
-    parser = build_launch_parser("some-pipeline", _pipeline_with_inputs({"PR": "pr?"}))
+    parser = build_launch_parser(
+        "some-pipeline", _pipeline_with_source({"pr": (["string"], True)})
+    )
     args = parser.parse_args(["--pr", "697"])
     stage_inputs = {"pr": args.pr}
     with (

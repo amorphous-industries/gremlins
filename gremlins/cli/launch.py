@@ -73,27 +73,26 @@ def build_launch_parser(
         action="store_true",
         help="Enable per-turn telemetry (TTFT, token counts, cache hit ratio) in the gremlin log.",
     )
-    if pipeline is not None and pipeline.inputs is not None:
+    source = None if pipeline is None else pipeline.bootstrap.source
+    if source is not None:
         seen: set[str] = set()
-        for path in pipeline.inputs.in_map.values():
-            key, sep, default = path.partition("?")
-            registry_key = key.split(".")[0]
-            if registry_key in seen:
+        for key, src in source.sources.items():
+            if key in seen:
                 raise ValueError(
-                    f"pipeline inputs produce duplicate flag --{registry_key.replace('_', '-')}"
+                    f"pipeline inputs produce duplicate flag --{key.replace('_', '-')}"
                 )
-            seen.add(registry_key)
-            flag = "--" + registry_key.replace("_", "-")
+            seen.add(key)
+            flag = "--" + key.replace("_", "-")
             if flag.lstrip("-") in _INFRA_FLAG_NAMES:
                 raise ValueError(
-                    f"pipeline input {registry_key!r} conflicts with infra flag {flag!r}"
+                    f"pipeline input {key!r} conflicts with infra flag {flag!r}"
                 )
             kwargs: dict[str, Any] = {}
-            if sep:
-                kwargs["default"] = default or None
+            if src.optional:
+                kwargs["default"] = None
             else:
                 kwargs["required"] = True
-            p.add_argument(flag, dest=registry_key, type=str, **kwargs)
+            p.add_argument(flag, dest=key, type=str, **kwargs)
     return p
 
 

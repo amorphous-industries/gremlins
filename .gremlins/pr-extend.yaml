@@ -4,15 +4,27 @@ base_ref: main
 
 prompt_dir: prompts
 
-inputs:
-  in:
-    INSTRUCTIONS: instructions?
-    PLAN: plan?
-    PR: pr
-  sources:
+bootstrap:
+  source:
+    instructions:
+      type: string
+      optional: true
     plan:
       type: filepath
       optional: true
+    pr:
+      type: string
+  launch_cmds:
+    - |
+      if [ -n "${plan+x}" ]; then printf '%s' "$plan" > "{artifact_dir}/plan.txt"; fi
+    - |
+      if [ -n "${instructions+x}" ]; then printf '%s' "$instructions" > "{artifact_dir}/instructions.txt"; fi
+  cli_out:
+    plan?: file://session/plan.txt
+    instructions?: file://session/instructions.txt
+  cmds:
+    - uv venv .venv
+    - uv pip install -e ".[dev]"
 
 land:
   in:
@@ -35,10 +47,6 @@ prompts:
 # to fully satisfy). The pipeline adds new commits on top and pushes back to
 # the PR's branch (no rebase, no history rewrite — additive only). Same-repo
 # PRs only; fork PRs would need push access to the fork.
-
-bootstrap:
-  - uv venv .venv
-  - uv pip install -e ".[dev]"
 
 stages:
   - name: fetch-pr-info

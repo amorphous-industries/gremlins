@@ -1,92 +1,57 @@
-"""Tests for launcher registry seeding from input sources."""
+"""Tests for launch-time bootstrap.source validation."""
 
 import pathlib
 
 import pytest
 
-from gremlins.artifacts.registry import ArtifactRegistry
-from gremlins.launcher import _seed_registry_from_sources
-from gremlins.pipeline.inputs import InputSource
+from gremlins.pipeline.bootstrap import validate_source_values
+from gremlins.pipeline.inputs import InputSource, InputSources
 
 
-def _make_registry(tmp_path: pathlib.Path) -> tuple[ArtifactRegistry, pathlib.Path]:
-    artifact_dir = tmp_path / "artifacts"
-    artifact_dir.mkdir()
-    return ArtifactRegistry(artifact_dir=artifact_dir), artifact_dir
+def _sources(*items: tuple[str, list[str], bool]) -> InputSources:
+    return InputSources(
+        {
+            name: InputSource(name=name, types=types, optional=optional)
+            for name, types, optional in items
+        }
+    )
 
 
-def _sources(*items: tuple[str, list[str], bool]) -> dict[str, InputSource]:
-    return {
-        name: InputSource(name=name, types=types, optional=optional)
-        for name, types, optional in items
-    }
-
-
-class TestSeedRegistryFromSources:
-    def test_string_source_writes_file_and_binds(self, tmp_path: pathlib.Path) -> None:
-        registry, artifact_dir = _make_registry(tmp_path)
-        sources = _sources(("instructions", ["string"], False))
-
-        _seed_registry_from_sources(
-            registry, {"instructions": "do the thing"}, sources, artifact_dir
+class TestValidateSourceValues:
+    def test_string_source_accepted(self) -> None:
+        validate_source_values(
+            _sources(("instructions", ["string"], False)),
+            {"instructions": "do the thing"},
         )
 
-        assert registry.raw_entry("instructions") == "file://session/instructions.txt"
-        assert (artifact_dir / "instructions.txt").read_text() == "do the thing"
-
-    def test_filepath_source_copies_to_session(self, tmp_path: pathlib.Path) -> None:
-        registry, artifact_dir = _make_registry(tmp_path)
+    def test_filepath_source_accepted(self, tmp_path: pathlib.Path) -> None:
         plan_file = tmp_path / "plan.md"
         plan_file.write_text("# Plan", encoding="utf-8")
-        sources = _sources(("plan", ["filepath"], False))
-
-        _seed_registry_from_sources(
-            registry, {"plan": str(plan_file)}, sources, artifact_dir
+        validate_source_values(
+            _sources(("plan", ["filepath"], False)), {"plan": str(plan_file)}
         )
 
-        assert registry.raw_entry("plan") == "file://session/plan.md"
-        assert (artifact_dir / "plan.md").read_text() == "# Plan"
+    def test_union_type_accepts_string(self) -> None:
+        validate_source_values(
+            _sources(("plan", ["filepath", "string"], True)), {"plan": "#123"}
+        )
 
-    def test_union_type_falls_back_to_string(self, tmp_path: pathlib.Path) -> None:
-        registry, artifact_dir = _make_registry(tmp_path)
-        sources = _sources(("plan", ["filepath", "string"], True))
+    def test_optional_source_absent_ok(self) -> None:
+        validate_source_values(_sources(("instructions", ["string"], True)), {})
 
-        _seed_registry_from_sources(registry, {"plan": "#123"}, sources, artifact_dir)
+    def test_required_source_absent_raises(self) -> None:
+        with pytest.raises(ValueError, match="required bootstrap.source"):
+            validate_source_values(_sources(("plan", ["string"], False)), {})
 
-        assert registry.raw_entry("plan") == "file://session/plan.txt"
-        assert (artifact_dir / "plan.txt").read_text() == "#123"
-
-    def test_optional_source_absent_skipped(self, tmp_path: pathlib.Path) -> None:
-        registry, artifact_dir = _make_registry(tmp_path)
-        sources = _sources(("instructions", ["string"], True))
-
-        _seed_registry_from_sources(registry, {}, sources, artifact_dir)
-
-        assert not registry.produced("instructions")
-
-    def test_required_source_absent_raises(self, tmp_path: pathlib.Path) -> None:
-        registry, artifact_dir = _make_registry(tmp_path)
-        sources = _sources(("plan", ["string"], False))
-
-        with pytest.raises(ValueError, match="required input source"):
-            _seed_registry_from_sources(registry, {}, sources, artifact_dir)
-
-    def test_filepath_only_no_file_raises(self, tmp_path: pathlib.Path) -> None:
-        registry, artifact_dir = _make_registry(tmp_path)
-        sources = _sources(("plan", ["filepath"], False))
-
-        with pytest.raises(ValueError, match="required input source"):
-            _seed_registry_from_sources(
-                registry, {"plan": "/nonexistent/plan.md"}, sources, artifact_dir
+    def test_filepath_only_no_file_raises(self) -> None:
+        with pytest.raises(ValueError, match="expected an existing file"):
+            validate_source_values(
+                _sources(("plan", ["filepath"], False)),
+                {"plan": "/nonexistent/plan.md"},
             )
 
-    def test_unknown_key_in_input_values_ignored(self, tmp_path: pathlib.Path) -> None:
-        registry, artifact_dir = _make_registry(tmp_path)
-        sources = _sources(("plan", ["string"], True))
-
-        _seed_registry_from_sources(
-            registry, {"plan": "ref", "extra": "ignored"}, sources, artifact_dir
+    def test_unknown_key_in_input_values_ignored(self) -> None:
+        validate_source_values(
+            _sources(("plan", ["string"], True)),
+            {"plan": "ref", "extra": "ignored"},
         )
-
-        assert registry.produced("plan")
-        assert not registry.produced("extra")

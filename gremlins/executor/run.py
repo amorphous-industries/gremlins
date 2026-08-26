@@ -297,11 +297,22 @@ async def run_pipeline(
 
     os.environ["GREMLINS_SCRATCH_DIR"] = str(paths.scratch_root(gremlin.gremlin_id))
 
-    if gremlin.pipeline_data.bootstrap and gremlin.worktree_dir and not resume_from:
-        from gremlins.executor.bootstrap import run_bootstrap as _run_bootstrap
+    _bootstrap = gremlin.pipeline_data.bootstrap
+    _has_bootstrap = bool(
+        _bootstrap.cmds or _bootstrap.launch_cmds or _bootstrap.cli_out
+    )
+    if gremlin.worktree_dir and not resume_from and _has_bootstrap:
+        from gremlins.executor.bootstrap import run_pipeline_bootstrap
 
         try:
-            await _run_bootstrap(gremlin.pipeline_data.bootstrap, gremlin.worktree_dir)
+            await run_pipeline_bootstrap(
+                _bootstrap,
+                cwd=gremlin.worktree_dir,
+                artifact_dir=gremlin.artifact_dir,
+                stage_inputs=stage_inputs,
+                gremlin=gremlin,
+                include_launch=True,
+            )
         except Exception as exc:
             if gremlin.state:
                 gremlin.state.data.write_bail_file(

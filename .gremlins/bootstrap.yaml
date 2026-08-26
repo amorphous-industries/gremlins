@@ -1,6 +1,6 @@
 # Machine-specific bootstrap commands.
 # Run in every worktree (main gremlin + parallel children) before stages begin.
-# Appended before the pipeline's own bootstrap: block, if any.
+# Prepended onto bootstrap.cmds (every-worktree setup), not launch_cmds.
 #
 # Add entries like:
 #   - echo "PATH=$HOME/.cargo/bin:$PATH" >> "$GREMLINS_BOOTSTRAP_CWD/.env-extra" || true

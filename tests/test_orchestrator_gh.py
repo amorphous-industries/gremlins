@@ -345,7 +345,6 @@ def test_gh_pipeline_stage_names(tmp_path):
     pipeline = Pipeline.from_yaml(resolve_pipeline_path("gh", tmp_path))
     names = [s.name for s in pipeline.stages]
     assert names == [
-        "inputs",
         "resolve-plan-input",
         "plan",
         "publish-as-issue",

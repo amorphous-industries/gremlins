@@ -9,8 +9,9 @@ prompts:
   dev-env: dev-env-howto.md
 
 bootstrap:
-  - uv venv .venv
-  - uv pip install -e ".[dev]"
+  cmds:
+    - uv venv .venv
+    - uv pip install -e ".[dev]"
 
 stages:
   - name: chain

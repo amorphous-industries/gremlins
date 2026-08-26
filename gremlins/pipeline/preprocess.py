@@ -454,15 +454,29 @@ def _merge_overlay_bootstrap(
         return
     overlay_cmds = _read_bootstrap_file(overlay_file)
     existing_raw = result.get("bootstrap")
-    if existing_raw is not None:
-        if not isinstance(existing_raw, list) or not all(
-            isinstance(c, str) for c in cast(list[object], existing_raw)
-        ):
-            raise ValueError("'bootstrap' must be a list of strings")
-        existing_cmds: list[str] = list(cast(list[str], existing_raw))
+    if existing_raw is None:
+        result["bootstrap"] = {"cmds": overlay_cmds}
+        return
+    if isinstance(existing_raw, list):
+        raise ValueError(
+            "'bootstrap' must be a mapping with optional source:/launch_cmds:/cmds:/cli_out:"
+        )
+    if not isinstance(existing_raw, dict):
+        raise ValueError(
+            "'bootstrap' must be a mapping with optional source:/launch_cmds:/cmds:/cli_out:"
+        )
+    existing = cast(dict[str, Any], existing_raw)
+    existing_cmds_raw = existing.get("cmds")
+    if existing_cmds_raw is None:
+        existing_cmds: list[str] = []
+    elif not isinstance(existing_cmds_raw, list) or not all(
+        isinstance(c, str) for c in cast(list[object], existing_cmds_raw)
+    ):
+        raise ValueError("'bootstrap.cmds' must be a list of strings")
     else:
-        existing_cmds = []
-    result["bootstrap"] = overlay_cmds + existing_cmds
+        existing_cmds = list(cast(list[str], existing_cmds_raw))
+    existing["cmds"] = overlay_cmds + existing_cmds
+    result["bootstrap"] = existing
 
 
 def _read_bootstrap_file(path: pathlib.Path) -> list[str]:

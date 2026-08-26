@@ -8,19 +8,27 @@ import pytest
 
 from gremlins.cli.launch import build_launch_parser
 from gremlins.pipeline import Pipeline
-from gremlins.stages.exec import Exec
+from gremlins.pipeline.bootstrap import Bootstrap
+from gremlins.pipeline.inputs import InputSource, InputSources
 
 
-def _pipeline_with_inputs(in_map: dict[str, str] | None) -> Pipeline:
-    inputs_stage = None
-    if in_map is not None:
-        inputs_stage = Exec("inputs", {}, in_map=in_map)
+def _pipeline_with_source(
+    sources: dict[str, tuple[list[str], bool]] | None,
+) -> Pipeline:
+    bootstrap = Bootstrap()
+    if sources is not None:
+        bootstrap.source = InputSources(
+            {
+                name: InputSource(name=name, types=types, optional=optional)
+                for name, (types, optional) in sources.items()
+            }
+        )
     p = MagicMock(spec=Pipeline)
-    p.inputs = inputs_stage
+    p.bootstrap = bootstrap
     return p
 
 
-_empty_pipeline = _pipeline_with_inputs(None)
+_empty_pipeline = _pipeline_with_source(None)
 
 
 def test_infra_flags_always_present() -> None:
@@ -46,14 +54,16 @@ def test_prog_includes_pipeline_name() -> None:
 
 
 def test_pipeline_input_exposes_flag() -> None:
-    p = build_launch_parser("mypipe", _pipeline_with_inputs({"PLAN": "plan?"}))
+    p = build_launch_parser(
+        "mypipe", _pipeline_with_source({"plan": (["string"], True)})
+    )
     flags = [s for a in p._actions for s in a.option_strings]
     assert "--plan" in flags
 
 
 def test_flag_name_kebab_cased() -> None:
     p = build_launch_parser(
-        "mypipe", _pipeline_with_inputs({"PLAN_FILE": "plan_file?"})
+        "mypipe", _pipeline_with_source({"plan_file": (["string"], True)})
     )
     flags = [s for a in p._actions for s in a.option_strings]
     assert "--plan-file" in flags
@@ -61,14 +71,16 @@ def test_flag_name_kebab_cased() -> None:
 
 
 def test_required_flag_marked_required() -> None:
-    p = build_launch_parser("mypipe", _pipeline_with_inputs({"TOPIC": "topic"}))
+    p = build_launch_parser(
+        "mypipe", _pipeline_with_source({"topic": (["string"], False)})
+    )
     required_flags = [a.option_strings[0] for a in p._actions if a.required]
     assert "--topic" in required_flags
 
 
 def test_optional_flag_not_required() -> None:
     p = build_launch_parser(
-        "mypipe", _pipeline_with_inputs({"TOPIC": "topic?default_val"})
+        "mypipe", _pipeline_with_source({"topic": (["string"], True)})
     )
     optional = {
         a.option_strings[0]: a
@@ -78,28 +90,25 @@ def test_optional_flag_not_required() -> None:
     assert "--topic" in optional
 
 
-def test_optional_flag_default_value() -> None:
+def test_optional_flag_default_is_none() -> None:
     p = build_launch_parser(
-        "mypipe", _pipeline_with_inputs({"TOPIC": "topic?mydefault"})
+        "mypipe", _pipeline_with_source({"topic": (["string"], True)})
     )
-    assert p.parse_args([]).topic == "mydefault"
-
-
-def test_optional_flag_no_default_is_none() -> None:
-    p = build_launch_parser("mypipe", _pipeline_with_inputs({"TOPIC": "topic?"}))
     assert p.parse_args([]).topic is None
 
 
 def test_infra_flag_collision_raises() -> None:
     with pytest.raises(ValueError, match="description"):
         build_launch_parser(
-            "mypipe", _pipeline_with_inputs({"DESCRIPTION": "description?"})
+            "mypipe", _pipeline_with_source({"description": (["string"], True)})
         )
 
 
 def test_client_collision_raises() -> None:
     with pytest.raises(ValueError, match="client"):
-        build_launch_parser("mypipe", _pipeline_with_inputs({"CLIENT": "client?"}))
+        build_launch_parser(
+            "mypipe", _pipeline_with_source({"client": (["string"], True)})
+        )
 
 
 def test_none_pipeline_produces_only_infra_flags() -> None:
@@ -107,10 +116,3 @@ def test_none_pipeline_produces_only_infra_flags() -> None:
     dests = {a.dest for a in p._actions}
     assert "description" in dests
     assert "base_ref" in dests
-
-
-def test_pipeline_with_dotted_path_uses_registry_key() -> None:
-    # pr.url -> registry key is "pr", flag is --pr
-    p = build_launch_parser("mypipe", _pipeline_with_inputs({"PR_URL": "pr.url?"}))
-    flags = [s for a in p._actions for s in a.option_strings]
-    assert "--pr" in flags

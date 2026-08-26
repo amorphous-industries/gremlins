@@ -45,6 +45,8 @@ def _branch_pipeline(
 
     if branch_stage is None or branch_stage.raw_dict is None:
         return None
+    from gremlins.pipeline.bootstrap import Bootstrap
+
     parent_pipeline = parent_state.pipeline_data
     return Pipeline(
         name=branch_stage.name,
@@ -52,6 +54,7 @@ def _branch_pipeline(
         stages=[branch_stage],
         default_client=parent_pipeline.default_client if parent_pipeline else None,
         base_ref=parent_pipeline.base_ref if parent_pipeline else "current",
+        bootstrap=parent_pipeline.bootstrap if parent_pipeline else Bootstrap(),
     )
 
 
@@ -601,7 +604,7 @@ def _build_child_spec_dict(
 ) -> dict[str, Any]:
     parent_id = child_st.data.gremlin_id or ""
     pipeline_data = child_st.pipeline_data
-    bootstrap_cmds = pipeline_data.bootstrap if pipeline_data else []
+    bootstrap_cmds = list(pipeline_data.bootstrap.cmds) if pipeline_data else []
     return {
         "stage_dict": stage_obj.raw_dict,
         "client": str(child_st.client),

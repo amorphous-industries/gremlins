@@ -29,7 +29,7 @@ class InputSource:
 
 
 class InputSources:
-    """Container for input source declarations from a pipeline's inputs: block."""
+    """Container for input source declarations from a pipeline's bootstrap.source block."""
 
     def __init__(self, sources: dict[str, InputSource] | None = None) -> None:
         self.sources = sources or {}
