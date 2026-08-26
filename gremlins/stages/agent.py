@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import json
-import pathlib
 import secrets
-import shutil
 from typing import TYPE_CHECKING, Any, cast
 
 from gremlins.artifacts.resolve import resolve_in_map
@@ -30,17 +28,17 @@ class Agent(Stage):
 
     When out: declares file://session/<name> bindings, the agent is instructed
     via the {out_file} prompt variable (single output) or the {out_files} JSON
-    mapping (multiple outputs) to write each file to <uuid-slug>_<name> in the
-    worktree. After the agent completes, each written file is moved to
-    {artifact_dir}/<name>.
+    mapping (multiple outputs) to write each file to
+    {artifact_dir}/<uuid-slug>_<name>. The slug is bound into the artifact
+    registry URI (file://session/<slug>_<name>) and never stripped, giving
+    each run a unique file footprint that prevents agents from accidentally
+    reading or overwriting artifacts from prior stages in the same artifact
+    directory.
 
     A single-output stage is strict: verification raises if the file is
     missing or empty. Multi-output stages are best-effort — the agent may
     write any subset, so files it did not write are skipped without error
     (they stay bound but read back empty downstream).
-
-    The uuid-slug keeps sibling/parallel agents from colliding on the same
-    worktree path.
 
     Unknown {keys} pass through unchanged (so code examples with braces work),
     but this also means typos like {plann} produce no error.
@@ -105,17 +103,37 @@ class Agent(Stage):
             )
             for k, v in self.out_map.items()
         }
-        for key, uri_str in out_map.items():
-            if not state.artifacts.produced(key):
-                state.artifacts.bind(key, Uri.parse(uri_str))
-
         file_names = self._file_outputs(out_map)
         slug = secrets.token_hex(4)
-        worktree_names = {name: f"{slug}_{name}" for name in file_names}
+        slugged = {name: f"{slug}_{name}" for name in file_names}
+
+        # Rewrite out_map URIs to include the slug so the registry binds
+        # the actual on-disk filename.
+        slugged_out: dict[str, str] = {}
+        for k, v in out_map.items():
+            uri = Uri.parse(v)
+            if uri.scheme == "file" and uri.path.startswith("session/"):
+                name = uri.path[len("session/") :]
+                slugged_out[k] = f"file://session/{slugged[name]}"
+            else:
+                slugged_out[k] = v
+
+        for key, uri_str in slugged_out.items():
+            # Each run rebinds to a fresh slug (required for loop re-entry).
+            # Slugs are never stripped — prior-iteration files stay on disk
+            # in artifact_dir as an audit trail. For long-running chains
+            # (e.g. boss) this accumulates files; intentional for now.
+            if state.artifacts.produced(key):
+                state.artifacts.unbind(key)
+            state.artifacts.bind(key, Uri.parse(uri_str))
+
+        ad = state.artifact_dir
         if len(file_names) == 1:
-            resolved["out_file"] = worktree_names[file_names[0]]
+            resolved["out_file"] = str(ad / slugged[file_names[0]])
         elif len(file_names) > 1:
-            resolved["out_files"] = json.dumps(worktree_names)
+            resolved["out_files"] = json.dumps(
+                {name: str(ad / fname) for name, fname in slugged.items()}
+            )
 
         template = "\n\n".join(self.prompts).rstrip()
         prompt = self.substitute_vars(template, state, resolved)
@@ -126,15 +144,8 @@ class Agent(Stage):
             state, prompt, label=self.name, raw_path=raw_path, model=model, **opts
         )
 
-        for name in file_names:
-            src = pathlib.Path(state.cwd) / worktree_names[name]
-            dst = state.artifact_dir / name
-            if src.exists():
-                dst.parent.mkdir(parents=True, exist_ok=True)
-                shutil.move(src, dst)
-
         single = len(file_names) == 1
-        for key, uri_str in out_map.items():
+        for key, uri_str in slugged_out.items():
             uri = Uri.parse(uri_str)
             if not single and uri.scheme == "file" and uri.path.startswith("session/"):
                 # Multi-output stages are best-effort: the agent may have
@@ -150,8 +161,7 @@ class Agent(Stage):
     def _file_outputs(out_map: dict[str, str]) -> list[str]:
         """Return the file://session/<name> filenames declared in out:, in order.
 
-        Rejects names containing '/' or '..' to prevent path-traversal
-        escapes when constructing {cwd}/<name> and {artifact_dir}/<name>.
+        Rejects names containing '/' or '..' to prevent path-traversal escapes.
         """
         names: list[str] = []
         for key, uri_str in out_map.items():

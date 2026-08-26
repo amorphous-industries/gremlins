@@ -15,6 +15,7 @@ pub struct RunParams {
     pub on_timeout_prompt: Option<String>,
     pub max_retries: usize,
     pub cwd: Option<PathBuf>,
+    pub artifact_dir: Option<PathBuf>,
     pub idle_timeout: Option<f64>,
     pub extra_env: Option<HashMap<String, String>>,
 }

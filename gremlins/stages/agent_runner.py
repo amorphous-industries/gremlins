@@ -61,6 +61,7 @@ async def run_agent(
         model=resolved_model,
         raw_path=raw_path,
         cwd=state.worktree,
+        artifact_dir=state.artifact_dir,
         **kw,
     )
     _record_token_usage(state, completed)

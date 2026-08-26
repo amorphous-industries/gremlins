@@ -392,9 +392,16 @@ class _CommittingClient(FakeClient):
 
     def run(self, prompt, *, label, **kwargs):
         if label == "plan" and self._artifact_dir is not None:
-            plan_md = self._artifact_dir / "plan.md"
-            if not plan_md.exists() or plan_md.stat().st_size == 0:
-                plan_md.write_text("# Plan\nDo stuff.\n", encoding="utf-8")
+            # The prompt contains {out_file} substituted with the absolute
+            # slugged path (e.g. /tmp/.../artifacts/deadbeef_plan.md).
+            # Extract it so we write to the path the agent was told to use.
+            ad = re.escape(str(self._artifact_dir))
+            m = re.search(ad + r"/[a-f0-9]+_plan\.md", prompt)
+            if m:
+                plan_md = pathlib.Path(m.group(0))
+                if not plan_md.exists() or plan_md.stat().st_size == 0:
+                    plan_md.parent.mkdir(parents=True, exist_ok=True)
+                    plan_md.write_text("# Plan\nDo stuff.\n", encoding="utf-8")
         if label == "implement" and self._git_dir is not None:
             # Simulate implement creating a commit
             (self._git_dir / "impl.txt").write_text("impl\n")

@@ -80,10 +80,11 @@ class FakeClient(Client):
         on_timeout_prompt: str | None = None,
         max_retries: int = 3,
         cwd: pathlib.Path | None = None,
+        artifact_dir: pathlib.Path | None = None,
         idle_timeout: float | None = None,
         extra_env: dict[str, str] | None = None,
     ) -> CompletedRun:
-        del on_timeout_prompt, max_retries, idle_timeout, extra_env
+        del on_timeout_prompt, max_retries, idle_timeout, extra_env, artifact_dir
         self._ctx.set(
             {
                 "prompt": prompt,

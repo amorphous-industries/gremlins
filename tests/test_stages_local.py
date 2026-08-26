@@ -91,7 +91,7 @@ def _make_review_code_stage(client: ReviewCreatingClient) -> Agent:
         [
             (_BUNDLED_PROMPTS / "code_style.md").read_text(encoding="utf-8"),
             (_BUNDLED_PROMPTS / "review" / "detail.md").read_text(encoding="utf-8"),
-            "`{artifact_dir}/{name}-{model}.md` is the canonical and required location.",
+            "`{out_file}` is the canonical and required location.",
         ],
         {},
         out_map={"review-code": "file://session/{name}-{model}.md"},
@@ -125,7 +125,7 @@ def test_review_code_stage_includes_style_from_prompts(tmp_path):
         [
             "Be good.",
             (_BUNDLED_PROMPTS / "review" / "detail.md").read_text(encoding="utf-8"),
-            "`{artifact_dir}/{name}-{model}.md` is the canonical and required location.",
+            "`{out_file}` is the canonical and required location.",
         ],
         {},
         out_map={"review-code": "file://session/{name}-{model}.md"},

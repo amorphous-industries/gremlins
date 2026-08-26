@@ -8,7 +8,7 @@ import pathlib
 import pytest
 from conftest import MockGremlin
 
-from gremlins.artifacts.registry import MissingArtifact
+from gremlins.artifacts.registry import ArtifactRegistry, MissingArtifact
 from gremlins.artifacts.uri import Uri
 from gremlins.executor.state import StateData, build_state
 from gremlins.stages.exec import Exec
@@ -178,6 +178,44 @@ def test_out_read_sub_unbound_key_raises(tmp_path):
     stage = _exec(cmds=["true"], out_map={"bar": "gh://pr/{read:nonexistent}"})
     with pytest.raises(MissingArtifact):
         asyncio.run(stage.run(MockGremlin(state=state)))
+
+
+def test_artifact_sub_replaces_with_filesystem_path(tmp_path):
+    state = _make_state(tmp_path)
+    state.artifacts.bind("my-file", Uri.parse("file://session/my-file.txt"))
+    (state.artifact_dir / "my-file.txt").write_text("hello")
+    stage = _exec(
+        cmds=['test "$(cat {artifact:my-file})" = "hello"'],
+    )
+    result = asyncio.run(stage.run(MockGremlin(state=state)))
+    assert isinstance(result, Done)
+
+
+def test_artifact_sub_raises_for_unbound_key(tmp_path):
+    state = _make_state(tmp_path)
+    stage = _exec(cmds=["echo {artifact:nonexistent}"])
+    with pytest.raises(MissingArtifact):
+        asyncio.run(stage.run(MockGremlin(state=state)))
+
+
+def test_registry_path_for_resolves_file_session(tmp_path):
+    registry = ArtifactRegistry(tmp_path / "artifacts", cwd=tmp_path)
+    registry.bind("x", Uri.parse("file://session/foo.txt"))
+    path = registry.path_for("x")
+    assert path is not None
+    assert path.name == "foo.txt"
+    assert path.is_absolute()
+
+
+def test_registry_path_for_returns_none_for_non_file_uri(tmp_path):
+    registry = ArtifactRegistry(tmp_path / "artifacts", cwd=tmp_path)
+    registry.bind("x", Uri.parse("gh://pr/42"))
+    assert registry.path_for("x") is None
+
+
+def test_registry_path_for_returns_none_for_unbound_key(tmp_path):
+    registry = ArtifactRegistry(tmp_path / "artifacts", cwd=tmp_path)
+    assert registry.path_for("nonexistent") is None
 
 
 # ---------------------------------------------------------------------------
