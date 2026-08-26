@@ -4,7 +4,11 @@ import pathlib
 
 import pytest
 
-from gremlins.pipeline.bootstrap import InputSource, InputSources, validate_source_values
+from gremlins.pipeline.bootstrap import (
+    InputSource,
+    InputSources,
+    validate_source_values,
+)
 
 
 def _sources(*items: tuple[str, list[str], bool]) -> InputSources:
