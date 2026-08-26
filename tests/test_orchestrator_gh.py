@@ -266,11 +266,15 @@ def _patch_common(
 
 
 def _prepare_for_plan_stage(tmp_path: pathlib.Path) -> None:
-    """Remove plan so skip_if_exists does not skip the plan stage."""
+    """Remove plan-document from the registry and its backing file from disk
+    so skip_if_exists does not skip the plan stage."""
     reg_path = tmp_path / "gr-test" / "registry.json"
     reg = json.loads(reg_path.read_text())
     reg.pop("plan-document", None)
     reg_path.write_text(json.dumps(reg))
+    plan_path = tmp_path / "gr-test" / "artifacts" / "plan.md"
+    if plan_path.exists():
+        plan_path.unlink()
 
 
 _real_subprocess_run = subprocess.run

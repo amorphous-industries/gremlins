@@ -35,7 +35,7 @@ class StageProtocol(Protocol):
     out_map: dict[str, str]
     gremlin: GremlinProtocol | None
     client: Any
-    skip_if_exists: str | list[str]
+    skip_if_exists: str
 
     async def run(self, gremlin: Any) -> Any:
         """Run this stage with the orchestrator."""

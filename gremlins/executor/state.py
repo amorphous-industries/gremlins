@@ -562,14 +562,10 @@ class State:
             )
 
         async def _run_async() -> Any:
-            if entry.skip_if_exists:
-                keys = (
-                    entry.skip_if_exists
-                    if isinstance(entry.skip_if_exists, list)
-                    else [entry.skip_if_exists]
-                )
-                if any(base_state.artifacts.verified(k) for k in keys):
-                    return Done()
+            if entry.skip_if_exists and base_state.artifacts.verified(
+                entry.skip_if_exists
+            ):
+                return Done()
             child_gremlin = copy.copy(gremlin)
             prepared_state = _prepare()
             child_gremlin.state = prepared_state

@@ -15,8 +15,6 @@ stages:
           if [ -z "$plan" ]; then exit 0; fi
           if [ -f "$plan" ]; then
               cp "$plan" "{artifact_dir}/plan.md"
-              cp "$plan" "{artifact_dir}/.plan-document-content"
-              touch "{artifact_dir}/.plan-is-final"
           elif echo "$plan" | grep -qE '^([^/]+/[^#]+)?#[0-9]+$'; then
               gh issue view "$plan" --json body --jq .body \
                 > "{artifact_dir}/plan.md"
@@ -26,12 +24,11 @@ stages:
           fi
           cp "{artifact_dir}/plan.md" "{cwd}/plan.md" 2>/dev/null || true
     out:
-      plan-is-final?: "file://session/.plan-is-final"
-      plan-document?: "file://session/.plan-document-content"
+      plan-document?: "file://session/plan.md"
 
   - name: plan
     type: agent
-    skip_if_exists: [plan-document, plan-is-final]
+    skip_if_exists: plan-document
     prompt:
       - "{{prompt}}"
     in:
