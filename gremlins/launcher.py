@@ -200,7 +200,7 @@ def _resolve_inputs(
 
     if loaded_pipeline is not None:
         validate_source_values(loaded_pipeline.bootstrap.source, stage_inputs)
-    pr = stage_inputs.pop("pr", None) or None
+    pr = stage_inputs.get("pr", None) or None
 
     if (
         loaded_pipeline is not None

@@ -61,8 +61,8 @@ async def run_pipeline_bootstrap(
         await run_bootstrap(bootstrap.cmds, cwd)
     if not include_launch:
         return
+    validate_source_values(bootstrap.source, stage_inputs)
     if bootstrap.launch_cmds:
-        validate_source_values(bootstrap.source, stage_inputs)
         env = source_env(bootstrap.source, stage_inputs)
         cmds = [
             substitute_bootstrap_vars(c, artifact_dir=artifact_dir, cwd=cwd)

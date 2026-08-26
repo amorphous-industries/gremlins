@@ -19,12 +19,29 @@ bootstrap:
       type: string
   launch_cmds:
     - |
-      if [ -n "${plan+x}" ]; then printf '%s' "$plan" > "{artifact_dir}/plan.txt"; fi
+      if [ -n "${plan+x}" ]; then
+        if [ -f "$plan" ]; then
+          cp "$plan" "{artifact_dir}/plan.md"
+        else
+          printf '%s' "$plan" > "{artifact_dir}/plan.md"
+        fi
+      fi
     - |
-      if [ -n "${instructions+x}" ]; then printf '%s' "$instructions" > "{artifact_dir}/instructions.txt"; fi
+      if [ -n "${instructions+x}" ]; then
+        if [ -f "$instructions" ]; then
+          cp "$instructions" "{artifact_dir}/instructions.txt"
+        else
+          printf '%s' "$instructions" > "{artifact_dir}/instructions.txt"
+        fi
+      fi
+    - |
+      if [ -n "${pr+x}" ]; then
+        printf '%s' "${pr##*/}" > "{artifact_dir}/pr-num.txt"
+      fi
   cli_out:
-    plan?: file://session/plan.txt
     instructions?: file://session/instructions.txt
+    pr-num?: file://session/pr-num.txt
+    pr: "gh://pr/{read:pr-num}"
 
 prompts:
   code-style: gremlins:code_style.md

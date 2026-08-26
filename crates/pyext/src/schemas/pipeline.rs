@@ -18,9 +18,7 @@ pub struct Pipeline {
     #[pyo3(get, set)]
     pub base_ref: String,
     #[pyo3(get, set)]
-    pub inputs: Option<Py<PyAny>>,
-    #[pyo3(get, set)]
-    pub input_sources: Option<Py<PyAny>>,
+    pub bootstrap: Option<Py<PyAny>>,
     #[pyo3(get, set)]
     pub land: Option<Py<PyAny>>,
     #[pyo3(get, set)]
@@ -118,43 +116,34 @@ impl Pipeline {
             })?,
         };
 
-        let mut stages = loader::parse_stages(py, raw_stages, 0)?;
+        let stages = loader::parse_stages(py, raw_stages, 0)?;
 
-        let mut inputs_stage: Option<Py<PyAny>> = None;
-        let mut input_sources: Option<Py<PyAny>> = None;
-        let inputs_raw = raw_dict.get_item("inputs")?;
-        if let Some(inputs_raw) = inputs_raw {
-            let inputs_dict: &Bound<'_, PyDict> = inputs_raw.cast().map_err(|_| {
-                pyo3::exceptions::PyValueError::new_err("'inputs' must be a mapping")
-            })?;
-
-            let sources_raw = inputs_dict.get_item("sources")?;
-            if let Some(sources_raw) = sources_raw {
-                let sources_dict: &Bound<'_, PyDict> = sources_raw.cast().map_err(|_| {
-                    pyo3::exceptions::PyValueError::new_err("'inputs.sources' must be a mapping")
-                })?;
-                let input_sources_cls = py
-                    .import("gremlins.pipeline.bootstrap")?
-                    .getattr("InputSources")?;
-                input_sources = Some(
-                    input_sources_cls
-                        .call_method1("from_yaml", (sources_dict,))?
-                        .extract()?,
-                );
-            }
-
-            let exec_cls = py.import("gremlins.stages.exec")?.getattr("Exec")?;
-            let inputs_stage_dict = PyDict::new(py);
-            inputs_stage_dict.set_item("name", "inputs")?;
-            for (k, v) in inputs_dict.iter() {
-                inputs_stage_dict.set_item(k, v)?;
-            }
-            inputs_stage = Some(
-                exec_cls
-                    .call_method1("with_dict", (inputs_stage_dict,))?
-                    .extract()?,
-            );
+        // Reject the old "inputs" key — declare CLI args under bootstrap.source
+        if raw_dict.get_item("inputs")?.is_some() {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "'inputs' is not a valid pipeline key; declare CLI arguments under bootstrap.source"
+            ));
         }
+
+        let bootstrap: Option<Py<PyAny>> = raw_dict
+            .get_item("bootstrap")?
+            .map(|v| {
+                if v.is_none() {
+                    return Ok::<Option<Py<PyAny>>, pyo3::PyErr>(None);
+                }
+                let bootstrap_dict: &Bound<'_, PyDict> = v.cast().map_err(|_| {
+                    pyo3::exceptions::PyValueError::new_err("'bootstrap' must be a mapping")
+                })?;
+                let bootstrap_cls = py
+                    .import("gremlins.pipeline.bootstrap")?
+                    .getattr("Bootstrap")?;
+                let bs = bootstrap_cls
+                    .call_method1("from_yaml", (bootstrap_dict,))?
+                    .extract()?;
+                Ok::<Option<Py<PyAny>>, pyo3::PyErr>(Some(bs))
+            })
+            .transpose()?
+            .flatten();
 
         let land_stage: Option<Py<PyAny>> = raw_dict
             .get_item("land")?
@@ -175,12 +164,6 @@ impl Pipeline {
             })
             .transpose()?;
 
-        if let Some(ref inputs_s) = inputs_stage {
-            let mut new_stages: Vec<Py<PyAny>> = vec![inputs_s.clone_ref(py)];
-            new_stages.extend(stages);
-            stages = new_stages;
-        }
-
         let stages_list = PyList::new(py, stages.iter().map(|s| s.bind(py)))?;
         loader::check_duplicate_producers(&stages_list)?;
 
@@ -200,8 +183,7 @@ impl Pipeline {
             stages,
             default_client,
             base_ref,
-            inputs: inputs_stage,
-            input_sources,
+            bootstrap,
             land: land_stage,
             github_integration,
         })
@@ -267,8 +249,7 @@ mod tests {
             stages: vec![],
             default_client: None,
             base_ref: "current".to_string(),
-            inputs: None,
-            input_sources: None,
+            bootstrap: None,
             land: None,
             github_integration: false,
         };
