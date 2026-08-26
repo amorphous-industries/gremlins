@@ -1019,7 +1019,7 @@ def test_bootstrap_rejects_out_key(tmp_path: pathlib.Path) -> None:
 default_client: openai:gpt-4o
 bootstrap:
   out:
-    plan: file://session/plan.txt
+    plan: file://session/plan.md
 stages: []
 """,
     )

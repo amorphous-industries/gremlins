@@ -12,11 +12,11 @@ bootstrap:
       optional: true
   launch_cmds:
     - |
-      if [ -n "${plan+x}" ]; then printf '%s' "$plan" > "{artifact_dir}/plan.txt"; fi
+      if [ -n "${plan+x}" ]; then printf '%s' "$plan" > "{artifact_dir}/plan.md"; fi
     - |
       if [ -n "${instructions+x}" ]; then printf '%s' "$instructions" > "{artifact_dir}/instructions.txt"; fi
   cli_out:
-    plan?: file://session/plan.txt
+    plan?: file://session/plan.md
     instructions?: file://session/instructions.txt
   cmds:
     - uv venv .venv
