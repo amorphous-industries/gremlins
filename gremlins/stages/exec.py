@@ -42,13 +42,25 @@ def _sub_reads(s: str, artifacts: ArtifactRegistry) -> str:
 
 def _sub_artifact_paths(s: str, artifacts: ArtifactRegistry) -> str:
     """Replace {artifact:key} with the absolute filesystem path of a
-    file://session/ artifact, or raise MissingArtifact if unbound."""
+    file://session/ artifact.
+
+    Raises MissingArtifact when the key is not bound.
+    Raises ValueError when the key is bound but does not resolve to a
+    file://session/ URI (e.g. gh:// or git:// artifacts).
+    """
 
     def _r(m: re.Match[str]) -> str:
         key = m.group(1)
+        try:
+            uri = artifacts.resolve(key)
+        except MissingArtifact:
+            raise MissingArtifact(key) from None
         p = artifacts.path_for(key)
         if p is None:
-            raise MissingArtifact(key)
+            raise ValueError(
+                f"{{artifact:{key}}}: artifact is bound to {uri} "
+                f"which is not a file://session/ path"
+            )
         return str(p)
 
     return _ARTIFACT_SUB.sub(_r, s)

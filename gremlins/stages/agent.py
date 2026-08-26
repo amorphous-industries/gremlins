@@ -119,16 +119,20 @@ class Agent(Stage):
                 slugged_out[k] = v
 
         for key, uri_str in slugged_out.items():
+            # Each run rebinds to a fresh slug (required for loop re-entry).
+            # Slugs are never stripped — prior-iteration files stay on disk
+            # in artifact_dir as an audit trail. For long-running chains
+            # (e.g. boss) this accumulates files; intentional for now.
             if state.artifacts.produced(key):
                 state.artifacts.unbind(key)
             state.artifacts.bind(key, Uri.parse(uri_str))
 
-        ad = str(state.artifact_dir)
+        ad = state.artifact_dir
         if len(file_names) == 1:
-            resolved["out_file"] = f"{ad}/{slugged[file_names[0]]}"
+            resolved["out_file"] = str(ad / slugged[file_names[0]])
         elif len(file_names) > 1:
             resolved["out_files"] = json.dumps(
-                {name: f"{ad}/{fname}" for name, fname in slugged.items()}
+                {name: str(ad / fname) for name, fname in slugged.items()}
             )
 
         template = "\n\n".join(self.prompts).rstrip()

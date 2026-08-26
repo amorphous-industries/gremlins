@@ -102,7 +102,7 @@ def test_verify_produced_passes_when_out_file_written(tmp_path):
     class WritingClient(FakeClient):
         async def run(self, prompt, *, label, **kwargs):
             # Extract the slugged path from {out_file} in the prompt.
-            m = re.search(r"`(\S*[0-9a-f]+_output\.md)`", prompt)
+            m = re.search(r"`([^`]*[0-9a-f]+_output\.md)`", prompt)
             assert m, prompt
             pathlib.Path(m.group(1)).parent.mkdir(parents=True, exist_ok=True)
             pathlib.Path(m.group(1)).write_text("# Output")
@@ -144,7 +144,7 @@ def test_out_uri_bound_in_registry_before_agent_runs(tmp_path):
                 registry is not None and registry.produced("result")
             )
             # Extract slugged path from {out_file} and write so verify passes.
-            m = re.search(r"`(\S*[0-9a-f]+_output\.md)`", prompt)
+            m = re.search(r"`([^`]*[0-9a-f]+_output\.md)`", prompt)
             if m:
                 p = pathlib.Path(m.group(1))
                 p.parent.mkdir(parents=True, exist_ok=True)
@@ -199,7 +199,7 @@ def test_with_dict_rejects_non_dict_out(tmp_path):
 def test_single_file_out_prompt_gets_slug_prefixed_name(tmp_path):
     class WritingClient(FakeClient):
         async def run(self, prompt, *, label, cwd=None, **kwargs):
-            m = re.search(r"`(\S*[0-9a-f]+_output\.md)`", prompt)
+            m = re.search(r"`([^`]*[0-9a-f]+_output\.md)`", prompt)
             assert m, prompt
             pathlib.Path(m.group(1)).parent.mkdir(parents=True, exist_ok=True)
             pathlib.Path(m.group(1)).write_text("# Output", encoding="utf-8")
@@ -224,13 +224,13 @@ def test_single_file_out_prompt_gets_slug_prefixed_name(tmp_path):
     assert m, client.calls[0].prompt
 
 
-def test_single_file_out_strips_slug_in_artifact_dir(tmp_path):
+def test_single_file_out_keeps_slug_in_artifact_dir(tmp_path):
     """Slugged file remains on disk after the agent completes — the slug is
     never stripped, giving each run a unique file footprint."""
 
     class WritingClient(FakeClient):
         async def run(self, prompt, *, label, cwd=None, **kwargs):
-            m = re.search(r"`(\S*[0-9a-f]+_output\.md)`", prompt)
+            m = re.search(r"`([^`]*[0-9a-f]+_output\.md)`", prompt)
             assert m, prompt
             pathlib.Path(m.group(1)).parent.mkdir(parents=True, exist_ok=True)
             pathlib.Path(m.group(1)).write_text("# Output", encoding="utf-8")
@@ -256,7 +256,7 @@ def test_single_file_out_strips_slug_in_artifact_dir(tmp_path):
 def test_single_file_out_uses_substituted_out_map_name(tmp_path):
     class WritingClient(FakeClient):
         async def run(self, prompt, *, label, cwd=None, **kwargs):
-            m = re.search(r"`(\S*[0-9a-f]+_review-code\.md)`", prompt)
+            m = re.search(r"`([^`]*[0-9a-f]+_review-code\.md)`", prompt)
             assert m, prompt
             pathlib.Path(m.group(1)).parent.mkdir(parents=True, exist_ok=True)
             pathlib.Path(m.group(1)).write_text("# Review", encoding="utf-8")

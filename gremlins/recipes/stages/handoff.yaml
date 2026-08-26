@@ -111,5 +111,5 @@ stages:
               ROLLING="{artifact:rolling-plan}"
               if [ ! -s "$ROLLING" ]; then
                 cp "{artifact_dir}/rolling-plan-pre-sanitize.md" \
-                  "{artifact_dir}/rolling-plan.md"
+                  "$ROLLING"
               fi

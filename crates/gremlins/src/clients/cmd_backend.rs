@@ -45,6 +45,7 @@ struct CmdContext {
     extra_env: Option<HashMap<String, String>>,
     prefix: String,
     last_session_id: Option<String>,
+    artifact_dir: Option<PathBuf>,
 }
 
 impl CmdBackend {
@@ -87,7 +88,12 @@ impl CmdBackend {
         }
     }
 
-    fn build_argv(&self, model: Option<&str>, session_id: Option<&str>) -> Vec<String> {
+    fn build_argv(
+        &self,
+        model: Option<&str>,
+        session_id: Option<&str>,
+        artifact_dir: Option<&PathBuf>,
+    ) -> Vec<String> {
         let mut argv = self.command.clone();
         if let Some(m) = model {
             if !argv.iter().any(|a| a == "--model") {
@@ -100,6 +106,10 @@ impl CmdBackend {
                 argv.push("--resume".into());
                 argv.push(sid.into());
             }
+        }
+        if let Some(dir) = artifact_dir {
+            argv.push("--add-dir".into());
+            argv.push(dir.to_string_lossy().into_owned());
         }
         argv
     }
@@ -327,7 +337,7 @@ impl CmdBackend {
         prompt: &str,
         session_id: Option<&str>,
     ) -> Result<CompletedRun, ClientError> {
-        let (model, cwd, extra_env, prefix, raw_path, capture_events, idle_timeout) = {
+        let (model, cwd, extra_env, prefix, raw_path, capture_events, idle_timeout, artifact_dir) = {
             let ctx_guard = self.ctx.lock().unwrap();
             let ctx = ctx_guard.as_ref().ok_or_else(|| ClientError::Runtime {
                 message: "attempt() called before run()".into(),
@@ -340,10 +350,11 @@ impl CmdBackend {
                 ctx.raw_path.clone(),
                 ctx.capture_events,
                 ctx.idle_timeout,
+                ctx.artifact_dir.clone(),
             )
         };
 
-        let argv = self.build_argv(model.as_deref(), session_id);
+        let argv = self.build_argv(model.as_deref(), session_id, artifact_dir.as_ref());
         let mut child = self
             .spawn(&argv, prompt, cwd.as_ref(), extra_env.as_ref())
             .await?;
@@ -467,6 +478,7 @@ impl Backend for CmdBackend {
                 extra_env: params.extra_env.clone(),
                 prefix: prefix.clone(),
                 last_session_id: None,
+                artifact_dir: params.artifact_dir.clone(),
             });
         }
 
