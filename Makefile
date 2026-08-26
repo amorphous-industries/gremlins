@@ -16,7 +16,7 @@ format-write:
 	ruff format .
 
 typecheck:
-	pyright --pythonpath $(shell which python)
+	pyright
 
 test: rust-test $(TEST_FILES)
 
@@ -37,10 +37,16 @@ rust-fmt-check:
 rust-clippy:
 	cargo clippy --all-targets -- -D warnings
 
+# --- Stubs ---
+
+install-stubs: ## Install .py source stubs alongside the .so for pyright
+	python crates/pyext/_install_stubs.py
+
 # --- Build ---
 
 dev: ## Build and install the native extension in dev mode
 	maturin develop
+	$(MAKE) install-stubs
 
 install: ## Build and install the native extension in release mode
 	maturin develop --release
