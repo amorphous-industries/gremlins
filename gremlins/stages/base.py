@@ -36,7 +36,7 @@ class StageInput(NamedTuple):
 class Stage:
     type: str = ""
     body: list[Stage] = []
-    skip_if_exists: str = ""
+    skip_if_exists: str | list[str] = ""
     options: dict[str, Any]
     out_map: dict[str, str]
     gremlin: GremlinProtocol | None

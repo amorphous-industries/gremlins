@@ -15,6 +15,7 @@ stages:
           if [ -z "$plan" ]; then exit 0; fi
           if [ -f "$plan" ]; then
               cp "$plan" "{artifact_dir}/plan.md"
+              touch "{artifact_dir}/.plan-is-final"
           elif echo "$plan" | grep -qE '^#[0-9]+$'; then
               gh issue view "$plan" --json body --jq .body \
                 > "{artifact_dir}/plan.md"
@@ -25,6 +26,7 @@ stages:
               fi
               gh issue view "$plan" --json number --jq .number \
                 > "{artifact_dir}/plan-issue-number.txt"
+              touch "{artifact_dir}/.plan-is-final"
           else
               printf 'resolve-plan-input: unrecognized plan: %s\n' "$plan" >&2
               exit 1
@@ -32,10 +34,12 @@ stages:
           cp "{artifact_dir}/plan.md" "{cwd}/plan.md" 2>/dev/null || true
     out:
       plan-issue-number?: "file://session/plan-issue-number.txt"
+      plan-is-final?: "file://session/.plan-is-final"
+      plan-document?: "gh://issue/{read:plan-issue-number}"
 
   - name: plan
     type: agent
-    skip_if_exists: plan-document
+    skip_if_exists: [plan-document, plan-is-final]
     prompt:
       - "{{prompt}}"
     in:

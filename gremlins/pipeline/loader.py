@@ -81,13 +81,24 @@ def parse_stages(raw: list[dict[str, Any]], depth: int = 0) -> list[Stage]:
     return [parse_stage(d, depth=depth) for d in raw]
 
 
-def _parse_skip_if_exists(d: dict[str, Any], name: str) -> str:
+def _parse_skip_if_exists(d: dict[str, Any], name: str) -> str | list[str]:
     value = d.get("skip_if_exists") or ""
-    if value and not isinstance(value, str):
-        raise ValueError(
-            f"stage {name!r}: 'skip_if_exists' must be a string, got {type(value).__name__!r}"
-        )
-    return value
+    if not value:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        for item in value:
+            if not isinstance(item, str):
+                raise ValueError(
+                    f"stage {name!r}: 'skip_if_exists' list items must be strings, "
+                    f"got {type(item).__name__!r}"
+                )
+        return list(value)
+    raise ValueError(
+        f"stage {name!r}: 'skip_if_exists' must be a string or list, "
+        f"got {type(value).__name__!r}"
+    )
 
 
 def parse_stage(d: dict[str, Any], depth: int = 0) -> Stage:
