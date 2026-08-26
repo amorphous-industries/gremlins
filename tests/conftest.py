@@ -368,9 +368,11 @@ class ReviewCreatingClient(FakeClient):
         base = pathlib.Path(cwd) if cwd else pathlib.Path.cwd()
         if label == "plan":
             # Write the plan file so verify_produced passes for the plan recipe stage.
-            m = re.search(r"`([0-9a-f]+_plan\.md)`", prompt)
+            m = re.search(r"`(\S+plan\.md)`", prompt)
             if m:
-                plan_path = base / m.group(1)
+                plan_path = pathlib.Path(m.group(1))
+                if not plan_path.is_absolute():
+                    plan_path = base / plan_path
                 plan_path.parent.mkdir(parents=True, exist_ok=True)
                 if not plan_path.exists() or plan_path.stat().st_size == 0:
                     plan_path.write_text("# Plan\nDo stuff.\n", encoding="utf-8")

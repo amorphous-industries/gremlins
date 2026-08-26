@@ -195,9 +195,10 @@ def test_with_dict_rejects_non_dict_out(tmp_path):
 def test_single_file_out_prompt_gets_slug_prefixed_name(tmp_path):
     class WritingClient(FakeClient):
         async def run(self, prompt, *, label, cwd=None, **kwargs):
-            m = re.search(r"`([0-9a-f]+_output\.md)`", prompt)
+            m = re.search(r"`(\S*[0-9a-f]+_output\.md)`", prompt)
             assert m, prompt
-            (pathlib.Path(cwd) / m.group(1)).write_text("# Output", encoding="utf-8")
+            pathlib.Path(m.group(1)).parent.mkdir(parents=True, exist_ok=True)
+            pathlib.Path(m.group(1)).write_text("# Output", encoding="utf-8")
             return await super().run(prompt, label=label, cwd=cwd, **kwargs)
 
     client = WritingClient(fixtures={"my-agent": MINIMAL_EVENTS})
@@ -210,16 +211,22 @@ def test_single_file_out_prompt_gets_slug_prefixed_name(tmp_path):
     asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
 
     assert len(client.calls) == 1
-    m = re.fullmatch(r"Write to `([0-9a-f]{8})_output\.md`", client.calls[0].prompt)
+    m = re.fullmatch(
+        r"Write to `"
+        + re.escape(str(state.artifact_dir))
+        + r"/([0-9a-f]{8})_output\.md`",
+        client.calls[0].prompt,
+    )
     assert m, client.calls[0].prompt
 
 
-def test_single_file_out_moves_worktree_file_to_artifact_dir(tmp_path):
+def test_single_file_out_strips_slug_in_artifact_dir(tmp_path):
     class WritingClient(FakeClient):
         async def run(self, prompt, *, label, cwd=None, **kwargs):
-            m = re.search(r"`([0-9a-f]+_output\.md)`", prompt)
+            m = re.search(r"`(\S*[0-9a-f]+_output\.md)`", prompt)
             assert m, prompt
-            (pathlib.Path(cwd) / m.group(1)).write_text("# Output", encoding="utf-8")
+            pathlib.Path(m.group(1)).parent.mkdir(parents=True, exist_ok=True)
+            pathlib.Path(m.group(1)).write_text("# Output", encoding="utf-8")
             return await super().run(prompt, label=label, cwd=cwd, **kwargs)
 
     client = WritingClient(fixtures={"my-agent": MINIMAL_EVENTS})
@@ -232,15 +239,17 @@ def test_single_file_out_moves_worktree_file_to_artifact_dir(tmp_path):
     result = asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
     assert isinstance(result, Done)
     assert (state.artifact_dir / "output.md").read_text(encoding="utf-8") == "# Output"
-    assert list(pathlib.Path(state.cwd).glob("*_output.md")) == []
+    # After the rename, only the final name exists — no slugged file remains.
+    assert list(state.artifact_dir.glob("*_output.md")) == []
 
 
 def test_single_file_out_uses_substituted_out_map_name(tmp_path):
     class WritingClient(FakeClient):
         async def run(self, prompt, *, label, cwd=None, **kwargs):
-            m = re.search(r"`([0-9a-f]+_review-code\.md)`", prompt)
+            m = re.search(r"`(\S*[0-9a-f]+_review-code\.md)`", prompt)
             assert m, prompt
-            (pathlib.Path(cwd) / m.group(1)).write_text("# Review", encoding="utf-8")
+            pathlib.Path(m.group(1)).parent.mkdir(parents=True, exist_ok=True)
+            pathlib.Path(m.group(1)).write_text("# Review", encoding="utf-8")
             return await super().run(prompt, label=label, cwd=cwd, **kwargs)
 
     client = WritingClient(fixtures={"review-code": MINIMAL_EVENTS})
@@ -292,20 +301,21 @@ def test_multi_file_out_prompt_gets_json_mapping(tmp_path):
     assert m, client.calls[0].prompt
     mapping = json.loads(m.group(1))
     assert set(mapping) == {"blah.md", "foo.md", "biz.md"}
+    ad = str(state.artifact_dir)
     for name, actual in mapping.items():
-        assert re.fullmatch(rf"[0-9a-f]{{8}}_{re.escape(name)}", actual)
+        assert re.fullmatch(rf"{re.escape(ad)}/[0-9a-f]{{8}}_{re.escape(name)}", actual)
 
 
-def test_multi_file_out_moves_only_written_files(tmp_path):
+def test_multi_file_out_renames_only_written_files(tmp_path):
     class WritingClient(FakeClient):
         async def run(self, prompt, *, label, cwd=None, **kwargs):
             # Write two of the three declared files; biz.md is skipped.
             m = re.search(r"\{.*\}", prompt)
             mapping = json.loads(m.group(0))
             for name in ("blah.md", "foo.md"):
-                (pathlib.Path(cwd) / mapping[name]).write_text(
-                    f"# {name}", encoding="utf-8"
-                )
+                p = pathlib.Path(mapping[name])
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_text(f"# {name}", encoding="utf-8")
             return await super().run(prompt, label=label, cwd=cwd, **kwargs)
 
     client = WritingClient(fixtures={"my-agent": MINIMAL_EVENTS})
