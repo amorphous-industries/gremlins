@@ -195,7 +195,6 @@ def test_local_pipeline_stage_names(tmp_path):
     pipeline = Pipeline.from_yaml(resolve_pipeline_path("local", tmp_path))
     names = [s.name for s in pipeline.stages]
     assert names == [
-        "inputs",
         "resolve-plan-input",
         "plan",
         "update-description",

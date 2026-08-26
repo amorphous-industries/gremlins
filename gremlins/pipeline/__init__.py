@@ -6,9 +6,9 @@ import pathlib
 from typing import TYPE_CHECKING, Any, cast
 
 from gremlins.clients.client import Client
+from gremlins.pipeline.bootstrap import Bootstrap
 
 if TYPE_CHECKING:
-    from gremlins.pipeline.inputs import InputSources
     from gremlins.stages.base import Stage
     from gremlins.stages.exec import Exec
 
@@ -30,9 +30,7 @@ class Pipeline:
     stages: list[Stage]
     default_client: Client | None = None
     base_ref: str = "current"
-    bootstrap: list[str] = dataclasses.field(default_factory=list[str])
-    inputs: Exec | None = None
-    input_sources: InputSources | None = None
+    bootstrap: Bootstrap = dataclasses.field(default_factory=Bootstrap)
     land: Exec | None = None
     github_integration: bool = False
 
@@ -77,37 +75,15 @@ class Pipeline:
 
         github_integration = bool(raw.get("github_integration", False))
 
-        from gremlins.pipeline.inputs import InputSources
         from gremlins.stages.exec import Exec
 
+        if "inputs" in raw:
+            raise ValueError(
+                "'inputs' is not a valid pipeline key; declare CLI arguments under bootstrap.source"
+            )
+
         stages = parse_stages(cast(list[dict[str, Any]], raw.get("stages") or []))
-
-        inputs_stage: Exec | None = None
-        input_sources: InputSources | None = None
-        inputs_raw = raw.get("inputs")
-        if inputs_raw is not None:
-            if not isinstance(inputs_raw, dict):
-                raise ValueError("'inputs' must be a mapping")
-            inputs_raw = cast(dict[str, Any], inputs_raw)
-            sources_raw = inputs_raw.get("sources")
-            if sources_raw is not None:
-                if not isinstance(sources_raw, dict):
-                    raise ValueError("'inputs.sources' must be a mapping")
-                input_sources = InputSources.from_yaml(
-                    cast(dict[str, Any], sources_raw)
-                )
-            inputs_stage = Exec.with_dict({"name": "inputs", **inputs_raw})
-
-        bootstrap_cmds: list[str] = []
-        bootstrap_raw = raw.get("bootstrap")
-        if bootstrap_raw is not None:
-            if isinstance(bootstrap_raw, list):
-                for item in cast(list[object], bootstrap_raw):
-                    if not isinstance(item, str):
-                        raise ValueError("'bootstrap' must be a list of strings")
-                    bootstrap_cmds.append(item)
-            else:
-                raise ValueError("'bootstrap' must be a list of strings")
+        bootstrap = Bootstrap.from_yaml(raw.get("bootstrap"))
 
         land_stage: Exec | None = None
         land_raw = raw.get("land")
@@ -116,10 +92,7 @@ class Pipeline:
                 raise ValueError("'land' must be a mapping")
             land_stage = Exec.with_dict({"name": "land", **land_raw})
 
-        if inputs_stage is not None:
-            stages = [inputs_stage, *stages]
-
-        check_duplicate_producers(stages)
+        check_duplicate_producers(stages, extra_out=bootstrap.cli_out)
 
         if default_client is None:
             raise ValueError(
@@ -133,9 +106,7 @@ class Pipeline:
             stages=stages,
             default_client=default_client,
             base_ref=pipeline_base_ref,
-            bootstrap=bootstrap_cmds,
-            inputs=inputs_stage,
-            input_sources=input_sources,
+            bootstrap=bootstrap,
             land=land_stage,
             github_integration=github_integration,
         )

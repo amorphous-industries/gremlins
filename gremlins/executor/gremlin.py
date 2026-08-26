@@ -573,7 +573,17 @@ class Gremlin:
                 artifact_dir=self.artifact_dir,
                 cwd=self.worktree_dir,
             )
+            bootstrap_block = self.pipeline_data.bootstrap
+            source = bootstrap_block.source
+            cli_out_keys: set[str] = {
+                k.rstrip("?") for k in (bootstrap_block.cli_out or {})
+            }
+            source_keys: set[str] = set(source.sources) if source is not None else set()
+            # Only skip source keys that are handled by cli_out (launch_cmds wrote the file)
+            skip_keys = source_keys & cli_out_keys
             for key, value in (stage_inputs or {}).items():
+                if key in skip_keys:
+                    continue
                 if value is not None and not self.registry.produced(key):
                     self.registry.write(key, value)
             if not self.registry.produced("spec"):
@@ -712,5 +722,5 @@ def _extract_bootstrap_cmds(
     if isinstance(spec_bootstrap, list):
         return list(cast(list[str], spec_bootstrap))
     if pipeline_data is not None:
-        return pipeline_data.bootstrap
+        return list(pipeline_data.bootstrap.cmds)
     return []

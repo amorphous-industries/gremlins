@@ -10,13 +10,19 @@ from gremlins.stages.parallel import ParallelStage
 from gremlins.stages.sequence import SequenceStage
 
 
-def check_duplicate_producers(stages: list[Stage]) -> None:
+def check_duplicate_producers(
+    stages: list[Stage], extra_out: dict[str, str] | None = None
+) -> None:
     """Raise ValueError if two stages in the same scope bind the same out: key to different URIs."""
-    _check_scope(stages)
+    _check_scope(stages, extra_out=extra_out)
 
 
-def _check_scope(stages: list[Stage]) -> None:
+def _check_scope(stages: list[Stage], extra_out: dict[str, str] | None = None) -> None:
     seen: dict[str, tuple[str, str]] = {}  # key -> (stage_name, uri_str)
+    if extra_out:
+        for raw_key, uri_str in extra_out.items():
+            key = raw_key[:-1] if raw_key.endswith("?") else raw_key
+            seen[key] = ("bootstrap", uri_str)
     for stage in stages:
         for raw_key, uri_str in getattr(stage, "out_map", {}).items():
             if raw_key.endswith("?"):

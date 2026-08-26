@@ -4,17 +4,33 @@ base_ref: main
 
 github_integration: true
 
-inputs:
-  in:
-    INSTRUCTIONS: instructions?
-    PLAN: plan-document?
-  sources:
-    plan:
-      type: [filepath, string]
-      optional: true
+bootstrap:
+  source:
     instructions:
       type: string
       optional: true
+    plan:
+      type: [filepath, string]
+      optional: true
+  launch_cmds:
+    - |
+      if [ -n "${plan+x}" ]; then
+        if [ -f "$plan" ]; then
+          cp "$plan" "{artifact_dir}/plan.md"
+        else
+          printf '%s' "$plan" > "{artifact_dir}/plan.md"
+        fi
+      fi
+    - |
+      if [ -n "${instructions+x}" ]; then
+        if [ -f "$instructions" ]; then
+          cp "$instructions" "{artifact_dir}/instructions.txt"
+        else
+          printf '%s' "$instructions" > "{artifact_dir}/instructions.txt"
+        fi
+      fi
+  cli_out:
+    instructions?: file://session/instructions.txt
 
 land:
   in:

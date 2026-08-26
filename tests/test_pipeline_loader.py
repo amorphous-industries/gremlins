@@ -918,21 +918,27 @@ def test_boss_yaml_loads() -> None:
 
 
 def test_bootstrap_parsed_from_yaml(tmp_path: pathlib.Path) -> None:
+    from gremlins.pipeline.bootstrap import Bootstrap
+
     yaml_path = _write_yaml(
         tmp_path / "pipeline.yaml",
         """\
 default_client: openai:gpt-4o
 bootstrap:
-  - uv venv .venv
-  - uv pip install -e ".[dev]"
+  cmds:
+    - uv venv .venv
+    - uv pip install -e ".[dev]"
 stages: []
 """,
     )
     pipeline = Pipeline.from_yaml(yaml_path)
-    assert pipeline.bootstrap == ["uv venv .venv", 'uv pip install -e ".[dev]"']
+    assert isinstance(pipeline.bootstrap, Bootstrap)
+    assert pipeline.bootstrap.cmds == ["uv venv .venv", 'uv pip install -e ".[dev]"']
 
 
 def test_bootstrap_empty_when_not_declared(tmp_path: pathlib.Path) -> None:
+    from gremlins.pipeline.bootstrap import Bootstrap
+
     yaml_path = _write_yaml(
         tmp_path / "pipeline.yaml",
         """\
@@ -941,30 +947,49 @@ stages: []
 """,
     )
     pipeline = Pipeline.from_yaml(yaml_path)
-    assert pipeline.bootstrap == []
+    assert isinstance(pipeline.bootstrap, Bootstrap)
+    assert pipeline.bootstrap.cmds == []
+    assert pipeline.bootstrap.launch_cmds == []
+    assert pipeline.bootstrap.source is None
+    assert pipeline.bootstrap.cli_out == {}
 
 
-def test_bootstrap_rejects_non_list(tmp_path: pathlib.Path) -> None:
-    yaml_path = _write_yaml(
-        tmp_path / "pipeline.yaml",
-        """\
-default_client: openai:gpt-4o
-bootstrap: "not a list"
-stages: []
-""",
-    )
-    with pytest.raises(ValueError, match="must be a list of strings"):
-        Pipeline.from_yaml(yaml_path)
-
-
-def test_bootstrap_rejects_non_string_items(tmp_path: pathlib.Path) -> None:
+def test_bootstrap_rejects_list_form(tmp_path: pathlib.Path) -> None:
     yaml_path = _write_yaml(
         tmp_path / "pipeline.yaml",
         """\
 default_client: openai:gpt-4o
 bootstrap:
   - echo ok
-  - 42
+stages: []
+""",
+    )
+    with pytest.raises(ValueError, match="must be a mapping"):
+        Pipeline.from_yaml(yaml_path)
+
+
+def test_bootstrap_rejects_non_mapping(tmp_path: pathlib.Path) -> None:
+    yaml_path = _write_yaml(
+        tmp_path / "pipeline.yaml",
+        """\
+default_client: openai:gpt-4o
+bootstrap: "not a mapping"
+stages: []
+""",
+    )
+    with pytest.raises(ValueError, match="must be a mapping"):
+        Pipeline.from_yaml(yaml_path)
+
+
+def test_bootstrap_rejects_non_string_cmd_items(tmp_path: pathlib.Path) -> None:
+    yaml_path = _write_yaml(
+        tmp_path / "pipeline.yaml",
+        """\
+default_client: openai:gpt-4o
+bootstrap:
+  cmds:
+    - echo ok
+    - 42
 stages: []
 """,
     )
@@ -972,8 +997,52 @@ stages: []
         Pipeline.from_yaml(yaml_path)
 
 
+def test_bootstrap_rejects_inputs_key(tmp_path: pathlib.Path) -> None:
+    yaml_path = _write_yaml(
+        tmp_path / "pipeline.yaml",
+        """\
+default_client: openai:gpt-4o
+inputs:
+  in:
+    PLAN: plan?
+stages: []
+""",
+    )
+    with pytest.raises(ValueError, match="'inputs' is not a valid pipeline key"):
+        Pipeline.from_yaml(yaml_path)
+
+
+def test_bootstrap_rejects_out_key(tmp_path: pathlib.Path) -> None:
+    yaml_path = _write_yaml(
+        tmp_path / "pipeline.yaml",
+        """\
+default_client: openai:gpt-4o
+bootstrap:
+  out:
+    plan: file://session/plan.md
+stages: []
+""",
+    )
+    with pytest.raises(ValueError, match="'bootstrap.out' is not valid"):
+        Pipeline.from_yaml(yaml_path)
+
+
+def test_bootstrap_rejects_unknown_keys(tmp_path: pathlib.Path) -> None:
+    yaml_path = _write_yaml(
+        tmp_path / "pipeline.yaml",
+        """\
+default_client: openai:gpt-4o
+bootstrap:
+  extra: true
+stages: []
+""",
+    )
+    with pytest.raises(ValueError, match="unknown bootstrap key"):
+        Pipeline.from_yaml(yaml_path)
+
+
 def test_bootstrap_overlay_merged(tmp_path: pathlib.Path) -> None:
-    """.gremlins/bootstrap.yaml commands come before pipeline bootstrap:"""
+    """.gremlins/bootstrap.yaml commands prepend onto bootstrap.cmds"""
     overlay_dir = tmp_path / ".gremlins"
     overlay_dir.mkdir()
     overlay_dir.joinpath("bootstrap.yaml").write_text(
@@ -984,12 +1053,13 @@ def test_bootstrap_overlay_merged(tmp_path: pathlib.Path) -> None:
         """\
 default_client: openai:gpt-4o
 bootstrap:
-  - echo third
+  cmds:
+    - echo third
 stages: []
 """,
     )
     pipeline = Pipeline.from_yaml(yaml_path)
-    assert pipeline.bootstrap == ["echo first", "echo second", "echo third"]
+    assert pipeline.bootstrap.cmds == ["echo first", "echo second", "echo third"]
 
 
 def test_bootstrap_overlay_only(tmp_path: pathlib.Path) -> None:
@@ -1007,7 +1077,7 @@ stages: []
 """,
     )
     pipeline = Pipeline.from_yaml(yaml_path)
-    assert pipeline.bootstrap == ["echo first"]
+    assert pipeline.bootstrap.cmds == ["echo first"]
 
 
 def test_bootstrap_overlay_pipeline_in_gremlins_dir(tmp_path: pathlib.Path) -> None:
@@ -1025,7 +1095,26 @@ stages: []
 """,
     )
     pipeline = Pipeline.from_yaml(yaml_path)
-    assert pipeline.bootstrap == ["uv venv .venv"]
+    assert pipeline.bootstrap.cmds == ["uv venv .venv"]
+
+
+def test_bootstrap_overlay_rejects_list_form_pipeline(tmp_path: pathlib.Path) -> None:
+    overlay_dir = tmp_path / ".gremlins"
+    overlay_dir.mkdir()
+    overlay_dir.joinpath("bootstrap.yaml").write_text(
+        "- echo first\n", encoding="utf-8"
+    )
+    yaml_path = _write_yaml(
+        tmp_path / "pipeline.yaml",
+        """\
+default_client: openai:gpt-4o
+bootstrap:
+  - echo third
+stages: []
+""",
+    )
+    with pytest.raises(ValueError, match="must be a mapping"):
+        Pipeline.from_yaml(yaml_path)
 
 
 def test_bootstrap_overlay_rejects_non_list(tmp_path: pathlib.Path) -> None:
@@ -1072,9 +1161,10 @@ def test_bootstrap_overlay_comments_only_ignored(tmp_path: pathlib.Path) -> None
         """\
 default_client: openai:gpt-4o
 bootstrap:
-  - echo from pipeline
+  cmds:
+    - echo from pipeline
 stages: []
 """,
     )
     pipeline = Pipeline.from_yaml(yaml_path)
-    assert pipeline.bootstrap == ["echo from pipeline"]
+    assert pipeline.bootstrap.cmds == ["echo from pipeline"]

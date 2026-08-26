@@ -15,7 +15,6 @@ _BUNDLED_LOCAL = (
 )
 
 _LOCAL_STAGE_NAMES = [
-    "inputs",
     "resolve-plan-input",
     "plan",
     "update-description",

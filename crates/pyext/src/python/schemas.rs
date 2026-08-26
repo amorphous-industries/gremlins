@@ -51,8 +51,8 @@ pub const GREMLINS_PREFIX: &str = schemas::GREMLINS_PREFIX;
 pub fn register_schemas_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let schemas_mod = PyModule::new(m.py(), "schemas")?;
 
-    schemas_mod.add_class::<schemas::inputs::InputSource>()?;
-    schemas_mod.add_class::<schemas::inputs::InputSources>()?;
+    schemas_mod.add_class::<schemas::bootstrap::InputSource>()?;
+    schemas_mod.add_class::<schemas::bootstrap::InputSources>()?;
     schemas_mod.add_class::<schemas::pipeline::Pipeline>()?;
     schemas_mod.add("GREMLINS_PREFIX", GREMLINS_PREFIX)?;
     schemas_mod.add_function(wrap_pyfunction!(parse_stage, &schemas_mod)?)?;

@@ -25,6 +25,7 @@ from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.artifacts.uri import Uri
 from gremlins.executor.gremlin import Gremlin, validate_gremlin_id, write_initial_state
 from gremlins.pipeline import Pipeline as _PipelineData
+from gremlins.pipeline.bootstrap import validate_source_values
 from gremlins.pipeline.discovery import list_pipelines, resolve_pipeline_path
 from gremlins.utils import git as _git_mod
 from gremlins.utils import proc
@@ -174,8 +175,7 @@ def _resolve_inputs(
 ) -> _Inputs:
     from gremlins.cli.pipeline_args import launch_client_label, resolve_pipeline
 
-    pr = stage_inputs.pop("pr", None) or None
-
+    loaded_pipeline = None
     desc, desc_explicit, slug = _resolve_description_and_slug(description)
 
     if project_root is None:
@@ -191,13 +191,16 @@ def _resolve_inputs(
         kind, pipeline_args, project_root
     )
 
-    loaded_pipeline = None
     try:
         loaded_pipeline = _PipelineData.from_yaml(
             resolve_pipeline_path(pipeline_path, pathlib.Path(project_root))
         )
     except (FileNotFoundError, OSError, ValueError):
         pass
+
+    if loaded_pipeline is not None:
+        validate_source_values(loaded_pipeline.bootstrap.source, stage_inputs)
+    pr = stage_inputs.get("pr", None) or None
 
     if (
         loaded_pipeline is not None
@@ -350,40 +353,6 @@ def _spawn(gremlin_id: str, inputs: _Inputs, state_dir: pathlib.Path) -> Any:
     )
 
 
-def _seed_registry_from_sources(
-    registry: ArtifactRegistry,
-    input_values: dict[str, str],
-    sources: dict[str, Any],
-    artifacts_dir: pathlib.Path,
-) -> None:
-    for key, source in sources.items():
-        value = input_values.get(key) or None
-        if not value:
-            if not source.optional:
-                raise ValueError(
-                    f"required input source {key!r} (type: {source.types}) is not available"
-                )
-            continue
-        for t in source.types:
-            if t == "filepath" and os.path.isfile(value):
-                src = pathlib.Path(value)
-                ext = src.suffix or ".txt"
-                dest = artifacts_dir / f"{key}{ext}"
-                dest.write_bytes(src.read_bytes())
-                registry.bind(key, Uri.parse(f"file://session/{key}{ext}"))
-                break
-            elif t == "string":
-                dest = artifacts_dir / f"{key}.txt"
-                dest.write_text(value, encoding="utf-8")
-                registry.bind(key, Uri.parse(f"file://session/{key}.txt"))
-                break
-        else:
-            if not source.optional:
-                raise ValueError(
-                    f"required input source {key!r} (type: {source.types}) could not be resolved"
-                )
-
-
 def launch(
     kind: str,
     *,
@@ -442,19 +411,6 @@ def launch(
             registry.bind("base_sha", Uri.parse(f"git://commit/{inputs.base_ref_sha}"))
         if inputs.base_ref_name:
             registry.bind("base_ref", Uri.parse(f"git://ref/{inputs.base_ref_name}"))
-        if (
-            inputs.loaded_pipeline is not None
-            and inputs.loaded_pipeline.input_sources is not None
-        ):
-            input_values = {
-                k: v for k, v in inputs.stage_inputs.items() if isinstance(v, str) and v
-            }
-            _seed_registry_from_sources(
-                registry,
-                input_values,
-                inputs.loaded_pipeline.input_sources.sources,
-                artifact_dir,
-            )
         p = _spawn(inputs.gremlin_id, inputs, state_dir)
     except Exception:
         shutil.rmtree(state_dir, ignore_errors=True)
