@@ -33,7 +33,7 @@ def test_local_main_plan_mode(tmp_path, monkeypatch):
     (artifact_dir / "plan.md").write_text("# Plan\nDo stuff.\n")
     state_dir = artifact_dir.parent
     (state_dir / "registry.json").write_text(
-        json.dumps({"plan-document": "file://session/plan.md"})
+        json.dumps({"plan": "file://session/plan.md"})
     )
 
     monkeypatch.chdir(tmp_path)
@@ -76,7 +76,7 @@ def test_local_main_resume_from_review_code_requires_git_changes(
     (artifact_dir / "plan.md").write_text("# Plan\nDo stuff.\n")
     state_dir = artifact_dir.parent
     (state_dir / "registry.json").write_text(
-        json.dumps({"plan-document": "file://session/plan.md"})
+        json.dumps({"plan": "file://session/plan.md"})
     )
 
     monkeypatch.chdir(tmp_path)
@@ -113,7 +113,7 @@ def test_local_main_resume_from_review_code_allows_existing_git_changes(
     (artifact_dir / "plan.md").write_text("# Plan\nDo stuff.\n")
     state_dir = artifact_dir.parent
     (state_dir / "registry.json").write_text(
-        json.dumps({"plan-document": "file://session/plan.md"})
+        json.dumps({"plan": "file://session/plan.md"})
     )
 
     monkeypatch.chdir(tmp_path)
@@ -158,7 +158,7 @@ def test_local_main_injected_client_model(tmp_path, monkeypatch):
     (artifact_dir / "plan.md").write_text("# Plan\nDo stuff.\n")
     state_dir = artifact_dir.parent
     (state_dir / "registry.json").write_text(
-        json.dumps({"plan-document": "file://session/plan.md"})
+        json.dumps({"plan": "file://session/plan.md"})
     )
 
     monkeypatch.chdir(tmp_path)
@@ -195,7 +195,6 @@ def test_local_pipeline_stage_names(tmp_path):
     pipeline = Pipeline.from_yaml(resolve_pipeline_path("local", tmp_path))
     names = [s.name for s in pipeline.stages]
     assert names == [
-        "resolve-plan-input",
         "plan",
         "update-description",
         "implement",
@@ -380,7 +379,7 @@ def test_local_main_pipeline_default_client_model(tmp_path, monkeypatch):
     (artifact_dir / "plan.md").write_text("# Plan\nDo stuff.\n")
     state_dir = artifact_dir.parent
     (state_dir / "registry.json").write_text(
-        json.dumps({"plan-document": "file://session/plan.md"})
+        json.dumps({"plan": "file://session/plan.md"})
     )
 
     monkeypatch.chdir(tmp_path)
@@ -444,7 +443,7 @@ def test_plan_skip_if_exists_on_resume(tmp_path, monkeypatch):
     (artifact_dir / "plan.md").write_text("# Plan\nDo stuff.\n", encoding="utf-8")
     state_dir = artifact_dir.parent
     (state_dir / "registry.json").write_text(
-        json.dumps({"plan-document": "file://session/plan.md"})
+        json.dumps({"plan": "file://session/plan.md"})
     )
 
     monkeypatch.chdir(tmp_path)

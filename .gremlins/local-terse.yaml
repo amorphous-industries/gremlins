@@ -12,11 +12,26 @@ bootstrap:
       optional: true
   launch_cmds:
     - |
-      if [ -n "${plan+x}" ]; then printf '%s' "$plan" > "{artifact_dir}/plan.md"; fi
+      if [ -n "${plan+x}" ]; then
+        if echo "$plan" | grep -qE '^([^/]+/[^#]+)?#[0-9]+$'; then
+          gh issue view "$plan" --json body --jq .body > "{artifact_dir}/plan.md" 2>/dev/null
+          if ! head -1 "{artifact_dir}/plan.md" | grep -q '^# ' 2>/dev/null; then
+            title=$(gh issue view "$plan" --json title --jq .title 2>/dev/null)
+            printf '# %s\n\n' "$title" | cat - "{artifact_dir}/plan.md" > "{artifact_dir}/plan.md.tmp"
+            mv "{artifact_dir}/plan.md.tmp" "{artifact_dir}/plan.md"
+          fi
+          gh issue view "$plan" --json number --jq .number > "{artifact_dir}/plan-source-issue-number.txt" 2>/dev/null
+        elif [ -f "$plan" ]; then
+          cp "$plan" "{artifact_dir}/plan.md"
+        else
+          printf '%s' "$plan" > "{artifact_dir}/plan.md"
+        fi
+      fi
     - |
       if [ -n "${instructions+x}" ]; then printf '%s' "$instructions" > "{artifact_dir}/instructions.txt"; fi
   cli_out:
     plan?: file://session/plan.md
+    plan-source-issue-number?: file://session/plan-source-issue-number.txt
     instructions?: file://session/instructions.txt
   cmds:
     - uv venv .venv
