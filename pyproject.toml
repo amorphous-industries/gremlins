@@ -53,9 +53,7 @@ ban-relative-imports = "all"
 
 [tool.pyright]
 typeCheckingMode = "strict"
-extraPaths = [
-    "crates/pyext",
-]
+stubPath = "crates/pyext"
 include = [
     "gremlins",
 ]
