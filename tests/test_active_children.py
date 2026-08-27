@@ -84,9 +84,13 @@ def test_loop_active_children_set_and_cleared(tmp_path: pathlib.Path) -> None:
     class _Spy(Stage):
         async def run(self, gremlin: Any) -> Outcome:
             captured.append(_read_state(tmp_path).get("active_children"))
+            from gremlins.artifacts.uri import Uri
+
+            gremlin.state.artifacts.bind("done", Uri.parse("file://session/done.txt"))
             return Done()
 
-    loop = LoopStage("lp", body=[_Spy("body-stage")], max_iterations=1)
+    # Set stop_when_exists so the loop doesn't exhaust
+    loop = LoopStage("lp", body=[_Spy("body-stage")], max_iterations=1, stop_when_exists="done")
     asyncio.run(loop.run(gremlin))
 
     assert captured == [["body-stage"]]

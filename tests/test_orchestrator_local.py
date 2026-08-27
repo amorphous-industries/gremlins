@@ -146,6 +146,8 @@ def test_local_main_resume_from_review_code_allows_existing_git_changes(
     assert [call.label for call in client.calls] == [
         "review-code",
         "address-code",
+        "fix",
+        "fix",
     ]
 
 

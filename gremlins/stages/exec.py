@@ -23,7 +23,6 @@ if TYPE_CHECKING:
 
 _READ_SUB = re.compile(r"\{read:([-\w]+)\}")
 _ARTIFACT_SUB = re.compile(r"\{artifact:([-\w]+)\}")
-_STATUS_KEY = "status"
 _BAIL_KEY = "bail"
 
 
@@ -124,7 +123,6 @@ class Exec(Stage):
             for c in self.options.get("cmds", [])
             if c.strip()
         ]
-        needs_fix = False
         bail_triggered = False
         shell_output = ""
         shell_rc = 0
@@ -146,8 +144,6 @@ class Exec(Stage):
             if result.returncode != 0:
                 if result.returncode == 2 and _BAIL_KEY in self.out_map:
                     bail_triggered = True
-                elif _STATUS_KEY in self.out_map:
-                    needs_fix = True
                 else:
                     raise Bail(f"exec {self.name}: exited {result.returncode}")
 
@@ -157,9 +153,6 @@ class Exec(Stage):
             if optional:
                 key = key[:-1]
             if key == _BAIL_KEY and not bail_triggered:
-                continue
-            if key == _STATUS_KEY:
-                state.artifacts.write(_STATUS_KEY, "needs_fix" if needs_fix else "pass")
                 continue
             try:
                 uri_str = self.substitute_vars(

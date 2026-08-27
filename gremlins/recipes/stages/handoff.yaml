@@ -45,8 +45,8 @@ stages:
       - name: translate-signal
         type: exec
         out:
-          status: "file://session/handoff-status.txt"
           bail: "file://session/bail-reason.txt"
+          done?: "file://session/done"
         options:
           cmds:
             - |
@@ -72,11 +72,10 @@ stages:
                     exit 2
                   fi
                   cp "$CHILD" "{artifact_dir}/plan.md"
-                  exit 1
                   ;;
                 chain-done)
                   cp "{artifact_dir}/boss-spec.md" "{artifact_dir}/plan.md"
-                  exit 0
+                  printf 'done' > "{artifact_dir}/done"
                   ;;
                 bail)
                   jq -r '.reason // "(no reason given)"' "$SIGNAL" \

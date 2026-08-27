@@ -1381,7 +1381,8 @@ def test_verify_stage_argument_wiring(tmp_path, monkeypatch):
     assert stage.client.model == "gpt-4o"
     # cmds are on the cmd exec stage inside the loop body; first cmd is the user cmd
     cmd_stage = stage.body[0]
-    assert cmd_stage.options.get("cmds")[0] == "make check"
+    assert "make check" in cmd_stage.options.get("cmds")[0]
+    assert "printf 'done'" in cmd_stage.options.get("cmds")[0]
     assert captured_stage["state"].artifact_dir == artifact_dir
 
 

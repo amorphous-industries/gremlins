@@ -1,11 +1,14 @@
-<!-- placeholders: verify_output, diff_text -->
+<!-- placeholders: verify_output -->
 The verify step failed. Read the captured output below, then fix the code so the commands exit 0.
+
+If the output is already clean (no errors or warnings), write "done" to {out_file} and exit without changes.
 
 **Important constraints:**
 - Fix only the specific errors reported in the output below. Do not investigate git history, diff against past commits, or chase unrelated tests — the failing lines name the exact files and locations to fix.
 - Do not skip or disable linting rules, formatter directives, or type-check annotations to make the check pass — fix the actual violation.
 - Do not weaken, delete, or change the intent of test assertions or fixtures to make tests pass — fix the implementation code instead. Mechanical cleanups in test files (import sorting, unused imports, formatting, type annotations) are allowed.
 - After fixing, stage the changed files by name and create a git commit titled 'Fix failing checks'. Do not push.
+- Signal completion by writing "done" to {out_file}.
 
 ---
 
@@ -15,10 +18,4 @@ The verify step failed. Read the captured output below, then fix the code so the
 {verify_output}
 ```
 
----
 
-**Current diff:**
-
-```
-{diff_text}
-```
