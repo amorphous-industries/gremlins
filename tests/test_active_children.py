@@ -90,7 +90,9 @@ def test_loop_active_children_set_and_cleared(tmp_path: pathlib.Path) -> None:
             return Done()
 
     # Set stop_when_exists so the loop doesn't exhaust
-    loop = LoopStage("lp", body=[_Spy("body-stage")], max_iterations=1, stop_when_exists="done")
+    loop = LoopStage(
+        "lp", body=[_Spy("body-stage")], max_iterations=1, stop_when_exists="done"
+    )
     asyncio.run(loop.run(gremlin))
 
     assert captured == [["body-stage"]]

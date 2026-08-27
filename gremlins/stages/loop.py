@@ -11,6 +11,7 @@ from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.stages.base import Stage, get_client_from_dict
 from gremlins.stages.composite import child_state as _child_state
 from gremlins.stages.outcome import Bail, Done, Outcome
+
 if TYPE_CHECKING:
     from gremlins.executor.gremlin import Gremlin
 
@@ -156,9 +157,9 @@ class LoopStage(Stage):
                 gremlin.state.record_bail(
                     f"loop exhausted {self._max_iterations} iterations"
                 )
-                raise Bail(
-                    f"loop exhausted {self._max_iterations} iterations"
-                )
+                raise Bail(f"loop exhausted {self._max_iterations} iterations")
 
             if self._interval is not None:
                 await asyncio.sleep(self._interval)
+
+        return Done()

@@ -307,7 +307,11 @@ def _gremlin_to_json(
         "liveness": parse_liveness(live),
         "age_seconds": age_seconds,
         "client": str(state.get("client") or ""),
-        "description": str(state.get("description") or state.get("instructions") or _read_description_artifact(wdir)),
+        "description": str(
+            state.get("description")
+            or state.get("instructions")
+            or _read_description_artifact(wdir)
+        ),
         "started_at": started_at,
         "project_root": str(state.get("project_root") or ""),
         "closed": os.path.isfile(os.path.join(wdir, "closed")),

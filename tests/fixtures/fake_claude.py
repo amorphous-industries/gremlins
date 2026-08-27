@@ -293,9 +293,7 @@ def handle_plan_title(prompt: str) -> int:
 
 def handle_fix(prompt: str) -> int:
     # Write the done file so the verify loop's stop_when_exists condition is met.
-    done_file = find_path_in_prompt(
-        prompt, r'write "done" to (/\S+_done)\b'
-    )
+    done_file = find_path_in_prompt(prompt, r'write "done" to (/\S+_done)\b')
     if done_file:
         pathlib.Path(done_file).parent.mkdir(parents=True, exist_ok=True)
         pathlib.Path(done_file).write_text("done", encoding="utf-8")

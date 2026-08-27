@@ -12,7 +12,6 @@ from conftest import MockGremlin, _make_gremlin_wrapper
 from gremlins.artifacts.uri import Uri
 from gremlins.executor.state import State as RuntimeState
 from gremlins.executor.state import StateData, build_state
-from gremlins.stages.exec import Exec as Cmd
 from gremlins.stages.loop import LoopStage
 from gremlins.stages.outcome import Bail, Done
 
@@ -49,6 +48,7 @@ def _set_done(state: RuntimeState) -> None:
 
 def test_loop_exhausted_bails_without_stop_condition(tmp_path):
     """No stop_when_exists and no bail → exhausts iterations then bails."""
+
     async def runner() -> Done:
         return Done()
 
@@ -67,7 +67,9 @@ def test_loop_stops_when_stop_when_exists_artifact_is_bound(tmp_path):
         _set_done(loop_state)
         return Done()
 
-    loop = LoopStage("loop", body_runners=[runner], max_iterations=3, stop_when_exists="done")
+    loop = LoopStage(
+        "loop", body_runners=[runner], max_iterations=3, stop_when_exists="done"
+    )
     outcome = asyncio.run(loop.run(_make_gremlin_wrapper(loop_state)))
 
     assert outcome == Done()
@@ -311,7 +313,11 @@ def test_loop_interval_sleeps_between_iterations(tmp_path, monkeypatch):
         return Done()
 
     loop = LoopStage(
-        "loop", body_runners=[runner], max_iterations=3, interval=5.0, stop_when_exists="done"
+        "loop",
+        body_runners=[runner],
+        max_iterations=3,
+        interval=5.0,
+        stop_when_exists="done",
     )
     asyncio.run(loop.run(_make_gremlin_wrapper(loop_state)))
 
