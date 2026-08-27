@@ -1,39 +1,15 @@
 required-prompt: true
 
 stages:
-  - name: resolve-plan-input
-    type: exec
-    in:
-      plan: "plan?"
-    options:
-      cmds:
-        - |
-          if [ -s "{artifact_dir}/plan.md" ]; then
-              cp "{artifact_dir}/plan.md" "{cwd}/plan.md" 2>/dev/null || true
-              exit 0
-          fi
-          if [ -z "$plan" ]; then exit 0; fi
-          if [ -f "$plan" ]; then
-              cp "$plan" "{artifact_dir}/plan.md"
-          elif echo "$plan" | grep -qE '^([^/]+/[^#]+)?#[0-9]+$'; then
-              gh issue view "$plan" --json body --jq .body \
-                > "{artifact_dir}/plan.md"
-          else
-              printf 'resolve-plan-input: unrecognized plan: %s\n' "$plan" >&2
-              exit 1
-          fi
-          cp "{artifact_dir}/plan.md" "{cwd}/plan.md" 2>/dev/null || true
-    out:
-
   - name: plan
     type: agent
-    skip_if_exists: plan-document
+    skip_if_exists: plan
     prompt:
       - "{{prompt}}"
     in:
       instructions: "instructions?"
     out:
-      plan-document: "file://session/plan.md"
+      plan: "file://session/plan.md"
     options:
       idle_timeout: 600
 

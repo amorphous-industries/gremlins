@@ -177,14 +177,12 @@ def _patch_common(
         initial.update(state_data)
     state_file.write_text(json.dumps(initial))
     # base_ref_sha is now stored in registry.json, not state.json
-    # spec and plan are always bound at launch; bind them here so the implement
-    # agent stage can resolve both even when the plan stage is skipped.
-    # plan is bound as gh://issue/42 to match the post-publish-as-issue state;
-    # this keeps publish-as-issue's bind idempotent (same URI, no DuplicateArtifact).
+    # plan is always a local file; plan-source-issue-number is bound when
+    # the plan originated from a GitHub issue.
     registry_data: dict = {
         "spec": "file://session/spec.md",
-        "plan-document": "gh://issue/42",
-        "plan-draft": "file://session/plan.md",
+        "plan": "file://session/plan.md",
+        "plan-source-issue-number": "file://session/plan-source-issue-number.txt",
         "pr-url": "file://session/pr-url.txt",
         "pr-branch": "file://session/pr-branch.txt",
         "pr-number": "file://session/pr-number.txt",
@@ -203,6 +201,7 @@ def _patch_common(
     )
     (artifact_dir / "pr-branch.txt").write_text("issue-42-fake-slug\n")
     (artifact_dir / "pr-number.txt").write_text(f"{fake_pr_number}\n")
+    (artifact_dir / "plan-source-issue-number.txt").write_text("42")
 
     import subprocess as _subprocess_mod
 
@@ -266,11 +265,17 @@ def _patch_common(
 
 
 def _prepare_for_plan_stage(tmp_path: pathlib.Path) -> None:
-    """Remove plan so skip_if_exists does not skip the plan stage."""
+    """Remove plan so skip_if_exists does not skip the plan stage.
+
+    Also clears plan.md so bootstrap's plan?: cli_out doesn't re-bind it.
+    """
     reg_path = tmp_path / "gr-test" / "registry.json"
     reg = json.loads(reg_path.read_text())
-    reg.pop("plan-document", None)
+    reg.pop("plan", None)
     reg_path.write_text(json.dumps(reg))
+    plan_md = tmp_path / "gr-test" / "artifacts" / "plan.md"
+    if plan_md.exists():
+        plan_md.write_text("", encoding="utf-8")
 
 
 _real_subprocess_run = subprocess.run
@@ -345,7 +350,6 @@ def test_gh_pipeline_stage_names(tmp_path):
     pipeline = Pipeline.from_yaml(resolve_pipeline_path("gh", tmp_path))
     names = [s.name for s in pipeline.stages]
     assert names == [
-        "resolve-plan-input",
         "plan",
         "publish-as-issue",
         "update-description",
@@ -562,13 +566,13 @@ def test_publish_as_issue_skip_if_exists(tmp_path, monkeypatch):
 
 
 def test_plan_no_h1_issue_body(tmp_path, monkeypatch):
-    """resolve-plan-input prepends an H1 when the fetched issue body lacks one."""
+    """The bootstrap prepends an H1 when the fetched issue body lacks one."""
     import os
 
     _init_git_repo(tmp_path)
     monkeypatch.chdir(tmp_path)
 
-    # Fake gh binary: dispatches on the --jq selector
+    # Fake gh binary
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     gh_bin = fake_bin / "gh"
@@ -585,62 +589,34 @@ def test_plan_no_h1_issue_body(tmp_path, monkeypatch):
     gh_bin.chmod(0o755)
     monkeypatch.setenv("PATH", f"{fake_bin}:{os.environ['PATH']}")
 
-    from gremlins.utils import proc as _proc_mod
+    from gremlins.executor.bootstrap import run_bootstrap
 
-    _real_shell = _proc_mod.run_shell_async  # save before _patch_common patches it
+    artifact_dir = tmp_path / "artifacts"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
 
-    artifact_dir, state_file = _patch_common(monkeypatch, tmp_path)
-    _noop_shell = _proc_mod.run_shell_async  # now points to _noop_gh_shell
+    bootstrap_cmds = [
+        f'gh issue view "#42" --json body --jq .body > "{artifact_dir}/plan.md"',
+        f'''if ! head -1 "{artifact_dir}/plan.md" | grep -q '^# '; then
+          title=$(gh issue view "#42" --json title --jq .title)
+          printf '# %s\n\n' "$title" | cat - "{artifact_dir}/plan.md" > "{artifact_dir}/plan.md.tmp"
+          mv "{artifact_dir}/plan.md.tmp" "{artifact_dir}/plan.md"
+        fi''',
+        f'gh issue view "#42" --json number --jq .number | tr -d \'\\n\' > "{artifact_dir}/plan-source-issue-number.txt"',
+    ]
 
-    # Clear plan.md so resolve-plan-input actually fetches the issue (tests H1 prepend logic).
-    (artifact_dir / "plan.md").write_text("", encoding="utf-8")
+    async def _run():
+        for cmd in bootstrap_cmds:
+            await run_bootstrap([cmd], tmp_path)
 
-    # Seed plan as a file URI containing the raw issue ref so resolve-plan-input
-    # gets $plan="#42" (matching what inputs.sources would produce at launch time).
-    registry_path = tmp_path / "gr-test" / "registry.json"
-    reg = json.loads(registry_path.read_text())
-    reg["plan"] = "file://session/plan-arg.txt"
-    registry_path.write_text(json.dumps(reg))
-    (artifact_dir / "plan-arg.txt").write_text("#42", encoding="utf-8")
+    asyncio.run(_run())
 
-    # Let resolve-plan-input run for real (fake gh in PATH handles the gh calls);
-    # everything else stays with the noop interceptor
-    async def _shell(cmd, *, cwd=None, env=None, timeout=None):
-        if isinstance(cmd, str) and "plan.md" in cmd and "gh issue view" in cmd:
-            return await _real_shell(cmd, cwd=cwd, env=env, timeout=timeout)
-        return await _noop_shell(cmd, cwd=cwd, env=env, timeout=timeout)
-
-    monkeypatch.setattr(_proc_mod, "run_shell_async", _shell)
-
-    monkeypatch.setattr(
-        subprocess,
-        "run",
-        _make_gh_subprocess(issue_body="No H1 in this body.\n"),
-    )
-    monkeypatch.setattr(
-        "gremlins.stages.loop.LoopStage.run", _async(lambda self, pipe: None)
-    )
-
-    client = _CommittingClient(
-        git_dir=tmp_path,
-        artifact_dir=None,
-        fixtures={
-            "implement": IMPL_EVENTS,
-            "compose-pr": MINIMAL_EVENTS,
-            "github-review-pull-request": MINIMAL_EVENTS,
-            "github-address-pull-request-reviews": MINIMAL_EVENTS,
-        },
-    )
-
-    result = asyncio.run(
-        run_pipeline(
-            _gh_pipeline_path(tmp_path), argv=[], gremlin_id="gr-test", client=client
-        )
-    )
-    assert result == 0
     plan_content = (artifact_dir / "plan.md").read_text(encoding="utf-8")
     assert plan_content.startswith("# ")
-    assert (artifact_dir / "plan-issue-number.txt").exists()
+    assert (artifact_dir / "plan.md").stat().st_size > 0
+    issue_num = (artifact_dir / "plan-source-issue-number.txt").read_text(
+        encoding="utf-8"
+    )
+    assert issue_num == "42", f"expected '42', got {issue_num!r}"
 
 
 def test_plan_stage_uses_bundled_prompt_not_slash_command(tmp_path, monkeypatch):
@@ -1119,8 +1095,8 @@ def test_resume_from_open_pr(tmp_path, monkeypatch):
     assert "compose-pr" in labels
 
     compose_pr_call = next(c for c in client.calls if c.label == "compose-pr")
-    assert "gh://issue/42" in compose_pr_call.prompt, (
-        "compose-pr must receive upgraded gh:// plan URI, not a file:// path"
+    assert "42" in compose_pr_call.prompt, (
+        "compose-pr must receive issue number from plan-source-issue-number, not a gh:// URI"
     )
 
     review_calls = [c for c in client.calls if c.label == "github-review-pull-request"]

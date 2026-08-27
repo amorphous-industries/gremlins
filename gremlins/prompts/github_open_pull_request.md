@@ -4,8 +4,8 @@ You are composing a GitHub pull request for changes on a detached HEAD.
 
 | Logical name     | Content |
 |------------------|---------|
-| `pr-branch.txt` | One line — the branch name to push. If `{plan_uri}` matches `gh://issue/N`, use `issue-N-<short-slug>`; otherwise use a short descriptive slug based on the changes. |
+| `pr-branch.txt` | One line — the branch name to push. If `{plan_source_issue_number}` is non-empty, use `issue-{plan_source_issue_number}-<short-slug>`; otherwise use a short descriptive slug based on the changes. |
 | `pr-title.txt`  | One line — the PR title. |
-| `pr-body.md`    | The PR body in markdown. If `{plan_uri}` matches `gh://issue/N`, include `Closes #N` on its own line. If `{plan_uri}` is empty, do NOT include any 'Closes' or 'Fixes' line. |
+| `pr-body.md`    | The PR body in markdown. If `{plan_source_issue_number}` is non-empty, include `Closes #{plan_source_issue_number}` on its own line. If `{plan_source_issue_number}` is empty, do NOT include any 'Closes' or 'Fixes' line. |
 
 The PR will target `{base_ref_to_open_pr}`. Do NOT push or call `gh pr create` — another stage handles that.

@@ -15,7 +15,24 @@ bootstrap:
   launch_cmds:
     - |
       if [ -n "${plan+x}" ]; then
-        if [ -f "$plan" ]; then
+        gh_issue=""
+        if echo "$plan" | grep -qE '^[^/]+/[^#]+#[0-9]+$'; then
+          gh_repo="${plan%#*}"
+          gh_issue="${plan##*#}"
+          _gh_vi() { gh issue view --repo "$gh_repo" "$@"; }
+        elif echo "$plan" | grep -qE '^#[0-9]+$'; then
+          gh_issue="${plan#\#}"
+          _gh_vi() { gh issue view "$@"; }
+        fi
+        if [ -n "$gh_issue" ]; then
+          _gh_vi "$gh_issue" --json body --jq .body > "{artifact_dir}/plan.md"
+          if ! head -1 "{artifact_dir}/plan.md" | grep -q '^# '; then
+            title=$(_gh_vi "$gh_issue" --json title --jq .title)
+            printf '# %s\n\n' "$title" | cat - "{artifact_dir}/plan.md" > "{artifact_dir}/plan.md.tmp"
+            mv "{artifact_dir}/plan.md.tmp" "{artifact_dir}/plan.md"
+          fi
+          _gh_vi "$gh_issue" --json number --jq .number | tr -d '\n' > "{artifact_dir}/plan-source-issue-number.txt"
+        elif [ -f "$plan" ]; then
           cp "$plan" "{artifact_dir}/plan.md"
         else
           printf '%s' "$plan" > "{artifact_dir}/plan.md"
@@ -30,6 +47,8 @@ bootstrap:
         fi
       fi
   cli_out:
+    plan?: file://session/plan.md
+    plan-source-issue-number?: file://session/plan-source-issue-number.txt
     instructions?: file://session/instructions.txt
 
 land:

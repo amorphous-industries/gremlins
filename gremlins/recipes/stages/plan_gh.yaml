@@ -1,47 +1,15 @@
 required-prompt: true
 
 stages:
-  - name: resolve-plan-input
-    type: exec
-    in:
-      plan: "plan?"
-    options:
-      cmds:
-        - |
-          if [ -s "{artifact_dir}/plan.md" ]; then
-              cp "{artifact_dir}/plan.md" "{cwd}/plan.md" 2>/dev/null || true
-              exit 0
-          fi
-          if [ -z "$plan" ]; then exit 0; fi
-          if [ -f "$plan" ]; then
-              cp "$plan" "{artifact_dir}/plan.md"
-          elif echo "$plan" | grep -qE '^#[0-9]+$'; then
-              gh issue view "$plan" --json body --jq .body \
-                > "{artifact_dir}/plan.md"
-              if ! head -1 "{artifact_dir}/plan.md" | grep -q '^# '; then
-                  title=$(gh issue view "$plan" --json title --jq .title)
-                  { printf '# %s\n\n' "$title"; cat "{artifact_dir}/plan.md"; } > "{artifact_dir}/plan.md.tmp"
-                  mv "{artifact_dir}/plan.md.tmp" "{artifact_dir}/plan.md"
-              fi
-              gh issue view "$plan" --json number --jq .number \
-                > "{artifact_dir}/plan-issue-number.txt"
-          else
-              printf 'resolve-plan-input: unrecognized plan: %s\n' "$plan" >&2
-              exit 1
-          fi
-          cp "{artifact_dir}/plan.md" "{cwd}/plan.md" 2>/dev/null || true
-    out:
-      plan-issue-number?: "file://session/plan-issue-number.txt"
-
   - name: plan
     type: agent
-    skip_if_exists: plan-document
+    skip_if_exists: plan
     prompt:
       - "{{prompt}}"
     in:
       instructions: "instructions?"
     out:
-      plan-document: "file://session/plan.md"
+      plan: "file://session/plan.md"
     options:
       idle_timeout: 600
 
@@ -64,7 +32,6 @@ stages:
           printf '%s' "${url##*/}" > "{artifact_dir}/plan-issue-number.txt"
     out:
       plan-issue-number: "file://session/plan-issue-number.txt"
-      plan-document?: "gh://issue/{read:plan-issue-number}"
 
   - name: update-description
     type: exec
