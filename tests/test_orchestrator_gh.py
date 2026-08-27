@@ -201,7 +201,7 @@ def _patch_common(
     )
     (artifact_dir / "pr-branch.txt").write_text("issue-42-fake-slug\n")
     (artifact_dir / "pr-number.txt").write_text(f"{fake_pr_number}\n")
-    (artifact_dir / "plan-source-issue-number.txt").write_text("42\n")
+    (artifact_dir / "plan-source-issue-number.txt").write_text("42")
 
     import subprocess as _subprocess_mod
 
@@ -596,11 +596,12 @@ def test_plan_no_h1_issue_body(tmp_path, monkeypatch):
 
     bootstrap_cmds = [
         f'gh issue view "#42" --json body --jq .body > "{artifact_dir}/plan.md"',
-        f'''if ! head -1 "{artifact_dir}/plan.md" | grep -q '^# ' 2>/dev/null; then
-          title=$(gh issue view "#42" --json title --jq .title 2>/dev/null)
+        f'''if ! head -1 "{artifact_dir}/plan.md" | grep -q '^# '; then
+          title=$(gh issue view "#42" --json title --jq .title)
           printf '# %s\n\n' "$title" | cat - "{artifact_dir}/plan.md" > "{artifact_dir}/plan.md.tmp"
           mv "{artifact_dir}/plan.md.tmp" "{artifact_dir}/plan.md"
         fi''',
+        f'gh issue view "#42" --json number --jq .number | tr -d \'\\n\' > "{artifact_dir}/plan-source-issue-number.txt"',
     ]
 
     async def _run():
@@ -612,6 +613,8 @@ def test_plan_no_h1_issue_body(tmp_path, monkeypatch):
     plan_content = (artifact_dir / "plan.md").read_text(encoding="utf-8")
     assert plan_content.startswith("# ")
     assert (artifact_dir / "plan.md").stat().st_size > 0
+    issue_num = (artifact_dir / "plan-source-issue-number.txt").read_text(encoding="utf-8")
+    assert issue_num == "42", f"expected '42', got {issue_num!r}"
 
 
 def test_plan_stage_uses_bundled_prompt_not_slash_command(tmp_path, monkeypatch):
