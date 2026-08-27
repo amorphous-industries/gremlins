@@ -436,7 +436,7 @@ def test_graft_succeeds_without_branch(lenv, monkeypatch):
 
     # worktree_base is deliberately bogus — mismatched value must not block resume
     # when workdir exists.  The branch artifact also names a nonexistent branch to
-    # prove graft never consults last_artifact_branch().
+    # prove graft uses artifact registry for branch info, not legacy state.json tracking.
     _make_state(
         state_dir,
         lenv.repo,

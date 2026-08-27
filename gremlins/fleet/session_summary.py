@@ -127,6 +127,14 @@ def _collect_gremlins(
         exit_code = state.get("exit_code")
         stage = state.get("stage") or ""
         description = state.get("description") or state.get("instructions") or ""
+        if not description:
+            desc_file = os.path.join(wdir, "artifacts", "description.txt")
+            if os.path.isfile(desc_file):
+                try:
+                    with open(desc_file, encoding="utf-8") as _fh:
+                        description = _fh.read().strip()
+                except OSError:
+                    pass
         log = os.path.join(wdir, "log")
 
         finished_marker = os.path.join(wdir, "finished")

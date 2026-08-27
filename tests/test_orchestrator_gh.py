@@ -249,18 +249,6 @@ def _patch_common(
         "gremlins.executor.state.resolve_state_file", lambda gremlin_id=None: state_file
     )
 
-    # Use a writing shim so the commit runner can read back artifact values.
-    def _append_artifact(self, artifact):
-        data = json.loads(state_file.read_text(encoding="utf-8"))
-        arts = list(data.get("artifacts") or [])
-        arts.append(artifact)
-        data["artifacts"] = arts
-        state_file.write_text(json.dumps(data), encoding="utf-8")
-
-    monkeypatch.setattr(
-        "gremlins.executor.state.StateData.append_artifact", _append_artifact
-    )
-
     return artifact_dir, state_file
 
 
@@ -352,7 +340,7 @@ def test_gh_pipeline_stage_names(tmp_path):
     assert names == [
         "plan",
         "publish-as-issue",
-        "update-description",
+        "set-description",
         "implement",
         "git-commit",
         "require-impl-progress",

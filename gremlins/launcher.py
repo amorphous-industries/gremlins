@@ -49,12 +49,12 @@ def _state_root() -> pathlib.Path:
 
 def _resolve_description_and_slug(
     description: str | None,
-) -> tuple[str, bool, str]:
-    """Return (description, description_explicit, slug) from available inputs."""
+) -> tuple[str, str]:
+    """Return (description, slug) from available inputs."""
     if description:
         slug = slugify(description) or "gremlin"
-        return description[:60], True, slug
-    return "", False, "gremlin"
+        return description[:60], slug
+    return "", "gremlin"
 
 
 def _build_spawn_env(gremlin_id: str, *, telemetry: bool = False) -> dict[str, str]:
@@ -75,7 +75,6 @@ class _Inputs:
     gremlin_id: str
     kind: str
     description: str
-    description_explicit: bool
     parent_id: str
     project_root: str
     pipeline_path: str
@@ -176,7 +175,7 @@ def _resolve_inputs(
     from gremlins.cli.pipeline_args import launch_client_label, resolve_pipeline
 
     loaded_pipeline = None
-    desc, desc_explicit, slug = _resolve_description_and_slug(description)
+    desc, slug = _resolve_description_and_slug(description)
 
     if project_root is None:
         r = proc.run(["git", "rev-parse", "--show-toplevel"])
@@ -230,7 +229,6 @@ def _resolve_inputs(
         gremlin_id=resolved_gremlin_id,
         kind=kind,
         description=desc,
-        description_explicit=desc_explicit,
         parent_id=parent_id or "",
         project_root=project_root,
         pipeline_path=pipeline_path,
@@ -396,7 +394,6 @@ def launch(
             project_root=inputs.project_root,
             started_at=now_iso,
             description=inputs.description,
-            description_explicit=inputs.description_explicit,
             parent_id=inputs.parent_id,
             pipeline_args=inputs.pipeline_args,
             client_label=inputs.client_label,

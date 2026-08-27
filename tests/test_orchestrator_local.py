@@ -198,7 +198,7 @@ def test_local_pipeline_stage_names(tmp_path):
     names = [s.name for s in pipeline.stages]
     assert names == [
         "plan",
-        "update-description",
+        "set-description",
         "implement",
         "git-commit",
         "require-impl-progress",

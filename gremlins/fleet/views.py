@@ -271,6 +271,17 @@ def do_drill_in(target: str) -> None:
         print("    (no log or artifacts)")
 
 
+def _read_description_artifact(wdir: str) -> str:
+    desc_file = os.path.join(wdir, "artifacts", "description.txt")
+    if os.path.isfile(desc_file):
+        try:
+            with open(desc_file, encoding="utf-8") as _fh:
+                return _fh.read().strip()
+        except OSError:
+            pass
+    return ""
+
+
 def _gremlin_to_json(
     gremlin_id: str, wdir: str, state: dict[str, object], live: str
 ) -> dict[str, object]:
@@ -296,7 +307,7 @@ def _gremlin_to_json(
         "liveness": parse_liveness(live),
         "age_seconds": age_seconds,
         "client": str(state.get("client") or ""),
-        "description": str(state.get("description") or state.get("instructions") or ""),
+        "description": str(state.get("description") or state.get("instructions") or _read_description_artifact(wdir)),
         "started_at": started_at,
         "project_root": str(state.get("project_root") or ""),
         "closed": os.path.isfile(os.path.join(wdir, "closed")),

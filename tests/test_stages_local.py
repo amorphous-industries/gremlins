@@ -26,7 +26,7 @@ def test_local_yaml_loads_and_validates(tmp_path):
     names = [s.name for s in pipeline.stages]
     assert names == [
         "plan",
-        "update-description",
+        "set-description",
         "implement",
         "git-commit",
         "require-impl-progress",

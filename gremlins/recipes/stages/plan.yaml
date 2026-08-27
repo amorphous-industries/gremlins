@@ -13,14 +13,10 @@ stages:
     options:
       idle_timeout: 600
 
-  - name: update-description
+  - name: set-description
     type: exec
+    out:
+      description?: "file://session/description.txt"
     options:
       cmds:
-        - |
-          STATE_JSON="{artifact_dir}/../state.json"
-          if ! [ -f "$STATE_JSON" ]; then exit 0; fi
-          if python3 -c "import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if d.get('description_explicit') else 1)" "$STATE_JSON" >/dev/null 2>&1; then exit 0; fi
-          title=$(awk '/^# /{sub(/^#+ */,""); print; exit}' "{artifact_dir}/plan.md" | cut -c1-60)
-          [ -z "$title" ] && exit 0
-          tmp=$(mktemp) && python3 -c "import json,sys; d=json.load(open(sys.argv[1])); d['description']=sys.argv[2]; print(json.dumps(d))" "$STATE_JSON" "$title" > "$tmp" && mv "$tmp" "$STATE_JSON"
+        - "head -1 \"{artifact:plan}\" | sed 's/^#\\+ *//' > \"{artifact_dir}/description.txt\""

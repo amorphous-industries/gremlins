@@ -43,6 +43,14 @@ def build_row(
     stage = state.get("stage") or "-"
     sub = state.get("sub_stage")
     desc = state.get("description") or state.get("instructions") or ""
+    if not desc:
+        desc_file = os.path.join(wdir, "artifacts", "description.txt")
+        if os.path.isfile(desc_file):
+            try:
+                with open(desc_file, encoding="utf-8") as _fh:
+                    desc = _fh.read().strip()
+            except OSError:
+                pass
     started_at = state.get("started_at") or ""
 
     sub_disp = render_sub_stage(sub)
