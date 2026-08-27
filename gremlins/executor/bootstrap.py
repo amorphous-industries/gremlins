@@ -116,7 +116,7 @@ def _parse_bind_artifact_args(
 
     Returns (source_key, artifact_key, uri_template).
     """
-    if len(args) < 3:
+    if len(args) != 3:
         raise ValueError(
             f"bind_artifact requires 3 arguments (source_key, artifact_key, uri), got {len(args)}"
         )
@@ -132,7 +132,7 @@ def _parse_bind_artifact_args(
     return source_key, artifact_key, uri_template
 
 
-def _execute_bind_artifact(
+async def _execute_bind_artifact(
     source_key: str,
     artifact_key: str,
     uri_template: str,
@@ -151,7 +151,7 @@ def _execute_bind_artifact(
     After writing, the artifact is bound in the registry.
     """
     value = stage_inputs.get(source_key)
-    if not value:
+    if value is None or value == "":
         return  # optional source, nothing to bind
     value_str = str(value)
 
@@ -160,28 +160,28 @@ def _execute_bind_artifact(
     resolver = gremlin.registry.file_resolver
     dest_path = resolver.path_for(uri)
 
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+
     # GitHub issue refs are #N or owner/repo#N; requires # prefix so bare
     # numbers like "42" are treated as inline text, not issue references.
     gh_match = re.match(r"^(?:([^/#]+/[^#]+))?#(\d+)$", value_str)
     if gh_match:
         gh_repo = gh_match.group(1)
         gh_issue_num = gh_match.group(2)
-        _fetch_github_issue(
+        await _fetch_github_issue(
             gh_repo, gh_issue_num, dest_path, source_key, artifact_key, uri, gremlin
         )
         return
 
     if os.path.isfile(value_str):
-        dest_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(value_str, dest_path)
     else:
-        dest_path.parent.mkdir(parents=True, exist_ok=True)
         dest_path.write_text(value_str, encoding="utf-8")
 
     gremlin.registry.bind(artifact_key, uri)
 
 
-def _fetch_github_issue(
+async def _fetch_github_issue(
     gh_repo: str | None,
     gh_issue_num: str,
     dest_path: pathlib.Path,
@@ -192,16 +192,8 @@ def _fetch_github_issue(
 ) -> None:
     """Download a GitHub issue body and bind it as an artifact."""
     repo_flag = ["--repo", gh_repo] if gh_repo else []
-    result = proc.run(
-        [
-            "gh",
-            "issue",
-            "view",
-            gh_issue_num,
-            *repo_flag,
-            "--json",
-            "body,title,number",
-        ],
+    result = await proc.run_async(
+        ["gh", "issue", "view", gh_issue_num, *repo_flag, "--json", "body,title,number"],
         check=True,
         timeout=30,
     )
@@ -223,9 +215,10 @@ def _fetch_github_issue(
     issue_num_name = f"{source_key}-source-issue-number"
     issue_num_dest = dest_path.parent / f"{issue_num_name}.txt"
     issue_num_dest.write_text(str(number), encoding="utf-8")
-    gremlin.registry.bind(
-        issue_num_name, Uri.parse(f"file://session/{issue_num_name}.txt")
-    )
+    primary_path = uri.path
+    parent = primary_path.rpartition("/")[0]
+    companion_uri = Uri(scheme=uri.scheme, path=f"{parent}/{issue_num_name}.txt")
+    gremlin.registry.bind(issue_num_name, companion_uri)
 
 
 _DSL_DISPATCH: dict[str, object] = {
@@ -249,10 +242,8 @@ async def _run_dsl_command(
         )
     if cmd_name == "bind_artifact":
         source_key, artifact_key, uri_template = _parse_bind_artifact_args(args)
-        _execute_bind_artifact(
-            source_key,
-            artifact_key,
-            uri_template,
+        await _execute_bind_artifact(
+            source_key, artifact_key, uri_template,
             stage_inputs=stage_inputs,
             gremlin=gremlin,
         )
