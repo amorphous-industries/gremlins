@@ -193,7 +193,15 @@ def _fetch_github_issue(
     """Download a GitHub issue body and bind it as an artifact."""
     repo_flag = ["--repo", gh_repo] if gh_repo else []
     result = proc.run(
-        ["gh", "issue", "view", gh_issue_num, *repo_flag, "--json", "body,title,number"],
+        [
+            "gh",
+            "issue",
+            "view",
+            gh_issue_num,
+            *repo_flag,
+            "--json",
+            "body,title,number",
+        ],
         check=True,
         timeout=30,
     )
@@ -242,7 +250,9 @@ async def _run_dsl_command(
     if cmd_name == "bind_artifact":
         source_key, artifact_key, uri_template = _parse_bind_artifact_args(args)
         _execute_bind_artifact(
-            source_key, artifact_key, uri_template,
+            source_key,
+            artifact_key,
+            uri_template,
             stage_inputs=stage_inputs,
             gremlin=gremlin,
         )
@@ -277,7 +287,8 @@ async def run_pipeline_bootstrap(
             if parsed:
                 cmd_name, args = parsed
                 await _run_dsl_command(
-                    cmd_name, args,
+                    cmd_name,
+                    args,
                     stage_inputs=stage_inputs,
                     gremlin=gremlin,
                 )

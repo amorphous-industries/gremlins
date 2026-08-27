@@ -220,7 +220,7 @@ def test_bind_artifact_inline_text(tmp_path: pathlib.Path) -> None:
             {"plan": InputSource(name="plan", types=["string"], optional=True)}
         ),
         launch_cmds=[
-            'gremlins:bind_artifact(plan, plan, file://session/plan.md)',
+            "gremlins:bind_artifact(plan, plan, file://session/plan.md)",
         ],
     )
     gremlin = _gremlin(tmp_path)
@@ -250,10 +250,14 @@ def test_bind_artifact_filepath_source(tmp_path: pathlib.Path) -> None:
     artifact_dir.mkdir(exist_ok=True)
     bootstrap = Bootstrap(
         source=InputSources(
-            {"plan": InputSource(name="plan", types=["filepath", "string"], optional=True)}
+            {
+                "plan": InputSource(
+                    name="plan", types=["filepath", "string"], optional=True
+                )
+            }
         ),
         launch_cmds=[
-            'gremlins:bind_artifact(plan, plan, file://session/plan.md)',
+            "gremlins:bind_artifact(plan, plan, file://session/plan.md)",
         ],
     )
     gremlin = _gremlin(tmp_path)
@@ -283,7 +287,7 @@ def test_bind_artifact_optional_missing(tmp_path: pathlib.Path) -> None:
             {"plan": InputSource(name="plan", types=["string"], optional=True)}
         ),
         launch_cmds=[
-            'gremlins:bind_artifact(plan, plan, file://session/plan.md)',
+            "gremlins:bind_artifact(plan, plan, file://session/plan.md)",
         ],
     )
     gremlin = _gremlin(tmp_path)
@@ -312,7 +316,7 @@ def test_bind_artifact_optional_empty(tmp_path: pathlib.Path) -> None:
             {"plan": InputSource(name="plan", types=["string"], optional=True)}
         ),
         launch_cmds=[
-            'gremlins:bind_artifact(plan, plan, file://session/plan.md)',
+            "gremlins:bind_artifact(plan, plan, file://session/plan.md)",
         ],
     )
     gremlin = _gremlin(tmp_path)
@@ -331,20 +335,18 @@ def test_bind_artifact_optional_empty(tmp_path: pathlib.Path) -> None:
     assert not gremlin.state.artifacts.produced("plan")
 
 
-def test_bind_artifact_different_source_and_artifact_keys(tmp_path: pathlib.Path) -> None:
+def test_bind_artifact_different_source_and_artifact_keys(
+    tmp_path: pathlib.Path,
+) -> None:
     """Source key and artifact key can differ."""
     artifact_dir = tmp_path / "artifacts"
     artifact_dir.mkdir(exist_ok=True)
     bootstrap = Bootstrap(
         source=InputSources(
-            {
-                "my_plan": InputSource(
-                    name="my_plan", types=["string"], optional=True
-                )
-            }
+            {"my_plan": InputSource(name="my_plan", types=["string"], optional=True)}
         ),
         launch_cmds=[
-            'gremlins:bind_artifact(my_plan, plan, file://session/plan.md)',
+            "gremlins:bind_artifact(my_plan, plan, file://session/plan.md)",
         ],
     )
     gremlin = _gremlin(tmp_path)
@@ -382,11 +384,11 @@ def test_bind_artifact_mixed_with_shell_commands(tmp_path: pathlib.Path) -> None
         ),
         launch_cmds=[
             # DSL command
-            'gremlins:bind_artifact(plan, plan, file://session/plan.md)',
+            "gremlins:bind_artifact(plan, plan, file://session/plan.md)",
             # Regular shell command
             f"sh {shell_script}",
             # Another DSL command
-            'gremlins:bind_artifact(instructions, instructions, file://session/instructions.txt)',
+            "gremlins:bind_artifact(instructions, instructions, file://session/instructions.txt)",
         ],
         cli_out={"plan?": "file://session/plan.md"},
     )
@@ -494,7 +496,7 @@ def test_bind_artifact_skipped_when_launch_excluded(tmp_path: pathlib.Path) -> N
             {"plan": InputSource(name="plan", types=["string"], optional=True)}
         ),
         launch_cmds=[
-            'gremlins:bind_artifact(plan, plan, file://session/plan.md)',
+            "gremlins:bind_artifact(plan, plan, file://session/plan.md)",
         ],
     )
     gremlin = _gremlin(tmp_path)
