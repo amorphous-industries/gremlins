@@ -575,14 +575,13 @@ class Gremlin:
             )
             bootstrap_block = self.pipeline_data.bootstrap
             source = bootstrap_block.source
-            cli_out_keys: set[str] = {
-                k.rstrip("?") for k in (bootstrap_block.cli_out or {})
-            }
             source_keys: set[str] = set(source.sources) if source is not None else set()
-            # Only skip source keys that are handled by cli_out (launch_cmds wrote the file)
-            skip_keys = source_keys & cli_out_keys
+            # Don't pre-write bootstrap source keys — they are bound by
+            # launch_cmds (via bind_artifact DSL or cli_out) which resolves
+            # the raw value to a proper session URI. Pre-writing the raw
+            # value would cause DuplicateArtifact when bootstrap tries to bind.
             for key, value in (stage_inputs or {}).items():
-                if key in skip_keys:
+                if key in source_keys:
                     continue
                 if value is not None and not self.registry.produced(key):
                     self.registry.write(key, value)
