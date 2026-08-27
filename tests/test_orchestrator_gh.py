@@ -613,7 +613,9 @@ def test_plan_no_h1_issue_body(tmp_path, monkeypatch):
     plan_content = (artifact_dir / "plan.md").read_text(encoding="utf-8")
     assert plan_content.startswith("# ")
     assert (artifact_dir / "plan.md").stat().st_size > 0
-    issue_num = (artifact_dir / "plan-source-issue-number.txt").read_text(encoding="utf-8")
+    issue_num = (artifact_dir / "plan-source-issue-number.txt").read_text(
+        encoding="utf-8"
+    )
     assert issue_num == "42", f"expected '42', got {issue_num!r}"
 
 
