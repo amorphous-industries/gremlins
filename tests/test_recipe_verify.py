@@ -40,39 +40,43 @@ def test_verify_recipe_expands_to_loop(tmp_path: pathlib.Path) -> None:
     assert "name" not in loop
 
 
-def test_verify_recipe_body_has_three_stages(tmp_path: pathlib.Path) -> None:
+def test_verify_recipe_body_has_two_stages(tmp_path: pathlib.Path) -> None:
     result = _make_pipeline(
         tmp_path,
         "- { type: verify, options: { cmds: ['make check'] }, prompt: verify }",
     )
     body = result["stages"][0]["body"]
-    assert len(body) == 3
+    assert len(body) == 2
     assert body[0]["name"] == "cmd"
     assert body[0]["type"] == "exec"
-    assert body[1]["name"] == "verify-context"
-    assert body[1]["type"] == "exec"
-    assert body[2]["name"] == "fix"
-    assert body[2]["type"] == "agent"
+    assert body[1]["name"] == "fix"
+    assert body[1]["type"] == "agent"
 
 
-def test_verify_cmds_propagated_to_cmd_stage(tmp_path: pathlib.Path) -> None:
+def test_verify_cmds_wrapped_with_done_writing(tmp_path: pathlib.Path) -> None:
+    """The cmd exec wraps cmds to always exit 0 and write done on success."""
+    result = _make_pipeline(
+        tmp_path,
+        "- { type: verify, options: { cmds: ['make check'] }, prompt: verify }",
+    )
+    cmd_stage = result["stages"][0]["body"][0]
+    wrapped = cmd_stage["options"]["cmds"][0]
+    assert "make check" in wrapped
+    assert "printf 'done'" in wrapped
+    assert "{artifact_dir}/done" in wrapped
+    assert "true" in wrapped
+
+
+def test_verify_cmds_wrapped_multi(tmp_path: pathlib.Path) -> None:
+    """Multiple cmds are joined with && inside the wrapper."""
     result = _make_pipeline(
         tmp_path,
         "- { type: verify, options: { cmds: ['make check', 'make test'] }, prompt: verify }",
     )
     cmd_stage = result["stages"][0]["body"][0]
-    assert cmd_stage["options"]["cmds"] == ["make check", "make test"]
-
-
-def test_verify_context_keeps_own_cmds(tmp_path: pathlib.Path) -> None:
-    result = _make_pipeline(
-        tmp_path,
-        "- { type: verify, options: { cmds: ['make check'] }, prompt: verify }",
-    )
-    ctx_stage = result["stages"][0]["body"][1]
-    cmds = ctx_stage["options"]["cmds"]
-    assert any("git diff" in c for c in cmds)
-    assert any("verify-summary.txt" in c for c in cmds)
+    wrapped = cmd_stage["options"]["cmds"][0]
+    assert "make check && make test" in wrapped
+    assert "printf 'done'" in wrapped
 
 
 def test_verify_empty_cmds_raises(tmp_path: pathlib.Path) -> None:
@@ -91,15 +95,16 @@ def test_verify_missing_cmds_raises(tmp_path: pathlib.Path) -> None:
         )
 
 
-def test_verify_prompt_reaches_fix_agent(tmp_path: pathlib.Path) -> None:
+def test_verify_fix_has_skip_if_exists(tmp_path: pathlib.Path) -> None:
+    """The fix agent has skip_if_exists: done so it's skipped when check passed."""
     result = _make_pipeline(
         tmp_path,
         "- { type: verify, options: { cmds: ['make check'] }, prompt: verify }",
     )
-    fix_stage = result["stages"][0]["body"][2]
+    fix_stage = result["stages"][0]["body"][1]
+    assert fix_stage.get("skip_if_exists") == "done"
     assert isinstance(fix_stage.get("prompt"), list)
     assert len(fix_stage["prompt"]) >= 1
-    assert "verify" in fix_stage["prompt"][0].lower()
 
 
 def test_repeated_verify_recipe_deduplicates_names(tmp_path: pathlib.Path) -> None:

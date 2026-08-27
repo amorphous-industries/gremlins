@@ -26,6 +26,7 @@ _CHAIN_YAML = textwrap.dedent("""\
       - name: chain
         type: loop
         max-iterations: 1
+        stop_when_exists: done
         body:
           - { name: handoff, type: gremlins:handoff }
 """)
@@ -112,7 +113,7 @@ def test_boss_chain_done_exits_loop(sandbox, tmp_path):
     }
     gremlin, loop = _make_loop(tmp_path, sandbox.project, signal)
     asyncio.run(loop.run(gremlin))
-    assert gremlin.state.artifacts.read("status") == "pass"
+    assert gremlin.state.artifacts.produced("done")
 
 
 def test_boss_next_plan_needs_fix_and_plan_swap(sandbox, tmp_path):
@@ -129,7 +130,6 @@ def test_boss_next_plan_needs_fix_and_plan_swap(sandbox, tmp_path):
     gremlin, loop = _make_loop(tmp_path, sandbox.project, signal)
     with pytest.raises(Bail):
         asyncio.run(loop.run(gremlin))
-    assert gremlin.state.artifacts.read("status") == "needs_fix"
     assert (artifact_dir / "plan.md").read_text(encoding="utf-8") == "# Next\n"
 
 

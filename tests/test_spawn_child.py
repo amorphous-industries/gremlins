@@ -45,14 +45,6 @@ class _RaiseStage(_SimpleStage):
         raise RuntimeError("something went wrong")
 
 
-class _ArtifactStage(_SimpleStage):
-    type = "_test_artifact"
-
-    async def run(self, gremlin) -> Outcome:  # type: ignore[no-untyped-def]
-        gremlin.state.data.append_artifact({"type": "branch", "name": "feat/test"})  # type: ignore[union-attr]
-        return Done()
-
-
 @pytest.fixture(autouse=True)
 def _register_test_stages(
     monkeypatch: pytest.MonkeyPatch,
@@ -60,7 +52,6 @@ def _register_test_stages(
     monkeypatch.setitem(STAGE_TYPES, "_test_done", _DoneStage)
     monkeypatch.setitem(STAGE_TYPES, "_test_bail", _BailStage)
     monkeypatch.setitem(STAGE_TYPES, "_test_raise", _RaiseStage)
-    monkeypatch.setitem(STAGE_TYPES, "_test_artifact", _ArtifactStage)
 
     saved = dict(CLIENT_FACTORIES)
     register_client_factory("fake", lambda _model, _extra=None: FakeClient(fixtures={}))
@@ -179,38 +170,6 @@ def test_run_stage_raises(tmp_path: pathlib.Path) -> None:
     result = _read_result(spec_path)
     assert result["status"] == "error"
     assert "something went wrong" in result["detail"]
-
-
-def test_run_artifact_stage(
-    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    import gremlins.paths as _paths
-
-    state_root = tmp_path / "state"
-    monkeypatch.setattr(_paths, "state_root", lambda: state_root)
-
-    gremlin_id = "test-gremlin-abc"
-    state_dir = state_root / gremlin_id
-    state_dir.mkdir(parents=True, exist_ok=True)
-    (state_dir / "state.json").write_text(
-        json.dumps({"id": gremlin_id, "attempt": "a1"}), encoding="utf-8"
-    )
-
-    spec_path = _write_spec(
-        tmp_path,
-        "_test_artifact",
-        extra={"gremlin_id": gremlin_id},
-    )
-    rc = asyncio.run(_rc._run(spec_path))
-    assert rc == 0
-    result = _read_result(spec_path)
-    assert result["status"] == "done"
-
-    state_json: dict[str, Any] = json.loads(
-        (state_dir / "state.json").read_text(encoding="utf-8")
-    )
-    artifacts: list[dict[str, Any]] = list(state_json.get("artifacts") or [])
-    assert any(a.get("name") == "feat/test" for a in artifacts)
 
 
 def test_run_bad_spec_missing_stage_dict(tmp_path: pathlib.Path) -> None:

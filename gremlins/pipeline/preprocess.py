@@ -280,6 +280,19 @@ def _substitute_recipe(node: Any, ctx: dict[str, Any]) -> Any:
     if isinstance(node, str):
         if node.startswith("{{") and node.endswith("}}") and node.count("{{") == 1:
             return _resolve_placeholder(node[2:-2].strip(), ctx)
+        if "{{" in node:
+            # Inline placeholder substitution: replace {{...}} with resolved
+            # value. List values are joined with " && ".
+            import re
+
+            def _replacer(m: re.Match[str]) -> str:
+                key = m.group(1).strip()
+                val = _resolve_placeholder(key, ctx)
+                if isinstance(val, list):
+                    return " && ".join(cast(list[str], val))
+                return str(val)
+
+            return re.sub(r"\{\{([^}]+)\}\}", _replacer, node)
         return node
     return node
 

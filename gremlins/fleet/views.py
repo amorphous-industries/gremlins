@@ -20,6 +20,7 @@ from gremlins.fleet.state import (
     liveness_of_state_file,
     load_state,
     parse_liveness,
+    read_description_artifact,
 )
 from gremlins.queue.core import QueueSummary, queue_summary
 
@@ -296,7 +297,11 @@ def _gremlin_to_json(
         "liveness": parse_liveness(live),
         "age_seconds": age_seconds,
         "client": str(state.get("client") or ""),
-        "description": str(state.get("description") or state.get("instructions") or ""),
+        "description": str(
+            state.get("description")
+            or state.get("instructions")
+            or read_description_artifact(wdir)
+        ),
         "started_at": started_at,
         "project_root": str(state.get("project_root") or ""),
         "closed": os.path.isfile(os.path.join(wdir, "closed")),

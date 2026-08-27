@@ -16,7 +16,7 @@ _BUNDLED_LOCAL = (
 
 _LOCAL_STAGE_NAMES = [
     "plan",
-    "update-description",
+    "set-description",
     "implement",
     "git-commit",
     "require-impl-progress",

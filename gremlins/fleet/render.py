@@ -8,6 +8,7 @@ from gremlins.fleet.constants import FMT
 from gremlins.fleet.state import (
     display_id,
     humanize_age,
+    read_description_artifact,
     render_sub_stage,
 )
 
@@ -43,6 +44,8 @@ def build_row(
     stage = state.get("stage") or "-"
     sub = state.get("sub_stage")
     desc = state.get("description") or state.get("instructions") or ""
+    if not desc:
+        desc = read_description_artifact(wdir)
     started_at = state.get("started_at") or ""
 
     sub_disp = render_sub_stage(sub)

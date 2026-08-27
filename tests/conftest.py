@@ -359,9 +359,10 @@ REVIEW_LABELS = {"review-code"}
 
 
 class ReviewCreatingClient(FakeClient):
-    """FakeClient that writes the review output file for review-code stages.
-    Extracts the output path from the prompt so it lands at the path the artifact
-    binding expects to exist after the reviewer finishes. Shared between
+    """FakeClient that writes output files for agent stages.
+
+    Extracts output paths from the prompt so they land at the path the artifact
+    binding expects to exist after the agent completes. Shared between
     test_orchestrator_local and test_state_isolation."""
 
     async def run(self, prompt, *, label, cwd=None, **kwargs):
@@ -382,6 +383,16 @@ class ReviewCreatingClient(FakeClient):
             out = base / m.group(1)
             out.parent.mkdir(parents=True, exist_ok=True)
             out.write_text("# Review\n\n## Findings\nNone.\n")
+            if label not in self._fixtures:
+                self._fixtures[label] = MINIMAL_EVENTS
+        if label == "fix":
+            # Write the done file so verify_produced passes for the verify recipe's fix agent.
+            # Prompt after substitution: ...write "done" to /path/<slug>_done
+            m = re.search(r"to\s+(/\S+_done)\b", prompt)
+            if m:
+                done_path = pathlib.Path(m.group(1))
+                done_path.parent.mkdir(parents=True, exist_ok=True)
+                done_path.write_text("done", encoding="utf-8")
             if label not in self._fixtures:
                 self._fixtures[label] = MINIMAL_EVENTS
         return await super().run(prompt, label=label, cwd=cwd, **kwargs)

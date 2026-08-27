@@ -251,20 +251,27 @@ def test_success_writes_log(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_timeout_with_status_out_yields_needs_fix(tmp_path):
-    state = _make_state(tmp_path)
-    stage = _exec(
-        cmds=["sleep 10"],
-        out_map={"status": "file://session/status"},
-        timeout=0.05,
-    )
-    result = asyncio.run(stage.run(MockGremlin(state=state)))
-    assert isinstance(result, Done)
-    assert state.artifacts.read("status") == "needs_fix"
-
-
-def test_timeout_without_status_out_raises_bail(tmp_path):
+def test_timeout_raises_bail(tmp_path):
     state = _make_state(tmp_path)
     stage = _exec(cmds=["sleep 10"], timeout=0.05)
     with pytest.raises(Bail):
         asyncio.run(stage.run(MockGremlin(state=state)))
+
+
+# ---------------------------------------------------------------------------
+# bail artifact
+# ---------------------------------------------------------------------------
+
+
+def test_bail_artifact_on_exit_2(tmp_path):
+    """Exit code 2 with bail in out_map writes the bail artifact."""
+    state = _make_state(tmp_path)
+    bail_file = state.artifact_dir / "bail"
+    bail_file.write_text("something broke")
+    stage = _exec(
+        cmds=["exit 2"],
+        out_map={"bail": "file://session/bail"},
+    )
+    result = asyncio.run(stage.run(MockGremlin(state=state)))
+    assert isinstance(result, Done)
+    assert state.artifacts.produced("bail")

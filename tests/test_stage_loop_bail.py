@@ -86,21 +86,3 @@ def test_bail_message_matches_file_contents(tmp_path: pathlib.Path) -> None:
         asyncio.run(loop.run(cast("Gremlin", MockGremlin(state))))
 
     assert exc_info.value.reason == "specific: assertion broken"
-
-
-def test_bail_wins_over_needs_fix(tmp_path: pathlib.Path) -> None:
-    state = _make_state(tmp_path)
-    exec_stage = Exec(
-        "check",
-        {"cmds": ["printf 'hard stop' > '{artifact_dir}/bail'", "exit 2"]},
-        out_map={
-            "bail": "file://session/bail",
-            "status": "file://session/status",
-        },
-    )
-    loop = LoopStage("loop", body=[exec_stage], max_iterations=3)
-
-    with pytest.raises(Bail) as exc_info:
-        asyncio.run(loop.run(cast("Gremlin", MockGremlin(state))))
-
-    assert exc_info.value.reason == "hard stop"

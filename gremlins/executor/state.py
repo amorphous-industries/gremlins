@@ -98,7 +98,6 @@ class StateData:
     status: str = ""
     started_at: str = ""
     description: str = ""
-    description_explicit: bool = False
     parent_id: str = ""
     pipeline_args: list[str] = dataclasses.field(default_factory=list[str])
     client: str = ""
@@ -127,7 +126,6 @@ class StateData:
             status=sd.get("status") or "",
             started_at=sd.get("started_at") or "",
             description=sd.get("description") or "",
-            description_explicit=bool(sd.get("description_explicit")),
             parent_id=sd.get("parent_id") or "",
             pipeline_args=list(cast(list[str], sd.get("pipeline_args") or [])),
             client=sd.get("client") or "",
@@ -155,7 +153,6 @@ class StateData:
             "status": self.status,
             "started_at": self.started_at,
             "description": self.description,
-            "description_explicit": self.description_explicit,
             "parent_id": self.parent_id,
             "pipeline_args": self.pipeline_args,
             "client": self.client,
@@ -239,22 +236,6 @@ class StateData:
         except Exception:
             pass
 
-    def append_artifact(self, artifact: dict[str, Any]) -> None:
-        sf = self.state_file or resolve_state_file(self.gremlin_id)
-        if sf is None or not sf.exists():
-            return
-        stamped = {**artifact, "attempt": self.attempt} if self.attempt else artifact
-        try:
-
-            def _apply(data: dict[str, Any]) -> None:
-                arts: list[Any] = list(data.get("artifacts") or [])
-                arts.append(stamped)
-                data["artifacts"] = arts
-
-            locked_update(sf, _apply)
-        except Exception:
-            logger.warning("failed to append artifact", exc_info=True)
-
     def accumulate_token_usage(self, usage: dict[str, int]) -> None:
         """Fold a per-run token-usage delta into the cumulative state.json total.
 
@@ -291,30 +272,6 @@ class StateData:
             return dict(json.loads(bail_path.read_text(encoding="utf-8")))
         except Exception:
             return None
-
-    def read_artifacts(self) -> list[dict[str, Any]]:
-        sf = self.state_file or resolve_state_file(self.gremlin_id)
-        if sf is None or not sf.exists():
-            return []
-        try:
-            data: dict[str, Any] = json.loads(sf.read_text(encoding="utf-8"))
-            artifacts: list[Any] = data.get("artifacts") or []
-            return [a for a in artifacts if isinstance(a, dict)]
-        except (json.JSONDecodeError, OSError):
-            return []
-
-    def read_artifacts_for_attempt(self, attempt: str) -> list[dict[str, Any]]:
-        if not attempt:
-            return []
-        return [a for a in self.read_artifacts() if a.get("attempt") == attempt]
-
-    def last_artifact_branch(self) -> str:
-        for art in reversed(self.read_artifacts()):
-            if art.get("type") == "branch":
-                return str(art.get("name") or "")
-            if art.get("type") == "pr":
-                return str(art.get("branch") or "")
-        return ""
 
     def patch_parallel_worktrees(
         self,
