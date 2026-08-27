@@ -31,7 +31,7 @@ land:
 prompts:
   code-style: gremlins:code_style.md
   terse: terse_style.md
-  verify: [dev-env-howto.md, verify_fix.md, gremlins:bail_section_fix.md]
+  verify: [dev-env-howto.md, gremlins:verify_fix.md, gremlins:bail_section_fix.md]
   dev-env: dev-env-howto.md
 
 # Usage:
