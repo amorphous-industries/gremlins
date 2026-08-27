@@ -217,6 +217,22 @@ def atomic_patch_state(sf: str, patch: dict[str, object]) -> bool:
         return False
 
 
+def read_description_artifact(wdir: str) -> str:
+    """Read artifacts/description.txt from a gremlin state directory.
+
+    Returns the trimmed contents, or empty string if the file doesn't exist
+    or can't be read.
+    """
+    desc_file = os.path.join(wdir, "artifacts", "description.txt")
+    if os.path.isfile(desc_file):
+        try:
+            with open(desc_file, encoding="utf-8") as _fh:
+                return _fh.read().strip()
+        except OSError:
+            pass
+    return ""
+
+
 def git_toplevel() -> str:
     """Return the git toplevel of cwd, or cwd itself if not in a repo."""
     try:

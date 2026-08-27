@@ -15,7 +15,7 @@ stages:
           done?: "file://session/done"
         options:
           cmds:
-            - ({{options.cmds}}) && printf 'done' > "{artifact_dir}/done"; true
+            - ({{options.cmds}}); rc=$?; printf '%d' "$rc" > "{artifact_dir}/exec_exit_code"; if [ "$rc" -eq 0 ]; then printf 'done' > "{artifact_dir}/done"; fi; true
       - name: fix
         type: agent
         skip_if_exists: done

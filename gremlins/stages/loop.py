@@ -62,6 +62,10 @@ class LoopStage(Stage):
         self.body = body or []
         for c in self.body:
             c.path = f"{name}/{c.name}"
+        if max_iterations < 1:
+            raise ValueError(
+                f"LoopStage {self.name!r}: max_iterations must be >= 1, got {max_iterations}"
+            )
         self._body_runners = body_runners
         self._max_iterations = max_iterations
         self._stop_when_exists = stop_when_exists
@@ -135,7 +139,8 @@ class LoopStage(Stage):
             gremlin.state.record_state_field(loop_iteration=iteration)
             gremlin.state.artifacts.unbind(_BAIL_KEY)
             for child in self.body:
-                for key in getattr(child, "out_map", {}):
+                for raw_key in getattr(child, "out_map", {}):
+                    key = raw_key.removesuffix("?")
                     gremlin.state.artifacts.unbind(key)
             runners = (
                 self._body_runners
@@ -162,4 +167,9 @@ class LoopStage(Stage):
             if self._interval is not None:
                 await asyncio.sleep(self._interval)
 
-        return Done()
+        # All loop paths above either return Done() or raise Bail.
+        raise RuntimeError(
+            f"LoopStage.run() fell through — "
+            f"max_iterations={self._max_iterations}, "
+            f"stop_when_exists={self._stop_when_exists!r}"
+        )

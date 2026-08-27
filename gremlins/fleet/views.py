@@ -20,6 +20,7 @@ from gremlins.fleet.state import (
     liveness_of_state_file,
     load_state,
     parse_liveness,
+    read_description_artifact,
 )
 from gremlins.queue.core import QueueSummary, queue_summary
 
@@ -271,17 +272,6 @@ def do_drill_in(target: str) -> None:
         print("    (no log or artifacts)")
 
 
-def _read_description_artifact(wdir: str) -> str:
-    desc_file = os.path.join(wdir, "artifacts", "description.txt")
-    if os.path.isfile(desc_file):
-        try:
-            with open(desc_file, encoding="utf-8") as _fh:
-                return _fh.read().strip()
-        except OSError:
-            pass
-    return ""
-
-
 def _gremlin_to_json(
     gremlin_id: str, wdir: str, state: dict[str, object], live: str
 ) -> dict[str, object]:
@@ -310,7 +300,7 @@ def _gremlin_to_json(
         "description": str(
             state.get("description")
             or state.get("instructions")
-            or _read_description_artifact(wdir)
+            or read_description_artifact(wdir)
         ),
         "started_at": started_at,
         "project_root": str(state.get("project_root") or ""),

@@ -19,7 +19,7 @@ import time
 from typing import Any, cast
 
 from gremlins import paths as _paths
-from gremlins.fleet.state import liveness_of_state_file
+from gremlins.fleet.state import liveness_of_state_file, read_description_artifact
 from gremlins.utils import git as _git_mod
 
 
@@ -126,15 +126,12 @@ def _collect_gremlins(
         pid = state.get("pid")
         exit_code = state.get("exit_code")
         stage = state.get("stage") or ""
-        description = state.get("description") or state.get("instructions") or ""
-        if not description:
-            desc_file = os.path.join(wdir, "artifacts", "description.txt")
-            if os.path.isfile(desc_file):
-                try:
-                    with open(desc_file, encoding="utf-8") as _fh:
-                        description = _fh.read().strip()
-                except OSError:
-                    pass
+        description = (
+            state.get("description")
+            or state.get("instructions")
+            or read_description_artifact(wdir)
+            or ""
+        )
         log = os.path.join(wdir, "log")
 
         finished_marker = os.path.join(wdir, "finished")
