@@ -58,7 +58,9 @@ can have running gremlins simultaneously without interference.
 
 - `gh` — [GitHub CLI](https://github.com/cli/cli#installation)
 - `git` — [Git](https://git-scm.com/downloads) (pre-installed on most systems)
-- `claude` — [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code)
+
+A provider also requires either its API key (`OPENAI_API_KEY`, `XAI_API_KEY`,
+`OPENROUTER_API_KEY`) or a `cmd:` command on `PATH`.
 
 ## Dev install
 
@@ -69,21 +71,25 @@ uv pip install -e ".[dev]"
 make dev                    # build + install the Rust native extension
 ```
 
+Run `uv pip install -e ".[dev]"` **before** `make dev` — the dev extra installs `maturin`, which `make dev` requires.
+
 ## Make targets
 
 | Target | What it runs |
 |---|---|
-| `make dev` | Build and install the native extension in dev mode (`maturin develop`) |
-
-**Note:** Run `uv pip install -e ".[dev]"` **before** `make dev` — the dev extra installs `maturin`, which `make dev` requires.
-| `make test` | `cargo test` (Rust) + `pytest` (Python, per-file in parallel) |
+| `make dev` | `maturin develop` + `make install-stubs` |
+| `make install` | `maturin develop --release` |
+| `make install-stubs` | Install `.py` source stubs alongside the `.so` for pyright |
+| `make test` | `cargo test -p gremlins --lib && cargo test -p gremlins-pyext --lib`, then each `tests/test_*.py` via pytest |
 | `make lint` | `ruff check .` |
-| `make format` | `ruff format --check .` (check only — does not rewrite files) |
+| `make format` | `ruff format --check .` |
+| `make format-write` | `ruff format .` |
 | `make typecheck` | `pyright` |
-| `make rust-test` | `cargo test -p gremlins-core --lib` |
-| `make rust-clippy` | `cargo clippy --all-targets -- -D warnings` |
+| `make rust-test` | `cargo test -p gremlins --lib && cargo test -p gremlins-pyext --lib` |
+| `make rust-fmt` | `cargo fmt --all` |
 | `make rust-fmt-check` | `cargo fmt --all -- --check` |
-| `make check` | lint + format + typecheck + clippy + rustfmt |
+| `make rust-clippy` | `cargo clippy --all-targets -- -D warnings` |
+| `make check` | lint + format + typecheck + rust-fmt-check + rust-clippy |
 
 ## CLI subcommands
 
@@ -96,16 +102,16 @@ the dispatch table in [`gremlins/cli/__init__.py`](gremlins/cli/__init__.py).
 | `launch <name>` | Launch a background gremlin by pipeline name (`gremlins launch --list` to see available) |
 | `resume` | Re-spawn an existing gremlin from its recorded stage |
 | `stop` | Send SIGTERM to a running gremlin and wait for it to exit |
-| `land` | Land a finished gremlin onto the current branch |
-| `rm` | Delete a dead gremlin's state dir, worktree, and branch |
-| `close` | Mark a dead gremlin as closed |
+| `land` | Land a finished gremlin onto the current branch, then clean up |
+| `rm` | Delete a gremlin's state directory, worktree, and branch |
+| `close` | Mark a gremlin as closed (hidden from default view) |
 | `log` | Tail the gremlin's log file |
 | `ack` | Acknowledge a gremlin waiting for human input |
 | `skip` | Skip a gremlin waiting for human input |
 | `queue` | Manage the gremlin launch queue |
 | `prompt-for-assistant` | Print the assistant setup prompt to stdout |
-
-`_run-pipeline` is an internal spawn boundary; not for direct use.
+| `artifacts` | Inspect artifact keys and bindings |
+| `clean` | Clean finished gremlin state directories |
 
 ### `queue` sub-subcommands
 
@@ -121,21 +127,29 @@ the dispatch table in [`gremlins/cli/__init__.py`](gremlins/cli/__init__.py).
 
 ### Launch flags
 
+#### Universal flags
+
+These flags are accepted by every pipeline:
+
+| Flag | Description |
+|---|---|
+| `--description <text>` | Human-readable description stored in state |
+| `--gremlin-id <id>` | Use a specific gremlin id (must match `[A-Za-z0-9_-]+`) |
+| `--parent <id>` | Parent gremlin ID (used by boss to track child ownership) |
+| `--print-id` | Print the gremlin ID to stdout after launch |
+| `--print-id-only` | Print only the gremlin id on stdout; suppress the launch banner |
+| `--wait` | Block until the spawned gremlin exits; return its exit code |
+| `--base-ref <ref>` | Git ref to branch the worktree from; defaults to the pipeline's `base_ref` (which defaults to `"current"`) |
+| `--client <spec>` | `provider:model` string overriding the pipeline's `default_client` |
+| `--telemetry` / `-v` | Enable per-turn telemetry (TTFT, token counts, cache hit ratio) in the gremlin log |
+
 #### Per-pipeline flags
 
-Flags vary by pipeline. The first stage's `__init__` signature defines the accepted flags; `gremlins launch <name> --help` prints the full list.
-
-Common infrastructure flags (accepted by all pipelines):
-
-| Flag | Default | Description |
-|---|---|---|
-| `--plan <path-or-ref>` | — | Path to a plan/spec file, or a GitHub issue ref (`42`, `#42`, `owner/repo#42`, or issue URL) |
-| `--description <text>` | — | Human-readable description stored in state |
-| `--parent <id>` | — | Parent gremlin ID (used by boss to track child ownership) |
-| `--print-id` | false | Print the gremlin ID to stdout after launch |
-| `-c`/`--instructions <text>` | — | Instructions string (mutually exclusive with `--plan`) |
-| `--base-ref <ref>` | `HEAD` | Git ref to branch the worktree from; ignored for gh pipelines (always anchors to origin default branch). In parallel pipelines, automatically propagated to all child processes. |
-| `--spec <path>` | — | Path to a coding-style spec file passed into stages |
+Additional flags are generated from the pipeline's `bootstrap.source` block.
+Each source key becomes a `--<key>` flag (required unless `optional: true`).
+For example, the `gh` pipeline declares `plan` and `instructions` sources, so
+`gremlins launch gh --help` shows `--plan` and `--instructions`. Run
+`gremlins launch <name> --help` to see the full list for a given pipeline.
 
 ## Pipeline configuration
 
@@ -166,25 +180,57 @@ gremlins launch gh      # bundled gh.yaml
 **Top-level keys:**
 
 ```yaml
-name: my-pipeline         # optional; defaults to the file stem
+default_client: xai:grok-4    # required; provider:model string
 
-default_client: claude:sonnet   # optional; provider:model string
+base_ref: current             # optional; git ref to branch worktrees from (default "current")
 
-prompt_dir: ../prompts          # optional; relative to YAML, defaults to the YAML's directory
+github_integration: true      # optional; enables gh CLI integration
+
+bootstrap:                    # optional; CLI contract and setup commands
+  source:
+    plan:
+      type: [filepath, string]
+      optional: true
+  launch_cmds:
+    - gremlins:bind_artifact(plan, plan, file://session/plan.md)
+  cmds:
+    - "uv sync"
+  cli_out:
+    pr: "gh://pr/{read:pr-num}"
+
+prompts:                      # optional; named prompt map
+  code-style: gremlins:code_style.md
+
+prompt_dir: ../prompts        # optional; relative to YAML, defaults to the YAML's directory
+
+stage-definitions:            # optional; reusable stage patterns
+  normalize:
+    type: exec
+    options:
+      cmds: ["ruff format . && ruff check --fix ."]
+
+land:                         # optional; exec stage run by `gremlins land`
+  in:
+    PR_URL: pr-url
+  options:
+    cmds:
+      - gh pr merge --squash --delete-branch "$PR_URL"
 
 stages:
-  - name: plan
-    type: plan
-    client: copilot:gpt-5.4     # optional; overrides default_client for this stage
-    prompt: gremlins:plan.md    # `gremlins:NAME` -> bundled prompts; bare NAME -> prompt_dir
-    options: {}
+  - type: gremlins:plan
+    prompt: [code-style, gremlins:plan.md]
 ```
 
 | Key | Description |
 |---|---|
-| `name` | Pipeline display name; defaults to the file stem |
-| `default_client` | `provider:model` string used for stages without an explicit `client:` |
+| `default_client` | **Required.** `provider:model` string used for stages without an explicit `client:` |
+| `base_ref` | Git ref to branch worktrees from. Defaults to `"current"`. |
+| `github_integration` | If true, fetches `origin/<branch>` before creating worktrees and enables `gh` CLI use. |
+| `bootstrap` | CLI source flags, launch-only commands, per-worktree commands, and `cli_out` artifact bindings. See [Bootstrap block](#bootstrap-block). |
+| `prompts` | Named prompt map. Each key maps to a prompt string or list; referenced by name in stage `prompt:` fields. |
 | `prompt_dir` | Directory that bare-name `prompt:` paths resolve against, relative to the YAML file. Defaults to the YAML's directory. |
+| `stage-definitions` | Named reusable stage patterns. Values can be inline dicts or `gremlins:recipe` references. |
+| `land` | An `exec` stage run by `gremlins land` (e.g. `gh pr merge`). See [Land block](#land-block). |
 | `stages` | Ordered list of stage entries or parallel groups |
 
 **Per-stage keys:**
@@ -192,14 +238,21 @@ stages:
 | Key | Description |
 |---|---|
 | `name` | Unique stage identifier; used for `resume` targeting |
-| `type` | Registered stage type (see [Available stage types](#available-stage-types)) |
+| `type` | Stage type — a primitive (`agent`, `exec`, `loop`, `parallel`, `sequence`), a bundled recipe (`gremlins:plan`, `gremlins:implement`, etc.), or a `stage-definitions` key |
 | `client` | `provider:model` string; overrides `default_client` for this stage |
 | `prompt` | Path or list of paths. `gremlins:NAME` resolves from the bundled package prompts; a bare `NAME` resolves from the pipeline's `prompt_dir`. |
 | `options` | Free-form dict passed to the stage |
+| `skip_if_exists` | Artifact key; if this artifact is verified to exist, skip the stage |
+| `in` | Map of variable names to artifact registry keys (see [Artifact binding](#artifact-binding)) |
+| `out` | Map of artifact keys to URI strings (see [Artifact binding](#artifact-binding)) |
+| `body` | List of child stages (for `loop` and `sequence` types) |
+| `max-iterations` | Max loop iterations (for `loop` type; also settable via `options.max_iterations`) |
+| `stop_when_exists` | Artifact key that terminates the loop when bound (for `loop` type) |
+| `max_concurrent` | Max simultaneously running children (for `parallel` groups) |
+| `cancel_on_bail` | If true, cancel outstanding parallel children when one bails (default: false) |
+| `bail_policy` | `"any"` (default) or `"all"` — when to halt the parallel group on child bail |
 
-**`provider:model` format:**
-
-Providers: `claude` (default), `copilot`, `openai`, `xai`, `anthropic`. The model part is optional — `claude:` and `claude:sonnet` are both valid. Examples: `claude:sonnet`, `copilot:gpt-5.4`, `openai:gpt-4o`. Per-stage `client:` in YAML takes precedence over the CLI `--client` flag; `default_client:` at the pipeline level does not.
+**Client precedence:** CLI `--client` beats per-stage `client:`; per-stage `client:` beats pipeline `default_client:`.
 
 **Parallel-group form:**
 
@@ -208,10 +261,10 @@ Providers: `claude` (default), `copilot`, `openai`, `xai`, `anthropic`. The mode
   parallel:
     - name: review-detail
       type: review-code
-      client: claude:sonnet
+      client: xai:grok-4
     - name: review-security
       type: review-code
-      client: claude:sonnet
+      client: xai:grok-4
   max_concurrent: 2         # optional; defaults to all children at once
 ```
 
@@ -223,19 +276,19 @@ Providers: `claude` (default), `copilot`, `openai`, `xai`, `anthropic`. The mode
 
 ### Client specifiers
 
-Clients are specified as `provider:model` inline strings, either at the pipeline level (`default_client:`) or per stage (`client:`). The model part is optional.
+Clients are specified as `provider:model` inline strings, either at the pipeline level (`default_client:`) or per stage (`client:`).
 
 ```yaml
-default_client: claude:sonnet     # all stages default to this
+default_client: xai:grok-4     # all stages default to this
 stages:
   - name: plan
-    type: plan
+    type: gremlins:plan
   - name: implement
-    type: implement
-    client: copilot:gpt-5.4       # this stage uses copilot instead
+    type: gremlins:implement
+    client: openai:gpt-4o      # this stage uses openai instead
 ```
 
-Providers: `claude`, `copilot`, `openai`, `xai`, `anthropic`. The CLI `--client provider:model` flag overrides the pipeline-level `default_client:` but yields to per-stage `client:` settings.
+Providers: `openai`, `xai`, `openrouter`, `cmd`. The CLI `--client provider:model` flag overrides the pipeline-level `default_client:` but yields to per-stage `client:` settings.
 
 ### `prompt:` field
 
@@ -272,40 +325,104 @@ A free-form dict passed verbatim to the stage. Selected options by stage
 ```yaml
 options:
   cmds: ["make check", "make test"]  # commands to run (joined with &&)
-  max_attempts: 3                    # fix-loop retries (default: 3)
+  max_iterations: 3                  # fix-loop retries (default: 3)
 ```
 
-For `local` stages, model options (`plan_model`, `impl_model`, `address_model`,
-`test_fix_model`, `detail`) can also be set here to override the CLI defaults.
+**`agent`** — supports `options.model` to override the pipeline-default model for that stage (used by the `handoff` recipe's `model: haiku`).
 
-### Available stage types
+### Stage types: primitives
+
+Five primitive stage types are built into the engine (`gremlins/pipeline/loader.py`):
 
 | Type | Description |
 |---|---|
-| `plan` | Produces an implementation plan |
-| `implement` | Applies the plan to the working tree |
-| `review-code` | Runs a code review and writes findings to disk |
-| `verify` | Runs check and test commands with an agent fix-loop |
-| `exec` | Runs shell commands with in:/out: artifact bindings |
-| `agent` | Resolves in: artifacts, renders prompt, invokes agent, verifies out: artifacts |
-| `handoff` | Runs the handoff agent once per boss loop iteration |
-| `loop` | Iterates body stages until a termination predicate or max iterations |
-| `sequence` | Runs body stages sequentially using child state |
-| `github-open-pull-request` | Opens a pull request on GitHub |
-| `github-request-copilot-review` | Requests a Copilot review on the open PR |
-| `github-wait-copilot` | Polls until Copilot posts its review |
-| `github-wait-ci` | Polls PR CI checks until they pass or exhaust attempts |
+| `agent` | Resolves `in:` artifacts, renders prompt, invokes the agent, verifies `out:` artifacts |
+| `exec` | Runs shell commands (`options.cmds` joined with `&&`) with `in:`/`out:` artifact bindings |
+| `loop` | Iterates `body` stages until `stop_when_exists` is bound or `max-iterations` is exhausted |
+| `parallel` | Fan-out/fan-in: runs `parallel:` children concurrently (up to `max_concurrent`) |
+| `sequence` | Runs `body` stages sequentially using child state |
+
+### Stage types: bundled recipes
+
+Everything else is a bundled YAML recipe under `gremlins/recipes/stages/` that the
+preprocessor auto-resolves by type name. Use them as `type: gremlins:<name>` or simply
+as `type: <name>` — the preprocessor checks recipe names when no primitive or
+`stage-definitions:` key matches, so bare `type: review-code`, `type: plan`, etc.
+work without the `gremlins:` prefix.
+
+| Recipe type | Recipe file | Description |
+|---|---|---|
+| `gremlins:plan` | `plan.yaml` | Local planning: agent writes `plan.md` + set-description |
+| `gremlins:plan-gh` | `plan_gh.yaml` | GitHub planning: agent writes plan, publishes as issue, sets description |
+| `gremlins:implement` | `implement.yaml` | Implementation: agent + git-commit + progress guard |
+| `gremlins:review-code` | `review_code.yaml` | Code review agent, writes `{name}-{model}.md` |
+| `gremlins:verify` | `verify.yaml` | Run commands, fix loop, bail on exhaustion |
+| `gremlins:handoff` | `handoff.yaml` | Boss-loop chain manager: handoff agent + signal translation + sanitize |
+| `gremlins:github-open-pr` | `github_open_pr.yaml` | Compose PR title/body, push branch, open PR |
+| `gremlins:github-push-to-pr-branch` | `github_push_to_pr_branch.yaml` | Push HEAD to existing PR branch |
+| `gremlins:github-request-copilot-review` | `github_request_copilot_review.yaml` | Add Copilot as PR reviewer |
+| `gremlins:github-wait-copilot` | `github_wait_copilot.yaml` | Poll until Copilot posts a non-pending review |
+| `gremlins:github-wait-ci` | `github_wait_ci.yaml` | Poll CI checks, fix loop, bail on exhaustion or `REVIEW_REQUIRED` |
+
+Recipes with `required-prompt: true` (`plan`, `plan-gh`, `implement`, `verify`, `github-wait-ci`) must receive a `prompt:` at the call site. Recipes with `required-options` (`verify` requires `cmds`) must receive those options.
+
+### Bootstrap block
+
+The `bootstrap:` top-level key controls CLI flags and setup commands:
+
+```yaml
+bootstrap:
+  source:
+    plan:
+      type: [filepath, string]
+      optional: true
+    instructions:
+      type: string
+      optional: true
+  launch_cmds:
+    - gremlins:bind_artifact(plan, plan, file://session/plan.md)
+  cmds:
+    - "uv sync"
+  cli_out:
+    pr: "gh://pr/{read:pr-num}"
+```
+
+| Key | Description |
+|---|---|
+| `source` | Declares CLI flags. Each key becomes a `--<key>` flag (required unless `optional: true`). Supported types: `filepath`, `string`. |
+| `launch_cmds` | Shell commands run once at launch. Supports the `gremlins:bind_artifact(source_key, artifact_key, uri)` DSL for resolving source values into artifacts. |
+| `cmds` | Shell commands run in every worktree (e.g. `uv sync` to set up the dev environment). |
+| `cli_out` | Artifact bindings computed at launch from source values (e.g. binding a `gh://pr/N` URI from a `--pr` flag). |
+
+The `gremlins:bind_artifact` DSL resolves a source value (GitHub issue ref, filepath, or inline text) and binds it as an artifact in the registry. GitHub issue refs (`#N` or `owner/repo#N`) are downloaded via `gh issue view`.
+
+A project-local `.gremlins/bootstrap.yaml` (list of strings) is merged into `bootstrap.cmds` at expansion time, prepended before any pipeline-declared `cmds`.
+
+### Land block
+
+The `land:` top-level key defines an `exec` stage run by `gremlins land`. It replaces the default land behavior (squash-merge or fast-forward) with a custom command:
+
+```yaml
+land:
+  in:
+    PR_URL: pr-url
+  options:
+    cmds:
+      - gh pr merge --squash --delete-branch "$PR_URL"
+```
+
+When a pipeline declares `land:`, `gremlins land` runs this stage instead of the built-in merge logic. The stage runs in the project root (not the worktree).
 
 ### Parallel groups
 
 Wrap sibling stages in a `parallel:` list to run them concurrently:
 
 ```yaml
-default_client: claude:sonnet
+default_client: xai:grok-4
 
 stages:
-  - name: plan
-    type: plan
+  - type: gremlins:plan
+    prompt: [code-style, gremlins:plan.md]
 
   - name: reviews
     parallel:
@@ -330,7 +447,7 @@ to cancel outstanding tasks immediately. The bail is evaluated via `bail_policy`
 meaning one failed child halts the group; set `bail_policy: all` to halt only when all children bail).
 Subsequent stages are skipped; the operator can resume or ack the group via CLI.
 
-**State isolation:** Each child gets its own state directory and subprocess. 
+**State isolation:** Each child gets its own state directory and subprocess.
 Client overrides, worktree paths, and artifact bindings are isolated per-child.
 Children run in parallel without blocking each other. Parent `state.json` is updated
 during the concurrent phase (e.g., `active_children` snapshot); copying child artifact
@@ -340,42 +457,39 @@ bindings into the parent registry is deferred until fan-in completes.
 visible in fleet view) to resume a specific child. Resuming the parent group ID re-spawns all
 children that haven't landed.
 
-**Base ref propagation:** The `--base-ref` flag is automatically propagated from
-the parent to all child processes, ensuring consistent branching across the group.
-Child worktrees are derived from the parent's base_ref as recorded in state.
+**Base ref propagation:** Child worktrees are derived from the parent's `base_ref` as recorded in state.
 
 ### Worked example: project-local override
 
 Create `.gremlins/pipelines/local.yaml` to override the bundled `local`
-pipeline. This example uses Opus for plan/implement/address stages and adds
-a `verify` stage before `review-code`:
+pipeline. This example adds a `verify` stage before `review-code` and
+overrides the client for the address stage:
 
 ```yaml
-name: local
+default_client: xai:grok-4
 
 stages:
-  - { type: plan,         options: { plan_model: opus } }
-  - { type: implement,    options: { impl_model: opus } }
-  - { type: verify,       options: { cmds: ["pytest"] } }
+  - { type: gremlins:plan,       prompt: [code-style, gremlins:plan.md] }
+  - { type: gremlins:implement,  prompt: [code-style, gremlins:implement_local.md] }
+  - { type: verify,              options: { cmds: ["pytest"] }, prompt: verify }
   - { type: review-code }
-  - { name: address-code, type: agent, options: { address_model: opus } }
+  - { name: address-code, type: agent, client: openai:gpt-4o, prompt: [code-style, gremlins:address.md, gremlins:bail_section.md], in: {text: review-code} }
 ```
 
 Add a `prompt:` key to any stage to supply a custom prompt; paths are
-relative to the YAML file.
+relative to the YAML file. `review-code` uses a fixed prompt and ignores
+per-stage `prompt:` overrides.
 
 ### Worked example: parallel reviewers
 
 Run two `review-code` passes in parallel, then address both:
 
 ```yaml
-name: local
-
-default_client: claude:sonnet
+default_client: xai:grok-4
 
 stages:
-  - { type: plan }
-  - { type: implement }
+  - { type: gremlins:plan, prompt: [code-style, gremlins:plan.md] }
+  - { type: gremlins:implement, prompt: [code-style, gremlins:implement_local.md] }
 
   - name: reviews
     parallel:
@@ -385,11 +499,8 @@ stages:
         type: review-code
     max_concurrent: 2
 
-  - { name: address-code, type: agent }
+  - { name: address-code, type: agent, prompt: [code-style, gremlins:address.md, gremlins:bail_section.md], in: {text: review-code} }
 ```
-
-Note: `review-code` does not currently support per-stage prompt overrides
-via YAML — both passes use the built-in detail lens.
 
 ### Stage definitions
 
@@ -399,12 +510,12 @@ YAML `stage-definitions:` lets you name and reuse stage patterns within a pipeli
 stage-definitions:
   review-base: &review-base
     type: review-code
-    client: claude:sonnet
+    client: xai:grok-4
     prompt: gremlins:code_style.md
 
 stages:
-  - { type: plan }
-  - { type: implement }
+  - { type: gremlins:plan, prompt: [code-style, gremlins:plan.md] }
+  - { type: gremlins:implement, prompt: [code-style, gremlins:implement_local.md] }
   - name: review-detail
     <<: *review-base
     prompt: [gremlins:code_style.md, detail_review.md]
@@ -444,17 +555,20 @@ stages:
 ```
 
 **Artifact URI schemes:**
-- `file://session/<name>` — Session artifact: a file created under the gremlin's `$ARTIFACTS` directory
-- `git://ref/<ref>` — Git ref name (e.g., `git://ref/main` returns the string `main`)
+- `file://session/<name>` — Session artifact: a file created under the gremlin's artifact directory
+- `git://ref/<name>` — Git ref name (e.g., `git://ref/main` returns the string `main`)
 - `git://commit/<sha>` — Commit SHA (e.g., `git://commit/abc123def` returns the full SHA)
 - `git://range/<base>..<head>` — Commit range/log between two refs
-- `gh://pulls/<number>/head` — GitHub PR head ref (and other `gh://` schemes for GitHub data)
-- `file://`, `git://`, `gh://` — File artifact resolvers support these base schemes
+- `gh://pr/<n>` — Opaque GitHub PR identifier. Resolution returns `{"uri": "gh://pr/<n>"}`
+  (the URI string itself) without calling `gh`; downstream stages pass it to shell
+  commands that need the PR number (e.g., `${uri##*/}` to extract `<n>`)
+- `git://range` — Special shorthand: the `exec` stage snapshots HEAD before running and binds the resulting range afterwards
 
 **Artifact binding semantics:**
 - `in:` values are registry key paths (e.g., `report` or `report.critical?default`) with optional dotted attribute access and `?default` fallback
 - `out:` values are URI strings that name what the stage produces; downstream stages reference the key name (not the URI) in their `in:` maps
-- Prompt/option substitution uses `{var}` tokens (not `{{var}}`); artifacts bound via `in:` become available for substitution
+- Agent-stage prompt substitution uses `{var}` tokens; artifacts bound via `in:` become available for substitution
+- Exec-stage commands use `{read:key}` and `{artifact:key}` substitution tokens (distinct from agent-stage `{var}` substitution)
 - `in:` can be declared in a stage definition and will be merged with call-site `in:` values; `out:` cannot appear inside a definition
 
 ### Stage definitions and bundled recipes
@@ -618,25 +732,23 @@ commits before merging.
 
 **Backend differences**: On `openai:`, `xai:`, and `openrouter:` backends,
 gremlins owns the tool layer and enforces worktree/cwd containment directly.
-On `claude:` subprocess backends, the gremlins-layer containment is
-**not** translated into CLI flags or settings — the underlying CLI reads
-the operator's ambient config and enforces whatever the operator has
-configured there. See "Backend config inheritance" below.
+On `cmd:` backends, the gremlins-layer containment is **not** translated into
+CLI flags or settings — the underlying command reads the operator's ambient
+config and enforces whatever the operator has configured there. See "Backend
+config inheritance" below.
 
 ### Backend config inheritance
 
-The `claude:` backend is a thin wrapper around `claude -p`. It does *not*
-materialize a per-gremlin config dir, and it does *not* set
-`CLAUDE_CONFIG_DIR` for the subprocess. Whatever the operator has configured
-for their interactive Claude session is exactly what the subprocess sees:
+The `cmd:` backend runs the specified command as a subprocess. It does *not*
+materialize a per-gremlin config dir. Whatever the operator has configured
+for their interactive session is exactly what the subprocess sees:
 
-- **Settings** — `~/.claude/settings.json` (plus any project-level
-  `.claude/settings.json` the CLI discovers) is read by the CLI directly.
-  The gremlins-layer `allowed_tools` / `disallowed_tools` block has no
-  effect on `claude:` runs; configure tool permissions via your own
-  Claude settings or use the `anthropic:` backend.
+- **Settings** — the subprocess reads whatever config files it normally would
+  (e.g. `~/.claude/settings.json` for `cmd:claude`). The gremlins-layer
+  `allowed_tools` / `disallowed_tools` block has no effect on `cmd:` runs;
+  configure tool permissions via your own settings.
 
-  Gremlin worktrees — where the `claude:` subprocess does its file edits —
+  Gremlin worktrees — where the `cmd:` subprocess does its file edits —
   live under a stable, gremlins-scoped prefix in the system temp directory.
   Discover it at runtime:
 
@@ -645,51 +757,9 @@ for their interactive Claude session is exactly what the subprocess sees:
   ```
 
   On Linux/macOS this is `/tmp/gremlins`; the OS reclaims orphaned
-  worktrees on reboot. An `allow` rule in
-  `~/.claude/settings.json` covers every worktree path:
-
-  ```json
-  {
-    "permissions": {
-      "allow": [
-        "Edit(<work_root>/**)",
-        "Write(<work_root>/**)",
-        "Read(<work_root>/**)"
-      ]
-    }
-  }
-  ```
-
-  Replace `<work_root>` with the actual output of the command above.
-- **MCP servers and hooks** — inherited from the user's Claude config.
-- **Auth** — subscription auth follows `~/.claude/.credentials.json` (or the
-  macOS keychain) exactly as it would for an interactive session.
-
-#### True process isolation: use an SDK backend
-
-If you need per-gremlin tool allow-lists, hermetic config, or a clean
-separation between gremlins and your interactive Claude session, use one of
-the SDK-backed providers instead:
-
-- `anthropic:<model-id>` — `claude-agent-sdk` with `setting_sources=[]` (no
-  ambient settings, no MCP, no hooks). Requires `ANTHROPIC_API_KEY`.
-  `allowed_tools` from the native block is enforced by the SDK.
-- `openai:<model-id>` / `xai:<model-id>` — `openai-agents` SDK with the
-  in-tree `GREMLINS_TOOLS` list. Per-gremlin `allowed_tools` filters that
-  list. Requires `OPENAI_API_KEY` / `XAI_API_KEY`.
-
-Set via pipeline YAML:
-
-```yaml
-default_client: anthropic:claude-sonnet-4-6
-# or per-stage:
-stages:
-  - name: implement
-    client: anthropic:claude-sonnet-4-6
-```
-
-Subscription auth is not available on the SDK backends — that is Anthropic
-policy, not a gremlins limitation.
+  worktrees on reboot.
+- **MCP servers and hooks** — inherited from the user's config.
+- **Auth** — follows whatever auth the subprocess command normally uses.
 
 ### Local environment overrides
 
@@ -715,21 +785,16 @@ Add `.gremlins/env` to your `~/.gitignore_global` or project `.gitignore`.
 
 ### Loader API
 
-`gremlins/pipeline/loader.py` exposes:
-
-- `load_pipeline(path)` → `Pipeline` — parses a YAML file, resolves `clients`
-  via `CLIENT_FACTORIES`, and validates every stage `type` against
-  `STAGE_REGISTRY` (populated by importing `gremlins.stages.all`).
-- `resolve_pipeline_path(name_or_path, base_dir)` — resolves a name or path
-  using the discovery order above.
-
-Dataclasses: `Pipeline`, `StageEntry` (parallel groups have `type="parallel"`
-internally and carry a `children` list and optional `max_concurrent`).
+- `gremlins/pipeline/__init__.py::Pipeline.from_yaml(path)` — loads and expands a pipeline YAML file, validates duplicate producers, fills stage clients.
+- `gremlins/pipeline/loader.py` — `STAGE_TYPES` (primitive type → class map), `parse_stages`, `parse_stage`, `fill_names`, `check_duplicate_producers`.
+- `gremlins/pipeline/discovery.py` — `resolve_pipeline_path`, `resolve_pipeline_name`, `list_pipelines`.
+- `gremlins/pipeline/preprocess.py` — `expand_pipeline` (include/prompt/recipe/stage-definition expansion).
 
 ## Internals docs
 
 - [`gremlins/AGENTS.md`](gremlins/AGENTS.md) — module layout, entry points,
   testability seam, byte-stable strings
+- [`gremlins/clients/AGENTS.md`](gremlins/clients/AGENTS.md) — client backend internals
 - [`gremlins/fleet/AGENTS.md`](gremlins/fleet/AGENTS.md) — fleet manager internals
-- [`gremlins/orchestrators/AGENTS.md`](gremlins/orchestrators/AGENTS.md) — orchestrator internals
+- [`gremlins/pipelines/AGENTS.md`](gremlins/pipelines/AGENTS.md) — pipeline configuration internals
 - [`gremlins/stages/AGENTS.md`](gremlins/stages/AGENTS.md) — stage internals
