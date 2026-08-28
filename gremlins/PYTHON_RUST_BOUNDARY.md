@@ -39,9 +39,9 @@ implementations.
 The LLM client backend. Python `gremlins/clients/__init__.py` imports
 `RustClient` and wraps it. This handles all provider API calls.
 
-### `_gremlins_core.schemas.*` (partial — see below)
+### `_gremlins_core.schemas.*` (none wired yet)
 
-Some schema/loader functions are wired in. See the next section.
+All schema/loader functions at this boundary exist but **none are wired into Python call sites**. See the next section.
 
 ## What is exposed but NOT yet called from Python
 
@@ -51,24 +51,20 @@ side in `gremlins/pipeline/preprocess.py`. The Rust version is exposed
 at `_gremlins_core.schemas.*` but **most of it is not wired into any
 Python call site**.
 
-### Wired in (actively called from Python)
-
-These functions in `_gremlins_core.schemas` are imported and used by
-`gremlins/pipeline/loader.py`:
-
-| Rust function | Python import site | Purpose |
-|---|---|---|
-| `parse_stage` | `gremlins/pipeline/loader.py` | Parse a single stage dict |
-| `parse_stages` | `gremlins/pipeline/loader.py` | Parse a list of stage dicts |
-| `fill_names` | `gremlins/pipeline/loader.py` | Auto-generate stage names |
-| `check_duplicate_producers` | `gremlins/pipeline/loader.py` | Validate artifact producers |
-
 ### NOT yet wired in
 
-| Rust function | Status |
+All functions and classes in `_gremlins_core.schemas` are exposed at the
+Rust layer but **none of them are imported or called from Python**.
+The Python implementations in `gremlins/pipeline/` are the active ones.
+
+| Rust export | Status |
 |---|---|
-| `expand_pipeline` | Exposed at `_gremlins_core.schemas.expand_pipeline` but **not imported or called anywhere in Python**. The active expander is `gremlins/pipeline/preprocess.py:expand_pipeline`. |
-| `Pipeline` class | Exposed at `_gremlins_core.schemas.Pipeline` but **not used**. The active `Pipeline` is `gremlins/pipeline/__init__.py:Pipeline`. |
+| `parse_stage` | Exposed at `_gremlins_core.schemas.parse_stage` but **not called**. Active implementation: `gremlins/pipeline/loader.py:parse_stage` (pure Python). |
+| `parse_stages` | Exposed but **not called**. Active: `gremlins/pipeline/loader.py:parse_stages`. |
+| `fill_names` | Exposed but **not called**. Active: `gremlins/pipeline/loader.py:fill_names`. |
+| `check_duplicate_producers` | Exposed but **not called**. Active: `gremlins/pipeline/loader.py:check_duplicate_producers`. |
+| `expand_pipeline` | Exposed at `_gremlins_core.schemas.expand_pipeline` but **not called**. Active: `gremlins/pipeline/preprocess.py:expand_pipeline`. |
+| `Pipeline` class | Exposed at `_gremlins_core.schemas.Pipeline` but **not used**. Active: `gremlins/pipeline/__init__.py:Pipeline`. |
 | `InputSource` / `InputSources` | Exposed but **not called** from Python bootstrap code. |
 
 ## The trap the planner hit
@@ -105,7 +101,8 @@ will be updated to call `_gremlins_core.schemas.expand_pipeline` instead.
 | `gremlins/utils/proc.py` | Re-exports `_gremlins_core.utils.proc.*` — **active** |
 | `gremlins/clients/__init__.py` | Wraps `_gremlins_core.clients.RustClient` — **active** |
 | `gremlins/pipeline/preprocess.py` | Python `expand_pipeline` — **active** |
-| `gremlins/pipeline/loader.py` | Uses `_gremlins_core.schemas.parse_stage` et al. — **active** |
+| `gremlins/pipeline/loader.py` | Pure Python `parse_stage`, `parse_stages`, `fill_names`, `check_duplicate_producers` — **active** (Rust equivalents at `_gremlins_core.schemas.*` exist but are **not wired** into any Python call site) |
+| `crates/pyext/src/schemas/loader.rs` | Rust `parse_stage`, `parse_stages`, `fill_names`, `check_duplicate_producers` — **NOT yet active** (parallel implementations; Python originals in `gremlins/pipeline/loader.py` are the active ones) |
 | `crates/pyext/src/schemas/preprocess.rs` | Rust `expand_pipeline` — **NOT yet active** |
 | `crates/pyext/src/lib.rs` | `#[pymodule]` — registers all `_gremlins_core.*` submodules |
 | `crates/gremlins/` | Pure Rust library (no PyO3), consumed by `crates/pyext` |
