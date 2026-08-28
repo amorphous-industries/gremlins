@@ -13,6 +13,7 @@ from typing import Any
 
 import pytest
 
+from gremlins import paths
 from gremlins.clients.registry import register_client_factory
 from gremlins.executor.gremlin import Gremlin, State
 from gremlins.executor.state import StateData, build_state
@@ -470,13 +471,11 @@ def make_state_dir(sandbox):
 
 
 def make_parent_state(data: StateData) -> State:
-    if data.state_file:
-        state_dir = data.state_file.parent
-        artifact_dir = state_dir / "artifacts"
-        artifact_dir.mkdir(parents=True, exist_ok=True)
+    if data.gremlin_id:
+        artifact_dir = paths.scratch_root(data.gremlin_id) / "artifacts"
     else:
         artifact_dir = pathlib.Path("/tmp") / "artifacts"
-        artifact_dir.mkdir(parents=True, exist_ok=True)
+    artifact_dir.mkdir(parents=True, exist_ok=True)
     return build_state(
         data=data,
         client=FakeClient(),

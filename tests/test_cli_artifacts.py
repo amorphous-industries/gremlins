@@ -30,13 +30,13 @@ def _st(name="s", out=None, inp=None, body=None):
 
 def test_live_path(capsys, monkeypatch, tmp_path):
     tgt = "live1"
-    gdir = tmp_path / tgt
-    gdir.mkdir()
-    monkeypatch.setattr(mod, "state_root", lambda: tmp_path)
+    artifact_dir = tmp_path / tgt / "artifacts"
+    artifact_dir.mkdir(parents=True)
+    monkeypatch.setattr(mod, "scratch_root", lambda t: tmp_path / (t or "direct"))
     rc = mod.artifacts_main([tgt])
     assert rc == 0
     out = capsys.readouterr().out
-    assert out.startswith(f"live:{gdir / 'registry.json'}\n")
+    assert out.startswith(f"live:{artifact_dir.parent / 'registry.json'}\n")
 
 
 def test_static_path(capsys, monkeypatch):

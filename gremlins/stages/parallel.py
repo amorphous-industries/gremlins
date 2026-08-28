@@ -487,19 +487,19 @@ class _ParallelExecutor:
         if not parent_gid:
             return
 
-        sr = paths.state_root()
+        scratch = paths.scratch_root
         parent_keys: set[str] = set(parent_state.artifacts.keys())
 
         # key -> list of (child_key, child_id, child_registry)
         per_key: dict[str, list[tuple[str, str, ArtifactRegistry]]] = {}
         for child_key in self._stages_by_key:
             child_id = f"{parent_gid}--{self._group_name}--{child_key}"
-            child_reg_path = sr / child_id / "registry.json"
+            child_reg_path = scratch(child_id) / "registry.json"
             if not child_reg_path.exists():
                 continue
             child = ArtifactRegistry.from_registry_file(
                 child_reg_path,
-                artifact_dir=sr / child_id / "artifacts",
+                artifact_dir=scratch(child_id) / "artifacts",
             )
             for k in child.keys():
                 if k in parent_keys:

@@ -287,11 +287,11 @@ fn check_cd(roots: &[PathBuf], cmd: &str, cwd: Option<&Path>) -> Option<String> 
         .flat_map(|p| p.split("||"))
         .collect();
     for part in parts {
-        let tokens: Vec<&str> = part.split_whitespace().collect();
+        let tokens = shell_tokenize(part);
         if tokens.is_empty() {
             continue;
         }
-        let first = tokens[0].trim_matches(|c| c == '\'' || c == '"');
+        let first = &tokens[0];
         if first != "cd" && !first.ends_with("/cd") {
             continue;
         }
@@ -300,7 +300,7 @@ fn check_cd(roots: &[PathBuf], cmd: &str, cwd: Option<&Path>) -> Option<String> 
         if tokens.len() < 2 {
             continue;
         }
-        let arg = tokens[1].trim_matches(|c| c == '\'' || c == '"');
+        let arg = &tokens[1];
         if arg == "-" {
             continue;
         }
@@ -311,6 +311,77 @@ fn check_cd(roots: &[PathBuf], cmd: &str, cwd: Option<&Path>) -> Option<String> 
         }
     }
     None
+}
+
+/// Shell-aware tokenizer: splits a command string into argument tokens
+/// as a POSIX shell would, handling backslash escaping, single quotes,
+/// and double quotes. Escapes are resolved and quotes are stripped.
+///
+/// This is not a full shell parser — it does not handle `$()` expansion,
+/// `;`/`&&`/`||` command separators, or IFS splitting. It is designed for
+/// the sandbox path checker which only needs to isolate individual path
+/// arguments from the command string.
+fn shell_tokenize(s: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut chars = s.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        match ch {
+            '\'' => {
+                // Single-quoted: everything literal until the closing quote.
+                loop {
+                    match chars.next() {
+                        Some('\'') => break,
+                        Some(c) => current.push(c),
+                        None => {
+                            // Unterminated single quote — treat the quote as
+                            // literal so the remaining text is still scanned.
+                            current.push('\'');
+                            break;
+                        }
+                    }
+                }
+            }
+            '"' => {
+                // Double-quoted: only \\, \", \$, \`, and \<newline>
+                // are escape sequences; everything else is literal.
+                loop {
+                    match chars.next() {
+                        None => break,
+                        Some('"') => break,
+                        Some('\\') => match chars.next() {
+                            Some(c @ ('$' | '`' | '"' | '\\')) => current.push(c),
+                            Some(c) => {
+                                current.push('\\');
+                                current.push(c);
+                            }
+                            None => current.push('\\'),
+                        },
+                        Some(c) => current.push(c),
+                    }
+                }
+            }
+            '\\' => {
+                // Backslash outside quotes: escapes the next character.
+                match chars.next() {
+                    Some(c) => current.push(c),
+                    None => current.push('\\'),
+                }
+            }
+            c if c.is_whitespace() => {
+                if !current.is_empty() {
+                    tokens.push(current.clone());
+                    current.clear();
+                }
+            }
+            c => current.push(c),
+        }
+    }
+    if !current.is_empty() {
+        tokens.push(current);
+    }
+    tokens
 }
 
 pub fn bash_check(roots: &[PathBuf], cmd: &str, cwd: Option<&Path>) -> Option<String> {
@@ -331,8 +402,7 @@ pub fn bash_check(roots: &[PathBuf], cmd: &str, cwd: Option<&Path>) -> Option<St
     if canonical_roots.is_empty() {
         return Some("Error: invalid sandbox root".into());
     }
-    for raw_tok in s.split_whitespace() {
-        let tok = raw_tok.trim_matches(|c| c == '\'' || c == '"');
+    for tok in shell_tokenize(s) {
         if tok.is_empty() {
             continue;
         }
@@ -344,16 +414,16 @@ pub fn bash_check(roots: &[PathBuf], cmd: &str, cwd: Option<&Path>) -> Option<St
             continue;
         }
         let expanded = if tok.starts_with('~') {
-            expand_user(tok)
+            expand_user(&tok)
         } else {
-            tok.to_string()
+            tok.clone()
         };
         let p = resolve(&expanded, cwd);
         // Lexical-leaf, not canonical: a final-component symlink whose node is
         // in-worktree (e.g. `.venv/bin/python`) is allowed. See
         // within_worktree_lexical for the rationale and the anti-regression note.
         if !within_worktree_lexical(&p, &canonical_roots) {
-            return Some(format!("Error: path outside sandbox: {raw_tok}"));
+            return Some(format!("Error: path outside sandbox: {tok}"));
         }
     }
     None

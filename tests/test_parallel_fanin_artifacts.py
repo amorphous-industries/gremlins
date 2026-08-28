@@ -16,7 +16,7 @@ from tests.fake_client import FakeClient
 
 
 def _make_parent(tmp_path: pathlib.Path, gremlin_id: str) -> State:
-    artifact_dir = tmp_path / "state" / gremlin_id / "artifacts"
+    artifact_dir = tmp_path / "scratch" / gremlin_id / "artifacts"
     artifact_dir.mkdir(parents=True, exist_ok=True)
     data = StateData(gremlin_id=gremlin_id)
     return build_state(data=data, client=FakeClient(), artifact_dir=artifact_dir)
@@ -28,10 +28,10 @@ def _make_child_dir(
     bindings: dict[str, str],
     files: dict[str, bytes],
 ) -> None:
-    child_dir = tmp_path / "state" / child_id
-    artifacts_dir = child_dir / "artifacts"
+    scratch_dir = tmp_path / "scratch" / child_id
+    artifacts_dir = scratch_dir / "artifacts"
     artifacts_dir.mkdir(parents=True, exist_ok=True)
-    (child_dir / "registry.json").write_text(json.dumps(bindings), encoding="utf-8")
+    (scratch_dir / "registry.json").write_text(json.dumps(bindings), encoding="utf-8")
     for name, content in files.items():
         (artifacts_dir / name).write_bytes(content)
 

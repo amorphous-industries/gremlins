@@ -45,13 +45,13 @@ def resolve_state_file(gremlin_id: str | None) -> pathlib.Path | None:
 
 def resolve_artifact_dir(gremlin_id: str | None = None) -> pathlib.Path:
     """Resolve the artifacts directory for the current run."""
-    state_root = _paths.state_root()
+    scratch = _paths.scratch_root(gremlin_id)
     if gremlin_id:
-        artifact_dir = state_root / gremlin_id / "artifacts"
+        artifact_dir = scratch / "artifacts"
     else:
         ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         rand = secrets.token_hex(3)
-        artifact_dir = state_root / "direct" / f"{ts}-{rand}" / "artifacts"
+        artifact_dir = scratch / f"{ts}-{rand}" / "artifacts"
     artifact_dir.mkdir(parents=True, exist_ok=True)
     return artifact_dir
 

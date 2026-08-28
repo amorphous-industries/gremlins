@@ -14,6 +14,7 @@ import gremlins.utils.git as _git
 from gremlins import paths
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.clients.client import Client
+from gremlins.env_file import load_env_file
 from gremlins.fleet.resolve import resolve_gremlin
 from gremlins.fleet.state import (
     liveness_of_state_file,
@@ -306,7 +307,7 @@ def _registry_for_gremlin(gremlin_id: str, state: dict[str, Any]) -> ArtifactReg
         if project_root and os.path.isdir(project_root)
         else None
     )
-    artifact_dir = paths.state_root() / gremlin_id / "artifacts"
+    artifact_dir = paths.scratch_root(gremlin_id) / "artifacts"
     artifact_dir.mkdir(parents=True, exist_ok=True)
     return ArtifactRegistry(artifact_dir=artifact_dir, cwd=cwd)
 
@@ -758,7 +759,7 @@ def _land_gh(
     project_root = _resolve_landing_cwd(state)
     cwd = project_root if project_root and os.path.isdir(project_root) else None
 
-    artifact_dir = paths.state_root() / gremlin_id / "artifacts"
+    artifact_dir = paths.scratch_root(gremlin_id) / "artifacts"
     artifact_dir.mkdir(parents=True, exist_ok=True)
     registry = ArtifactRegistry(
         artifact_dir=artifact_dir,
@@ -997,6 +998,19 @@ def do_land(
 
     shape = landable_shape(state)
 
+    # Source the project overlay's .gremlins/env (loaded during pipeline bootstrap)
+    # so secrets like OPENROUTER_API_KEY are available for the client.
+    raw: object | None = state.get("project_root")
+    project_root = str(raw) if raw else ""
+    if project_root and os.path.isdir(project_root):
+        env_file = pathlib.Path(project_root) / ".gremlins" / "env"
+        if env_file.is_file():
+            try:
+                env_vars = load_env_file(env_file, cwd=pathlib.Path(project_root))
+                os.environ.update(env_vars)
+            except Exception as exc:
+                print(f"warning: could not source {env_file}: {exc}", flush=True)
+
     # Resolve the model client this gremlin used so commit-message synthesis
     # goes through the same backend as the pipeline stages.
     client_str: str = str(state.get("client") or "")
@@ -1012,7 +1026,7 @@ def do_land(
         return False
 
     if shape in ("empty", "one_branch"):
-        artifact_dir = paths.state_root() / gremlin_id / "artifacts"
+        artifact_dir = paths.scratch_root(gremlin_id) / "artifacts"
         artifact_dir.mkdir(parents=True, exist_ok=True)
         registry = ArtifactRegistry(artifact_dir=artifact_dir)
         if registry.produced("pr"):

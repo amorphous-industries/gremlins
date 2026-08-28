@@ -245,7 +245,6 @@ def _resolve_inputs(
 
 def _prepare_state_dir(state_dir: pathlib.Path) -> None:
     state_dir.mkdir(parents=True, exist_ok=True)
-    (state_dir / "artifacts").mkdir(exist_ok=True)
 
 
 def _make_name_unique(stage: dict[str, Any], used: set[str]) -> None:
@@ -401,7 +400,7 @@ def launch(
             stage_inputs=inputs.stage_inputs,
             state_dir=state_dir,
         )
-        artifact_dir = state_dir / "artifacts"
+        artifact_dir = _paths.scratch_root(inputs.gremlin_id) / "artifacts"
         artifact_dir.mkdir(parents=True, exist_ok=True)
         registry = ArtifactRegistry(artifact_dir=artifact_dir)
         if inputs.base_ref_sha:

@@ -173,6 +173,9 @@ def git_commit_changes(message: str) -> bool:
 def handle_plan(prompt: str) -> int:
     plan_file = (
         find_path_in_prompt(
+            prompt, r"Write your final plan to the file at `([^`]+)`", re.IGNORECASE
+        )
+        or find_path_in_prompt(
             prompt, r"Write your final plan to the file `([^`]+)`", re.IGNORECASE
         )
         or find_path_in_prompt(prompt, r"write it to the file `([^`]+)`")
