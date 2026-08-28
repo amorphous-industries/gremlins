@@ -280,19 +280,14 @@ fn check_ln_symlink(cmd: &str) -> Option<String> {
 /// I/O time; this just provides an earlier, clearer denial for the
 /// common `cd`-through-symlink pattern.
 fn check_cd(roots: &[PathBuf], cmd: &str, cwd: Option<&Path>) -> Option<String> {
-    // Split on command boundaries: ;, &&, ||
-    let parts: Vec<&str> = cmd
-        .split(';')
-        .flat_map(|p| p.split("&&"))
-        .flat_map(|p| p.split("||"))
-        .collect();
-    for part in parts {
-        let tokens: Vec<&str> = part.split_whitespace().collect();
+    let parts = split_commands(cmd);
+    for part in &parts {
+        let tokens = shell_tokenize(part);
         if tokens.is_empty() {
             continue;
         }
-        let first = tokens[0].trim_matches(|c| c == '\'' || c == '"');
-        if first != "cd" && !first.ends_with("/cd") {
+        let first = &tokens[0];
+        if first.value != "cd" && !first.value.ends_with("/cd") {
             continue;
         }
         // cd with no arg (goes HOME) or cd - (previous dir) —
@@ -300,17 +295,204 @@ fn check_cd(roots: &[PathBuf], cmd: &str, cwd: Option<&Path>) -> Option<String> 
         if tokens.len() < 2 {
             continue;
         }
-        let arg = tokens[1].trim_matches(|c| c == '\'' || c == '"');
-        if arg == "-" {
+        let arg = &tokens[1];
+        if arg.value == "-" {
             continue;
         }
-        let expanded = expand_user(arg);
+        let expanded = expand_user(&arg.value);
         let p = resolve(&expanded, cwd);
         if !within_worktree(&p, roots) {
-            return Some(format!("Error: cd target outside sandbox: {arg}"));
+            return Some(format!("Error: cd target outside sandbox: {}", arg.value));
         }
     }
     None
+}
+
+/// A single token produced by [`shell_tokenize`].
+struct ShellToken {
+    /// The raw verbatim text as it appeared in the command string,
+    /// including any surrounding quotes and escape characters.
+    raw: String,
+    /// The resolved text with quotes stripped and escapes processed,
+    /// as a POSIX shell would interpret it.
+    value: String,
+}
+
+/// Shell-aware tokenizer: splits a command string into argument tokens
+/// as a POSIX shell would, handling backslash escaping, single quotes,
+/// and double quotes. Escapes are resolved and quotes are stripped.
+///
+/// This is not a full shell parser — it does not handle `$()` expansion,
+/// `;`/`&&`/`||` command separators, or IFS splitting. It is designed for
+/// the sandbox path checker which only needs to isolate individual path
+/// arguments from the command string.
+fn shell_tokenize(s: &str) -> Vec<ShellToken> {
+    let mut tokens = Vec::new();
+    let mut value = String::new();
+    let mut raw = String::new();
+    let mut chars = s.chars();
+
+    while let Some(ch) = chars.next() {
+        match ch {
+            '\'' => {
+                raw.push(ch);
+                loop {
+                    match chars.next() {
+                        Some('\'') => {
+                            raw.push('\'');
+                            break;
+                        }
+                        Some(c) => {
+                            raw.push(c);
+                            value.push(c);
+                        }
+                        None => break,
+                    }
+                }
+            }
+            '"' => {
+                raw.push(ch);
+                // Double-quoted: only \\, \", \$, \`, and \<newline>
+                // are escape sequences; everything else is literal.
+                loop {
+                    match chars.next() {
+                        None => break,
+                        Some('"') => {
+                            raw.push('"');
+                            break;
+                        }
+                        Some('\\') => {
+                            raw.push('\\');
+                            match chars.next() {
+                                Some(c @ ('$' | '`' | '"' | '\\')) => {
+                                    raw.push(c);
+                                    value.push(c);
+                                }
+                                Some('\n') => {
+                                    // Backslash-newline: skip both (line continuation).
+                                    raw.push('\n');
+                                }
+                                Some(c) => {
+                                    raw.push(c);
+                                    value.push('\\');
+                                    value.push(c);
+                                }
+                                None => {}
+                            }
+                        }
+                        Some(c) => {
+                            raw.push(c);
+                            value.push(c);
+                        }
+                    }
+                }
+            }
+            '\\' => {
+                raw.push(ch);
+                if let Some(c) = chars.next() {
+                    raw.push(c);
+                    value.push(c);
+                }
+            }
+            c if c.is_whitespace() => {
+                if !value.is_empty() {
+                    tokens.push(ShellToken {
+                        raw: std::mem::take(&mut raw),
+                        value: std::mem::take(&mut value),
+                    });
+                }
+            }
+            c => {
+                raw.push(c);
+                value.push(c);
+            }
+        }
+    }
+    if !value.is_empty() {
+        tokens.push(ShellToken { raw, value });
+    }
+    tokens
+}
+
+/// Split a shell command string into sub-commands at `;`, `&&`, and `||`
+/// boundaries, respecting quotes and backslash escapes so that a quoted
+/// path containing those characters is not split.
+fn split_commands(s: &str) -> Vec<String> {
+    let mut parts: Vec<String> = Vec::new();
+    let mut current = String::new();
+    let mut chars = s.chars();
+
+    while let Some(ch) = chars.next() {
+        match ch {
+            '\'' => {
+                current.push(ch);
+                loop {
+                    match chars.next() {
+                        Some('\'') => {
+                            current.push('\'');
+                            break;
+                        }
+                        Some(c) => current.push(c),
+                        None => break,
+                    }
+                }
+            }
+            '"' => {
+                current.push(ch);
+                loop {
+                    match chars.next() {
+                        None => break,
+                        Some('"') => {
+                            current.push('"');
+                            break;
+                        }
+                        Some('\\') => {
+                            current.push('\\');
+                            if let Some(c) = chars.next() {
+                                current.push(c);
+                            }
+                        }
+                        Some(c) => current.push(c),
+                    }
+                }
+            }
+            '\\' => {
+                current.push(ch);
+                if let Some(c) = chars.next() {
+                    current.push(c);
+                }
+            }
+            ';' => {
+                let trimmed = current.trim().to_string();
+                if !trimmed.is_empty() {
+                    parts.push(trimmed);
+                }
+                current.clear();
+            }
+            '&' if chars.clone().next() == Some('&') => {
+                chars.next();
+                let trimmed = current.trim().to_string();
+                if !trimmed.is_empty() {
+                    parts.push(trimmed);
+                }
+                current.clear();
+            }
+            '|' if chars.clone().next() == Some('|') => {
+                chars.next();
+                let trimmed = current.trim().to_string();
+                if !trimmed.is_empty() {
+                    parts.push(trimmed);
+                }
+                current.clear();
+            }
+            c => current.push(c),
+        }
+    }
+    let trimmed = current.trim().to_string();
+    if !trimmed.is_empty() {
+        parts.push(trimmed);
+    }
+    parts
 }
 
 pub fn bash_check(roots: &[PathBuf], cmd: &str, cwd: Option<&Path>) -> Option<String> {
@@ -331,29 +513,31 @@ pub fn bash_check(roots: &[PathBuf], cmd: &str, cwd: Option<&Path>) -> Option<St
     if canonical_roots.is_empty() {
         return Some("Error: invalid sandbox root".into());
     }
-    for raw_tok in s.split_whitespace() {
-        let tok = raw_tok.trim_matches(|c| c == '\'' || c == '"');
-        if tok.is_empty() {
+    for tok in shell_tokenize(s) {
+        if tok.value.is_empty() {
             continue;
         }
-        let looks_like_path = tok.starts_with('/')
-            || tok.starts_with('~')
-            || tok.starts_with("..")
-            || tok.contains('/');
+        let looks_like_path = tok.value.starts_with('/')
+            || tok.value.starts_with('~')
+            || tok.value.starts_with("..")
+            || tok.value.contains('/');
         if !looks_like_path {
             continue;
         }
-        let expanded = if tok.starts_with('~') {
-            expand_user(tok)
+        let expanded = if tok.value.starts_with('~') {
+            expand_user(&tok.value)
         } else {
-            tok.to_string()
+            tok.value.clone()
         };
         let p = resolve(&expanded, cwd);
         // Lexical-leaf, not canonical: a final-component symlink whose node is
         // in-worktree (e.g. `.venv/bin/python`) is allowed. See
         // within_worktree_lexical for the rationale and the anti-regression note.
         if !within_worktree_lexical(&p, &canonical_roots) {
-            return Some(format!("Error: path outside sandbox: {raw_tok}"));
+            return Some(format!(
+                "Error: path outside sandbox (from {}): {}",
+                tok.raw, tok.value
+            ));
         }
     }
     None

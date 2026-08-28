@@ -470,15 +470,22 @@ class _ParallelExecutor:
 
     # --- fan-in ---
 
-    def _rm_child_state_dirs(self) -> None:
+    def _rm_child_dirs(self) -> None:
         parent_gid = self._parent_data.gremlin_id
         if not parent_gid:
             return
+        # Clean up child state dirs under state_root.
         sr = paths.state_root()
         prefix = f"{parent_gid}--{self._group_name}--"
         for entry in sr.iterdir():
             if entry.name.startswith(prefix) and entry.is_dir():
                 shutil.rmtree(entry, ignore_errors=True)
+        # Clean up child scratch dirs under scratch_root.
+        for child_key in self._stages_by_key:
+            child_id = f"{parent_gid}--{self._group_name}--{child_key}"
+            child_scratch = paths.scratch_root(child_id)
+            if child_scratch.is_dir():
+                shutil.rmtree(child_scratch, ignore_errors=True)
 
     def _gather_child_artifacts(self) -> None:
         """Copy child artifact bindings into the parent registry before child dirs are removed."""
@@ -487,19 +494,19 @@ class _ParallelExecutor:
         if not parent_gid:
             return
 
-        sr = paths.state_root()
+        scratch = paths.scratch_root
         parent_keys: set[str] = set(parent_state.artifacts.keys())
 
         # key -> list of (child_key, child_id, child_registry)
         per_key: dict[str, list[tuple[str, str, ArtifactRegistry]]] = {}
         for child_key in self._stages_by_key:
             child_id = f"{parent_gid}--{self._group_name}--{child_key}"
-            child_reg_path = sr / child_id / "registry.json"
+            child_reg_path = scratch(child_id) / "registry.json"
             if not child_reg_path.exists():
                 continue
             child = ArtifactRegistry.from_registry_file(
                 child_reg_path,
-                artifact_dir=sr / child_id / "artifacts",
+                artifact_dir=scratch(child_id) / "artifacts",
             )
             for k in child.keys():
                 if k in parent_keys:
@@ -523,7 +530,7 @@ class _ParallelExecutor:
         self._gather_child_artifacts()
         try:
             await self._do_fan_in()
-            self._rm_child_state_dirs()
+            self._rm_child_dirs()
         finally:
             await self._teardown_worktrees()
 

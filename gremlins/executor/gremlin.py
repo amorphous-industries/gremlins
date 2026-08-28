@@ -198,7 +198,7 @@ class Gremlin:
 
     @property
     def artifact_dir(self) -> pathlib.Path:
-        return self.state_dir / "artifacts"
+        return _paths.scratch_root(self.gremlin_id) / "artifacts"
 
     @property
     def state_data(self) -> StateData:
@@ -233,7 +233,8 @@ class Gremlin:
         fields if provided.
         """
         child_state_dir = self.state_dir.parent / target_id
-        child_artifact_dir = child_state_dir / "artifacts"
+        child_state_dir.mkdir(parents=True, exist_ok=True)
+        child_artifact_dir = _paths.scratch_root(target_id) / "artifacts"
 
         # Copy artifact directory and registry in thread to avoid blocking event loop
         # Use self.artifact_dir (parent gremlin) as the source, not state.artifact_dir.
@@ -256,7 +257,7 @@ class Gremlin:
             child_worktree = pathlib.Path(child_worktree_path)
 
         # Load registry from source and persist to child dir
-        src_registry = self.state_dir / "registry.json"
+        src_registry = _paths.scratch_root(self.gremlin_id) / "registry.json"
         child_registry = ArtifactRegistry.from_registry_file(
             src_registry,
             artifact_dir=child_artifact_dir,
@@ -629,7 +630,7 @@ class Gremlin:
         child_id = spec.get("child_id") or None
         if child_id:
             validate_gremlin_id(child_id)
-            artifact_dir = _paths.state_root() / child_id / "artifacts"
+            artifact_dir = _paths.scratch_root(child_id) / "artifacts"
             artifact_dir.mkdir(parents=True, exist_ok=True)
             gremlin_id = child_id
             data = StateData.load(child_id)

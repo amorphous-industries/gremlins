@@ -178,13 +178,14 @@ async def run_pipeline(
 
     state_json = _read_state_json(gremlin_id)
     if gremlin_id:
-        artifact_dir = paths.state_root() / gremlin_id / "artifacts"
+        state_dir = paths.state_root() / gremlin_id
+        artifact_dir = paths.scratch_root(gremlin_id) / "artifacts"
     else:
         ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         rand = secrets.token_hex(3)
-        artifact_dir = paths.state_root() / "direct" / f"{ts}-{rand}" / "artifacts"
+        artifact_dir = paths.scratch_root(gremlin_id) / f"{ts}-{rand}" / "artifacts"
+        state_dir = artifact_dir.parent
     artifact_dir.mkdir(parents=True, exist_ok=True)
-    state_dir = artifact_dir.parent
     _workdir = str(state_json.get("workdir") or "")
     worktree_dir = pathlib.Path(_workdir) if _workdir else None
     project_root = str(state_json.get("project_root") or "")

@@ -122,7 +122,7 @@ _system = {{
     "GREMLINS_PROJECT_ROOT": _project_root,
     "GREMLINS_OVERLAY_DIR": str(state_dir / ".gremlins"),
     "GREMLINS_WORKTREE_PATH": "",
-    "GREMLINS_ARTIFACT_DIR": str(state_dir / "artifacts"),
+    "GREMLINS_ARTIFACT_DIR": str(pathlib.Path({state_root!r}) / "scratch" / "test-gremlin" / "artifacts"),
     "GREMLIN_WORKSPACE_DIR": "",
     "GREMLIN_STATE_DIR": str(state_dir),
 }}

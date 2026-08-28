@@ -90,7 +90,7 @@ def _make_parent_state(sandbox, gremlin_id: str) -> State:
     state_root = paths.state_root()
     state_dir = state_root / gremlin_id
     state_dir.mkdir(parents=True, exist_ok=True)
-    artifact_dir = state_dir / "artifacts"
+    artifact_dir = paths.scratch_root(gremlin_id) / "artifacts"
     artifact_dir.mkdir(parents=True, exist_ok=True)
     state_file = state_dir / "state.json"
     state_file.write_text(json.dumps({"id": gremlin_id}), encoding="utf-8")
@@ -130,7 +130,7 @@ def test_parallel_run_cleans_up_child_state_dirs(sandbox) -> None:
 
 def test_parallel_run_no_gremlin_id_uses_old_layout(sandbox) -> None:
     """When parent has no gremlin_id, child state lives under parent artifact_dir/<child>."""
-    artifact_dir = paths.state_root() / "direct" / "some-run" / "artifacts"
+    artifact_dir = paths.scratch_root(None) / "some-run" / "artifacts"
     artifact_dir.mkdir(parents=True, exist_ok=True)
 
     parent = build_state(
@@ -200,7 +200,7 @@ def test_parallel_child_artifact_dir_is_full_copy(sandbox) -> None:
     state_root = paths.state_root()
     parent_state_dir = state_root / gremlin_id
     parent_state_dir.mkdir(parents=True, exist_ok=True)
-    parent_artifact_dir = parent_state_dir / "artifacts"
+    parent_artifact_dir = paths.scratch_root(gremlin_id) / "artifacts"
     parent_artifact_dir.mkdir(parents=True, exist_ok=True)
 
     # Create parent artifacts
@@ -210,7 +210,7 @@ def test_parallel_child_artifact_dir_is_full_copy(sandbox) -> None:
     (parent_artifact_dir / "subdir" / "file3.txt").write_text("content3")
 
     # Set up parent registry
-    parent_registry = parent_state_dir / "registry.json"
+    parent_registry = parent_artifact_dir.parent / "registry.json"
     parent_registry.write_text(
         json.dumps(
             {
@@ -267,7 +267,7 @@ def test_parallel_child_artifact_dir_is_full_copy(sandbox) -> None:
     assert (child_artifact_dir / "subdir" / "file3.txt").read_text() == "content3"
 
     # Verify child registry is copied verbatim
-    child_registry_path = state_root / child_id / "registry.json"
+    child_registry_path = paths.scratch_root(child_id) / "registry.json"
     assert child_registry_path.exists()
     child_reg_data = json.loads(child_registry_path.read_text(encoding="utf-8"))
     assert child_reg_data["artifact1"] == "file://session/file1.txt"
@@ -324,7 +324,7 @@ def test_fork_uses_parent_not_child_state_as_source(sandbox) -> None:
     state_root = paths.state_root()
     parent_state_dir = state_root / gremlin_id
     parent_state_dir.mkdir(parents=True, exist_ok=True)
-    parent_artifact_dir = parent_state_dir / "artifacts"
+    parent_artifact_dir = paths.scratch_root(gremlin_id) / "artifacts"
     parent_artifact_dir.mkdir(parents=True, exist_ok=True)
 
     # Create parent artifacts
@@ -376,7 +376,7 @@ def test_fork_uses_parent_not_child_state_as_source(sandbox) -> None:
 
     # Simulate what _ParallelExecutor._fan_out does:
     # 1. Create a child state via child_state(fan_out=True) — this gives artifact_dir
-    #    pointing to an empty directory under state_root/<child_id>/artifacts/
+    #    pointing to an empty directory under scratch_root(<child_id>)/artifacts/
     child_stage = Stage("child-x")
     child_stage.type = "agent"
     child_id = f"{gremlin_id}--mygroup--child-x"
@@ -410,7 +410,7 @@ def test_fork_uses_parent_not_child_state_as_source(sandbox) -> None:
         assert (forked.artifact_dir / "spec.md").read_text() == "# Spec\nSome spec"
 
         # And the child's registry should be a copy of the parent's registry
-        child_registry_path = state_root / child_id / "registry.json"
+        child_registry_path = paths.scratch_root(child_id) / "registry.json"
         assert child_registry_path.exists()
         child_reg_data = json.loads(child_registry_path.read_text(encoding="utf-8"))
         assert child_reg_data["plan"] == "file://session/plan.md"

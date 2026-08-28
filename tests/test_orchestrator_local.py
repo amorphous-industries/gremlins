@@ -27,12 +27,14 @@ def _local_pipeline_path(cwd):
 
 def test_local_main_plan_mode(tmp_path, monkeypatch):
     gremlin_id = "test-gr-id"
-    artifact_dir = tmp_path / gremlin_id / "artifacts"
+    monkeypatch.setenv("GREMLINS_SANDBOX_ROOT", str(tmp_path))
+    state_dir = tmp_path / gremlin_id
+    state_dir.mkdir(parents=True, exist_ok=True)
+    artifact_dir = tmp_path / "scratch" / gremlin_id / "artifacts"
     artifact_dir.mkdir(parents=True)
     # Pre-seed plan artifact so the plan stage is skipped (skip_if_exists)
     (artifact_dir / "plan.md").write_text("# Plan\nDo stuff.\n")
-    state_dir = artifact_dir.parent
-    (state_dir / "registry.json").write_text(
+    (artifact_dir.parent / "registry.json").write_text(
         json.dumps({"plan": "file://session/plan.md"})
     )
 
@@ -71,11 +73,13 @@ def test_local_main_resume_from_review_code_requires_git_changes(
     tmp_path, monkeypatch, capsys
 ):
     gremlin_id = "test-gr-id"
-    artifact_dir = tmp_path / gremlin_id / "artifacts"
+    monkeypatch.setenv("GREMLINS_SANDBOX_ROOT", str(tmp_path))
+    state_dir = tmp_path / gremlin_id
+    state_dir.mkdir(parents=True, exist_ok=True)
+    artifact_dir = tmp_path / "scratch" / gremlin_id / "artifacts"
     artifact_dir.mkdir(parents=True)
     (artifact_dir / "plan.md").write_text("# Plan\nDo stuff.\n")
-    state_dir = artifact_dir.parent
-    (state_dir / "registry.json").write_text(
+    (artifact_dir.parent / "registry.json").write_text(
         json.dumps({"plan": "file://session/plan.md"})
     )
 
@@ -108,11 +112,13 @@ def test_local_main_resume_from_review_code_allows_existing_git_changes(
     tmp_path, monkeypatch
 ):
     gremlin_id = "test-gr-id"
-    artifact_dir = tmp_path / gremlin_id / "artifacts"
+    monkeypatch.setenv("GREMLINS_SANDBOX_ROOT", str(tmp_path))
+    state_dir = tmp_path / gremlin_id
+    state_dir.mkdir(parents=True, exist_ok=True)
+    artifact_dir = tmp_path / "scratch" / gremlin_id / "artifacts"
     artifact_dir.mkdir(parents=True)
     (artifact_dir / "plan.md").write_text("# Plan\nDo stuff.\n")
-    state_dir = artifact_dir.parent
-    (state_dir / "registry.json").write_text(
+    (artifact_dir.parent / "registry.json").write_text(
         json.dumps({"plan": "file://session/plan.md"})
     )
 
@@ -154,12 +160,13 @@ def test_local_main_resume_from_review_code_allows_existing_git_changes(
 def test_local_main_injected_client_model(tmp_path, monkeypatch):
     """Injected client.model flows into stage run() calls."""
     gremlin_id = "test-gr-id"
-    artifact_dir = tmp_path / gremlin_id / "artifacts"
+    monkeypatch.setenv("GREMLINS_SANDBOX_ROOT", str(tmp_path))
+    state_dir = tmp_path / gremlin_id
+    state_dir.mkdir(parents=True, exist_ok=True)
+    artifact_dir = tmp_path / "scratch" / gremlin_id / "artifacts"
     artifact_dir.mkdir(parents=True)
-    # Pre-seed plan artifact so plan stage is skipped
     (artifact_dir / "plan.md").write_text("# Plan\nDo stuff.\n")
-    state_dir = artifact_dir.parent
-    (state_dir / "registry.json").write_text(
+    (artifact_dir.parent / "registry.json").write_text(
         json.dumps({"plan": "file://session/plan.md"})
     )
 
@@ -211,6 +218,7 @@ def test_local_pipeline_stage_names(tmp_path):
 
 
 def test_local_main_writes_stage_to_state(tmp_path, monkeypatch):
+    monkeypatch.setenv("GREMLINS_SANDBOX_ROOT", str(tmp_path))
     monkeypatch.chdir(tmp_path)
     _common_patches(monkeypatch)
     monkeypatch.setattr(
@@ -221,8 +229,8 @@ def test_local_main_writes_stage_to_state(tmp_path, monkeypatch):
     state_dir = tmp_path / gremlin_id
     state_dir.mkdir(parents=True, exist_ok=True)
     (state_dir / "state.json").write_text(json.dumps({"id": gremlin_id, "stage": ""}))
-    artifact_dir = state_dir / "artifacts"
-    artifact_dir.mkdir(exist_ok=True)
+    artifact_dir = tmp_path / "scratch" / gremlin_id / "artifacts"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
     client = _ReviewCreatingClient(
         fixtures={
             "plan": MINIMAL_EVENTS,
@@ -251,8 +259,8 @@ def test_local_main_env_file_vars_reach_verify(tmp_path, monkeypatch):
     import subprocess as _subprocess
 
     gremlin_id = "test-gr-id"
-    artifact_dir = tmp_path / gremlin_id / "artifacts"
-    artifact_dir.mkdir(parents=True)
+    monkeypatch.setenv("GREMLINS_SANDBOX_ROOT", str(tmp_path))
+    (tmp_path / "scratch" / gremlin_id / "artifacts").mkdir(parents=True)
 
     dot_gremlins = tmp_path / ".gremlins"
     dot_gremlins.mkdir()
@@ -316,13 +324,14 @@ def test_local_main_env_file_sourced_with_overlay_dir_set(tmp_path, monkeypatch)
         "export GREMLIN_ENV_TEST_SENTINEL=from_env_file\n"
     )
 
+    monkeypatch.setenv("GREMLINS_SANDBOX_ROOT", str(tmp_path))
     state_root = tmp_path / "state"
     state_root.mkdir()
     gremlin_id = "test-gr-id"
     state_dir = state_root / gremlin_id
     state_dir.mkdir()
-    artifact_dir = state_dir / "artifacts"
-    artifact_dir.mkdir()
+    artifact_dir = tmp_path / "scratch" / gremlin_id / "artifacts"
+    artifact_dir.mkdir(parents=True)
 
     # Simulate the launcher: GREMLINS_OVERLAY_DIR points to state_dir/.gremlins, which
     # does not yet exist when run_pipeline starts.
@@ -375,12 +384,13 @@ def test_local_main_pipeline_default_client_model(tmp_path, monkeypatch):
     default_client: openai:gpt-4o produced model=gpt-4o.
     """
     gremlin_id = "test-gr-id"
-    artifact_dir = tmp_path / gremlin_id / "artifacts"
+    monkeypatch.setenv("GREMLINS_SANDBOX_ROOT", str(tmp_path))
+    state_dir = tmp_path / gremlin_id
+    state_dir.mkdir(parents=True, exist_ok=True)
+    artifact_dir = tmp_path / "scratch" / gremlin_id / "artifacts"
     artifact_dir.mkdir(parents=True)
-    # Pre-seed plan artifact so plan stage is skipped
     (artifact_dir / "plan.md").write_text("# Plan\nDo stuff.\n")
-    state_dir = artifact_dir.parent
-    (state_dir / "registry.json").write_text(
+    (artifact_dir.parent / "registry.json").write_text(
         json.dumps({"plan": "file://session/plan.md"})
     )
 
@@ -440,11 +450,13 @@ def test_local_main_pipeline_default_client_model(tmp_path, monkeypatch):
 def test_plan_skip_if_exists_on_resume(tmp_path, monkeypatch):
     """Resume: plan stage is skipped when plan artifact is already verified."""
     gremlin_id = "test-gr-id"
-    artifact_dir = tmp_path / gremlin_id / "artifacts"
+    monkeypatch.setenv("GREMLINS_SANDBOX_ROOT", str(tmp_path))
+    state_dir = tmp_path / gremlin_id
+    state_dir.mkdir(parents=True, exist_ok=True)
+    artifact_dir = tmp_path / "scratch" / gremlin_id / "artifacts"
     artifact_dir.mkdir(parents=True)
     (artifact_dir / "plan.md").write_text("# Plan\nDo stuff.\n", encoding="utf-8")
-    state_dir = artifact_dir.parent
-    (state_dir / "registry.json").write_text(
+    (artifact_dir.parent / "registry.json").write_text(
         json.dumps({"plan": "file://session/plan.md"})
     )
 

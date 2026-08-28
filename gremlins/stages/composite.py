@@ -21,7 +21,7 @@ def child_state(
     if not fan_out:
         return dataclasses.replace(parent, client=client)
     if child_id:
-        artifact_dir = _paths.state_root() / child_id / "artifacts"
+        artifact_dir = _paths.scratch_root(child_id) / "artifacts"
         artifact_dir.mkdir(parents=True, exist_ok=True)
     else:
         artifact_dir = parent.artifact_dir / child.name

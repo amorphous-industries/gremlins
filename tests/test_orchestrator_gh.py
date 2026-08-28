@@ -154,13 +154,14 @@ def _patch_common(
         "gremlins.executor.run._install_signal_handlers", lambda c, g: None
     )
     monkeypatch.setattr("gremlins.executor.run._get_repo", lambda: "owner/repo")
-
-    artifact_dir = tmp_path / "gr-test" / "artifacts"
-    artifact_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("GREMLINS_SANDBOX_ROOT", str(tmp_path))
     monkeypatch.setattr(
         "gremlins.paths.state_root",
         lambda: tmp_path,
     )
+
+    artifact_dir = tmp_path / "scratch" / "gr-test" / "artifacts"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
 
     state_file = tmp_path / "gr-test" / "state.json"
     state_file.parent.mkdir(parents=True, exist_ok=True)
@@ -189,7 +190,7 @@ def _patch_common(
     }
     if base_ref_sha:
         registry_data["base_sha"] = f"git://commit/{base_ref_sha}"
-    registry_file = tmp_path / "gr-test" / "registry.json"
+    registry_file = artifact_dir.parent / "registry.json"
     registry_file.write_text(json.dumps(registry_data))
     # Create placeholder artifact files so file resolvers find them.
     (artifact_dir / "spec.md").write_text("", encoding="utf-8")
@@ -257,11 +258,11 @@ def _prepare_for_plan_stage(tmp_path: pathlib.Path) -> None:
 
     Also clears plan.md so bootstrap's plan?: cli_out doesn't re-bind it.
     """
-    reg_path = tmp_path / "gr-test" / "registry.json"
+    reg_path = tmp_path / "scratch" / "gr-test" / "registry.json"
     reg = json.loads(reg_path.read_text())
     reg.pop("plan", None)
     reg_path.write_text(json.dumps(reg))
-    plan_md = tmp_path / "gr-test" / "artifacts" / "plan.md"
+    plan_md = tmp_path / "scratch" / "gr-test" / "artifacts" / "plan.md"
     if plan_md.exists():
         plan_md.write_text("", encoding="utf-8")
 
@@ -506,7 +507,7 @@ def test_publish_as_issue_skip_if_exists(tmp_path, monkeypatch):
     (artifact_dir / "plan-issue-number.txt").write_text("42", encoding="utf-8")
 
     # Add plan-issue-number to registry so skip_if_exists fires.
-    registry_path = tmp_path / "gr-test" / "registry.json"
+    registry_path = tmp_path / "scratch" / "gr-test" / "registry.json"
     reg = json.loads(registry_path.read_text())
     reg["plan-issue-number"] = "file://session/plan-issue-number.txt"
     registry_path.write_text(json.dumps(reg))
@@ -1091,7 +1092,7 @@ def test_resume_from_open_pr(tmp_path, monkeypatch):
     assert len(review_calls) == 1
     assert "https://github.com/owner/repo/pull/101" in review_calls[0].prompt
     # Verify push-and-open wrote pr to registry.json
-    registry_path = tmp_path / "gr-test" / "registry.json"
+    registry_path = tmp_path / "scratch" / "gr-test" / "registry.json"
     assert registry_path.exists(), "registry.json should have been written"
     assert json.loads(registry_path.read_text()).get("pr") == "gh://pr/101"
 
@@ -1150,7 +1151,7 @@ def test_github_wait_copilot_stage_argument_wiring(tmp_path, monkeypatch):
     assert copilot_state.repo == "owner/repo"
     assert copilot_state.artifact_dir == artifact_dir
     # pr is written to registry.json by push-and-open
-    registry_path = tmp_path / "gr-test" / "registry.json"
+    registry_path = tmp_path / "scratch" / "gr-test" / "registry.json"
     assert registry_path.exists(), "registry.json should have been written"
     assert json.loads(registry_path.read_text()).get("pr") == "gh://pr/77"
 
@@ -1210,7 +1211,7 @@ def test_github_wait_ci_stage_argument_wiring(tmp_path, monkeypatch):
     assert stage.client.model == "gpt-4o"
     assert captured_stage["state"].artifact_dir == artifact_dir
     # pr is written to registry.json by push-and-open
-    registry_path = tmp_path / "gr-test" / "registry.json"
+    registry_path = tmp_path / "scratch" / "gr-test" / "registry.json"
     assert registry_path.exists(), "registry.json should have been written"
     assert json.loads(registry_path.read_text()).get("pr") == "gh://pr/77"
 

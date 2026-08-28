@@ -74,6 +74,11 @@ def _gremlins_state_root(lenv) -> pathlib.Path:
     return lenv.state_root
 
 
+def _gremlins_registry_path(lenv, gremlin_id: str) -> pathlib.Path:
+    """Return the path to registry.json, now under scratch root."""
+    return lenv.state_root.parent / "scratch" / gremlin_id / "registry.json"
+
+
 class _FakeProc:
     pid = 12345
 
@@ -628,9 +633,7 @@ def test_launch_ghgremlin_state_layout(lenv_with_gh):
     assert "base_ref_name" not in state, (
         f"base_ref_name should not be in state.json (moved to registry), got: {state.get('base_ref_name')!r}"
     )
-    registry_data = json.loads(
-        (_gremlins_state_root(lenv) / gremlin_id / "registry.json").read_text()
-    )
+    registry_data = json.loads((_gremlins_registry_path(lenv, gremlin_id)).read_text())
     assert registry_data.get("base_ref") == "git://ref/main", (
         f"base_ref should be 'git://ref/main' in registry, got: {registry_data.get('base_ref')!r}"
     )
@@ -672,9 +675,7 @@ def test_launch_passes_base_ref_to_worktree_setup(lenv):
     )
 
     state = _read_state(state_dir)
-    registry_data = json.loads(
-        (_gremlins_state_root(lenv) / gremlin_id / "registry.json").read_text()
-    )
+    registry_data = json.loads((_gremlins_registry_path(lenv, gremlin_id)).read_text())
     assert registry_data.get("base_sha") == f"git://commit/{head_sha}", (
         f"expected base_sha=git://commit/{head_sha!r}, got {registry_data.get('base_sha')!r}"
     )
@@ -1025,7 +1026,7 @@ def test_launch_pr_kwarg_sets_state_fields(lenv, monkeypatch):
     )
     state = _read_state(_gremlins_state_root(lenv) / gremlin_id)
     assert state["setup_kind"] == "worktree-detached"
-    registry_path = _gremlins_state_root(lenv) / gremlin_id / "registry.json"
+    registry_path = _gremlins_registry_path(lenv, gremlin_id)
     assert registry_path.exists(), "registry.json should have been written"
     registry_data = json.loads(registry_path.read_text())
     assert registry_data.get("base_sha") == "git://commit/pull/697/head"

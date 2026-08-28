@@ -45,13 +45,19 @@ def tmp_repo(tmp_path):
     return repo_dir
 
 
-def test_fork_without_worktree(tmp_path, tmp_repo):
+def _sandbox(tmp_path, monkeypatch):
+    """Point state_root and scratch_root at tmp_path via GREMLINS_SANDBOX_ROOT."""
+    monkeypatch.setenv("GREMLINS_SANDBOX_ROOT", str(tmp_path))
+
+
+def test_fork_without_worktree(tmp_path, tmp_repo, monkeypatch):
     """Test forking a state without a worktree."""
+    _sandbox(tmp_path, monkeypatch)
 
     async def _test():
         # Setup source gremlin and state
         state_dir = tmp_path / "state" / "gr-1"
-        artifact_dir = state_dir / "artifacts"
+        artifact_dir = tmp_path / "scratch" / "gr-1" / "artifacts"
         artifact_dir.mkdir(parents=True, exist_ok=True)
 
         # Create some artifacts
@@ -86,7 +92,7 @@ def test_fork_without_worktree(tmp_path, tmp_repo):
 
         # Verify the fork
         assert forked.data.gremlin_id == "gr-2"
-        assert forked.artifact_dir == state_dir.parent / "gr-2" / "artifacts"
+        assert forked.artifact_dir == tmp_path / "scratch" / "gr-2" / "artifacts"
         assert (forked.artifact_dir / "spec.md").read_text() == "# Spec\n"
         assert forked.worktree is None
         assert forked.repo == state.repo
@@ -99,8 +105,9 @@ def test_fork_without_worktree(tmp_path, tmp_repo):
     asyncio.run(_test())
 
 
-def test_fork_with_worktree(tmp_path, tmp_repo):
+def test_fork_with_worktree(tmp_path, tmp_repo, monkeypatch):
     """Test forking a state with a worktree."""
+    _sandbox(tmp_path, monkeypatch)
 
     async def _test():
         # Create a worktree for the source
@@ -116,7 +123,7 @@ def test_fork_with_worktree(tmp_path, tmp_repo):
 
         # Setup source gremlin and state
         state_dir = tmp_path / "state" / "gr-1"
-        artifact_dir = state_dir / "artifacts"
+        artifact_dir = tmp_path / "scratch" / "gr-1" / "artifacts"
         artifact_dir.mkdir(parents=True, exist_ok=True)
 
         # Create artifacts
@@ -153,7 +160,7 @@ def test_fork_with_worktree(tmp_path, tmp_repo):
         try:
             # Verify the fork
             assert forked.data.gremlin_id == "gr-2"
-            assert forked.artifact_dir == state_dir.parent / "gr-2" / "artifacts"
+            assert forked.artifact_dir == tmp_path / "scratch" / "gr-2" / "artifacts"
             assert (forked.artifact_dir / "spec.md").read_text() == "# Spec\n"
             assert forked.worktree is not None
             assert forked.worktree != worktree_path
@@ -200,13 +207,14 @@ def test_fork_with_worktree(tmp_path, tmp_repo):
     asyncio.run(_test())
 
 
-def test_fork_preserves_registry(tmp_path, tmp_repo):
+def test_fork_preserves_registry(tmp_path, tmp_repo, monkeypatch):
     """Test that fork preserves registry.json content."""
+    _sandbox(tmp_path, monkeypatch)
 
     async def _test():
         # Setup source gremlin and state
         state_dir = tmp_path / "state" / "gr-1"
-        artifact_dir = state_dir / "artifacts"
+        artifact_dir = tmp_path / "scratch" / "gr-1" / "artifacts"
         artifact_dir.mkdir(parents=True, exist_ok=True)
 
         # Create registry with multiple bindings
@@ -249,9 +257,10 @@ def test_fork_preserves_registry(tmp_path, tmp_repo):
     asyncio.run(_test())
 
 
-def test_fork_with_branch_pipeline_scopes_child(tmp_path, tmp_repo):
+def test_fork_with_branch_pipeline_scopes_child(tmp_path, tmp_repo, monkeypatch):
     """fork(pipeline=...) writes a branch-scoped pipeline.yaml into the child
     state dir and sets pipeline_path/pipeline_data to it, not the parent's."""
+    _sandbox(tmp_path, monkeypatch)
 
     async def _test():
         parent_pipeline_path = tmp_path / "parent.yaml"
@@ -271,7 +280,7 @@ def test_fork_with_branch_pipeline_scopes_child(tmp_path, tmp_repo):
         )
 
         state_dir = tmp_path / "state" / "gr-parent"
-        artifact_dir = state_dir / "artifacts"
+        artifact_dir = tmp_path / "scratch" / "gr-parent" / "artifacts"
         artifact_dir.mkdir(parents=True, exist_ok=True)
 
         state_data = StateData(
