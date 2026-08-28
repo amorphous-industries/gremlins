@@ -1,0 +1,111 @@
+# Python ↔ Rust boundary
+
+This document describes the current interface between Python and the
+`_gremlins_core` native extension (the `crates/pyext` crate) during the
+ongoing Rust port. It is a snapshot of the *current* transition state —
+everything here will change as more code moves to Rust.
+
+## Why this exists
+
+The codebase has two crates in the workspace:
+
+- **`crates/gremlins`** — Pure Rust library (clients, core utils). No
+  PyO3 dependency. Can be tested standalone.
+- **`crates/pyext`** — PyO3 native extension that compiles to
+  `_gremlins_core`, a Python C extension callable via `import _gremlins_core`.
+
+The port is incremental: a Rust module is built inside `crates/gremlins`,
+then wrapped in `crates/pyext` with PyO3 glue, then the Python call site
+is swapped from the Python implementation to `import _gremlins_core`.
+
+This means **an exported Rust function may not yet be wired into the
+Python execution path**. Looking at a Rust function signature tells you
+nothing about whether it's actually being called at runtime. Always check
+whether a Python call site has been updated to use it.
+
+## What is actively used from Rust
+
+### `_gremlins_core.utils.proc`
+
+All process execution. Python `gremlins/utils/proc.py` imports from
+`_gremlins_core.utils.proc` and re-exports the Rust functions under the
+same names (`run`, `run_or_raise`, `run_async`, `run_ok`, etc.).
+
+Everything in the codebase that shells out goes through these Rust
+implementations.
+
+### `_gremlins_core.clients.RustClient`
+
+The LLM client backend. Python `gremlins/clients/__init__.py` imports
+`RustClient` and wraps it. This handles all provider API calls.
+
+### `_gremlins_core.schemas.*` (partial — see below)
+
+Some schema/loader functions are wired in. See the next section.
+
+## What is exposed but NOT yet called from Python
+
+The Rust `schemas` module (`crates/pyext/src/schemas/`) is a parallel
+implementation of the pipeline preprocessor that exists on the Python
+side in `gremlins/pipeline/preprocess.py`. The Rust version is exposed
+at `_gremlins_core.schemas.*` but **most of it is not wired into any
+Python call site**.
+
+### Wired in (actively called from Python)
+
+These functions in `_gremlins_core.schemas` are imported and used by
+`gremlins/pipeline/loader.py`:
+
+| Rust function | Python import site | Purpose |
+|---|---|---|
+| `parse_stage` | `gremlins/pipeline/loader.py` | Parse a single stage dict |
+| `parse_stages` | `gremlins/pipeline/loader.py` | Parse a list of stage dicts |
+| `fill_names` | `gremlins/pipeline/loader.py` | Auto-generate stage names |
+| `check_duplicate_producers` | `gremlins/pipeline/loader.py` | Validate artifact producers |
+
+### NOT yet wired in
+
+| Rust function | Status |
+|---|---|
+| `expand_pipeline` | Exposed at `_gremlins_core.schemas.expand_pipeline` but **not imported or called anywhere in Python**. The active expander is `gremlins/pipeline/preprocess.py:expand_pipeline`. |
+| `Pipeline` class | Exposed at `_gremlins_core.schemas.Pipeline` but **not used**. The active `Pipeline` is `gremlins/pipeline/__init__.py:Pipeline`. |
+| `InputSource` / `InputSources` | Exposed but **not called** from Python bootstrap code. |
+
+## The trap the planner hit
+
+The Rust `expand_pipeline` in `crates/pyext/src/schemas/preprocess.rs`
+takes a `bundled_prompt_dir: PathBuf` parameter. The model saw this
+field and tried to trace how Python's `BUNDLED_PROMPT_DIR` gets passed
+into the Rust function — searching for `_gremlins_core.schemas.expand_pipeline`,
+`schemas.expand_pipeline`, `from _gremlins_core import expand_pipeline`,
+etc.
+
+None of these searches matched, because **the Rust `expand_pipeline` is
+not yet called from Python**. The Python `expand_pipeline` in
+`gremlins/pipeline/preprocess.py` is the active one, and it reads
+`BUNDLED_PROMPT_DIR` directly from the Python import
+`gremlins.prompts.BUNDLED_PROMPT_DIR` — no FFI boundary involved.
+
+The Rust version is a parallel implementation being prepared for the
+port. When it goes live, the Python `expand_pipeline` call sites
+(currently in `gremlins/pipeline/__init__.py` and `gremlins/launcher.py`)
+will be updated to call `_gremlins_core.schemas.expand_pipeline` instead.
+
+## How to check whether a Rust function is live
+
+1. **Search for the Python import.** `grep -rn '_core\.schemas\|from _gremlins_core' gremlins/ --include='*.py'` shows what's actually imported.
+2. **Check the Python call site.** If the Python function still exists and is referenced from launcher.py or pipeline/__init__.py, that's the active one.
+3. **The litmus test:** delete the Rust function. If nothing breaks, it wasn't wired in yet.
+
+## Key files
+
+| File | Role |
+|---|---|
+| `gremlins/_core.py` | Shim: `import _gremlins_core as _core; __all__ = ["_core"]` |
+| `gremlins/utils/proc.py` | Re-exports `_gremlins_core.utils.proc.*` — **active** |
+| `gremlins/clients/__init__.py` | Wraps `_gremlins_core.clients.RustClient` — **active** |
+| `gremlins/pipeline/preprocess.py` | Python `expand_pipeline` — **active** |
+| `gremlins/pipeline/loader.py` | Uses `_gremlins_core.schemas.parse_stage` et al. — **active** |
+| `crates/pyext/src/schemas/preprocess.rs` | Rust `expand_pipeline` — **NOT yet active** |
+| `crates/pyext/src/lib.rs` | `#[pymodule]` — registers all `_gremlins_core.*` submodules |
+| `crates/gremlins/` | Pure Rust library (no PyO3), consumed by `crates/pyext` |
