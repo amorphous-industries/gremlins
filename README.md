@@ -344,7 +344,11 @@ Five primitive stage types are built into the engine (`gremlins/pipeline/loader.
 
 ### Stage types: bundled recipes
 
-Everything else is a bundled YAML recipe under `gremlins/recipes/stages/` that the preprocessor auto-resolves by type name. Use them directly as `type: gremlins:<name>` or reference them in `stage-definitions:`.
+Everything else is a bundled YAML recipe under `gremlins/recipes/stages/` that the
+preprocessor auto-resolves by type name. Use them as `type: gremlins:<name>` or simply
+as `type: <name>` — the preprocessor checks recipe names when no primitive or
+`stage-definitions:` key matches, so bare `type: review-code`, `type: plan`, etc.
+work without the `gremlins:` prefix.
 
 | Recipe type | Recipe file | Description |
 |---|---|---|
@@ -555,7 +559,9 @@ stages:
 - `git://ref/<name>` — Git ref name (e.g., `git://ref/main` returns the string `main`)
 - `git://commit/<sha>` — Commit SHA (e.g., `git://commit/abc123def` returns the full SHA)
 - `git://range/<base>..<head>` — Commit range/log between two refs
-- `gh://pr/<n>` — Opaque GitHub PR identifier; resolved to `{"uri": "gh://pr/<n>"}` at resolution time
+- `gh://pr/<n>` — Opaque GitHub PR identifier. Resolution returns `{"uri": "gh://pr/<n>"}`
+  (the URI string itself) without calling `gh`; downstream stages pass it to shell
+  commands that need the PR number (e.g., `${uri##*/}` to extract `<n>`)
 - `git://range` — Special shorthand: the `exec` stage snapshots HEAD before running and binds the resulting range afterwards
 
 **Artifact binding semantics:**

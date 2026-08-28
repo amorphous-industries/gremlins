@@ -27,12 +27,14 @@ whether a Python call site has been updated to use it.
 
 ### `_gremlins_core.utils.proc`
 
-All process execution. Python `gremlins/utils/proc.py` imports from
+The primary process execution path. Python `gremlins/utils/proc.py` imports from
 `_gremlins_core.utils.proc` and re-exports the Rust functions under the
 same names (`run`, `run_or_raise`, `run_async`, `run_ok`, etc.).
 
-Everything in the codebase that shells out goes through these Rust
-implementations.
+Most call sites in the codebase go through this module, but a few still use
+`subprocess` directly: `gremlins/env_file.py`, `gremlins/queue/core.py`,
+`gremlins/utils/spawn_logged_process.py`, and some specialized async helpers
+in `gremlins/utils/proc.py` itself.
 
 ### `_gremlins_core.clients.RustClient`
 
@@ -105,4 +107,3 @@ will be updated to call `_gremlins_core.schemas.expand_pipeline` instead.
 | `crates/pyext/src/schemas/loader.rs` | Rust `parse_stage`, `parse_stages`, `fill_names`, `check_duplicate_producers` — **NOT yet active** (parallel implementations; Python originals in `gremlins/pipeline/loader.py` are the active ones) |
 | `crates/pyext/src/schemas/preprocess.rs` | Rust `expand_pipeline` — **NOT yet active** |
 | `crates/pyext/src/lib.rs` | `#[pymodule]` — registers all `_gremlins_core.*` submodules |
-| `crates/gremlins/` | Pure Rust library (no PyO3), consumed by `crates/pyext` |
