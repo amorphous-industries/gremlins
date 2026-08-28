@@ -389,12 +389,9 @@ fn shell_tokenize(s: &str) -> Vec<ShellToken> {
             }
             '\\' => {
                 raw.push(ch);
-                match chars.next() {
-                    Some(c) => {
-                        raw.push(c);
-                        value.push(c);
-                    }
-                    None => {}
+                if let Some(c) = chars.next() {
+                    raw.push(c);
+                    value.push(c);
                 }
             }
             c if c.is_whitespace() => {
@@ -537,7 +534,10 @@ pub fn bash_check(roots: &[PathBuf], cmd: &str, cwd: Option<&Path>) -> Option<St
         // in-worktree (e.g. `.venv/bin/python`) is allowed. See
         // within_worktree_lexical for the rationale and the anti-regression note.
         if !within_worktree_lexical(&p, &canonical_roots) {
-            return Some(format!("Error: path outside sandbox (from {}): {}", tok.raw, tok.value));
+            return Some(format!(
+                "Error: path outside sandbox (from {}): {}",
+                tok.raw, tok.value
+            ));
         }
     }
     None

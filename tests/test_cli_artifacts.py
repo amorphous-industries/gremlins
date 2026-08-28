@@ -36,7 +36,9 @@ def test_live_path(capsys, monkeypatch, tmp_path):
     artifact_dir = tmp_path / "scratch" / tgt / "artifacts"
     artifact_dir.mkdir(parents=True)
     monkeypatch.setattr(mod, "state_root", lambda: tmp_path / "state")
-    monkeypatch.setattr(mod, "scratch_root", lambda t: tmp_path / "scratch" / (t or "direct"))
+    monkeypatch.setattr(
+        mod, "scratch_root", lambda t: tmp_path / "scratch" / (t or "direct")
+    )
     rc = mod.artifacts_main([tgt])
     assert rc == 0
     out = capsys.readouterr().out
