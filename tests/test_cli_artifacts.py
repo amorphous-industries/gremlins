@@ -30,9 +30,13 @@ def _st(name="s", out=None, inp=None, body=None):
 
 def test_live_path(capsys, monkeypatch, tmp_path):
     tgt = "live1"
-    artifact_dir = tmp_path / tgt / "artifacts"
+    # Create state_root entry to gate the live path.
+    state_dir = tmp_path / "state" / tgt
+    state_dir.mkdir(parents=True)
+    artifact_dir = tmp_path / "scratch" / tgt / "artifacts"
     artifact_dir.mkdir(parents=True)
-    monkeypatch.setattr(mod, "scratch_root", lambda t: tmp_path / (t or "direct"))
+    monkeypatch.setattr(mod, "state_root", lambda: tmp_path / "state")
+    monkeypatch.setattr(mod, "scratch_root", lambda t: tmp_path / "scratch" / (t or "direct"))
     rc = mod.artifacts_main([tgt])
     assert rc == 0
     out = capsys.readouterr().out
