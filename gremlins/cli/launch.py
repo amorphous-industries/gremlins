@@ -7,6 +7,7 @@ import time
 from typing import Any
 
 from gremlins import paths as _paths
+from gremlins.config import get_config as _get_config
 from gremlins.launcher import launch
 from gremlins.pipeline import Pipeline
 from gremlins.pipeline.discovery import list_pipelines, resolve_pipeline_name
@@ -121,7 +122,8 @@ def launch_main(argv: list[str]) -> int:
 
     try:
         # Quick pre-parse of --client from argv so we can inline it into the
-        # pipeline YAML before loader validation.
+        # pipeline YAML before loader validation.  Fall back to the global
+        # config's default-client when --client is absent.
         _client_override: str | None = None
         for i, a in enumerate(argv):
             if a == "--client" and i + 1 < len(argv):
@@ -130,6 +132,10 @@ def launch_main(argv: list[str]) -> int:
             if a.startswith("--client="):
                 _client_override = a.split("=", 1)[1]
                 break
+        if _client_override is None:
+            _global_client = _get_config().default_client
+            if _global_client:
+                _client_override = _global_client
         pipeline = Pipeline.from_yaml(
             pipeline_path, default_client_override=_client_override
         )

@@ -207,10 +207,24 @@ async def run_pipeline(
     fetch_worktree = base_ref.startswith("pull/") and base_ref.endswith("/head")
 
     project_dir = pathlib.Path(project_root) if project_root else paths.project_root()
+    # Fall back to global config's default-client when --client is absent, so
+    # project-overlay pipelines that omit default_client still work.
+    _effective_client_override: str | None = args.client
+    if _effective_client_override is None:
+        try:
+            from gremlins.config import get_config
+
+            _global_client = get_config().default_client
+            if _global_client:
+                _effective_client_override = _global_client
+        except Exception:
+            logger.warning(
+                "failed to read default-client from global config", exc_info=True
+            )
     try:
         _pipeline_preview = _PipelineData.from_yaml(
             resolve_pipeline_path(str(pipeline_path), project_dir),
-            default_client_override=args.client,
+            default_client_override=_effective_client_override,
         )
     except (FileNotFoundError, _YamlLoadError, ValueError) as exc:
         die(str(exc))

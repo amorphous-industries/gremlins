@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-import json
 import logging
 import pathlib
-from typing import Any, cast
 
-from gremlins.paths import user_config_root
 from gremlins.pipeline import Pipeline
 from gremlins.pipeline.discovery import resolve_pipeline_path
 
@@ -60,76 +57,33 @@ def extract_client_spec(args: list[str]) -> str:
     return extract_arg_value(args, "--client")
 
 
-def _load_global_config() -> dict[str, Any]:
-    path = user_config_root() / "config.json"
-    try:
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        return {}
-    except json.JSONDecodeError as e:
-        raise ValueError(f"config file {path} is not valid JSON: {e}") from e
-    if not isinstance(data, dict):
-        raise ValueError(
-            f"config file {path} must contain a JSON object, got {type(data).__name__}"
-        )
-    return cast(dict[str, Any], data)
+def load_prefix_clients() -> tuple[dict[str, str], dict[str, str]]:
+    """Extract client rules from the global config.
 
-
-def load_prefix_clients() -> dict[str, str]:
-    """Extract prefix-based client rules from the global config.
-
-    Loads ``default-client-by-stage`` object from the config file, e.g.
-    ``{"default-client-by-stage": {"local-review-*": "openrouter:doomclientv5"}}``
-    means any stage whose name starts with ``local-review-`` gets that client.
-    Returns an empty dict when no config file exists or the key is absent.
+    Returns ``(exact_map, prefix_map)`` — exact stage-name keys and
+    prefix globs (with the ``*`` stripped).  Returns two empty dicts
+    when no config file exists or no rules are defined.  Delegates to
+    the central ``gremlins.config`` module's ``default_client_by_stage``
+    property, which handles validation.
     """
-    cfg = _load_global_config()
-    raw = cfg.get("default-client-by-stage")
-    if not isinstance(raw, dict):
-        return {}
-    prefixes: dict[str, str] = {}
-    raw_dict = cast(dict[str, Any], raw)
-    for key, value in raw_dict.items():
-        if not isinstance(value, str):
-            logger.warning(
-                "config key %r in default-client-by-stage has non-string value "
-                "%r — skipping",
-                key,
-                value,
-            )
-            continue
-        if not key.endswith("*"):
-            logger.warning(
-                "config key %r in default-client-by-stage is missing a trailing "
-                "'*' — it must use a glob pattern like %r-* to match stage "
-                "names; skipping",
-                key,
-                key,
-            )
-            continue
-        prefix = key[:-1]
-        if not prefix:
-            logger.warning(
-                "config key %r in default-client-by-stage produces an empty "
-                "prefix, which would match every stage — skipping",
-                key,
-            )
-            continue
-        prefixes[prefix] = value
-    return prefixes
+    from gremlins.config import get_config
+
+    return get_config().default_client_by_stage
 
 
 def launch_client_label(pipeline_args: list[str], pipeline: Pipeline | None) -> str:
+    from gremlins.config import get_config
+
     client_spec = extract_client_spec(pipeline_args)
     if client_spec:
         return client_spec
-    cfg = _load_global_config()
-    global_client = cfg.get("default-client")
-    if isinstance(global_client, str) and global_client:
+    global_client = get_config().default_client
+    if global_client:
         return global_client
     if pipeline and pipeline.default_client:
         return str(pipeline.default_client)
+    from gremlins.paths import user_config_root
+
     config_path = user_config_root() / "config.json"
     raise ValueError(
         "no client configured — pass --client, set default-client in "

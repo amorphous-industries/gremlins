@@ -15,7 +15,7 @@ def _expanded_stages(stages: list[dict]) -> dict:
 
 def test_no_prefix_map_leaves_stages_unchanged():
     stages = [{"name": "review-one"}, {"name": "plan"}]
-    _bake_prefix_clients(_expanded_stages(stages), {})
+    _bake_prefix_clients(_expanded_stages(stages), ({}, {}))
     assert "client" not in stages[0]
     assert "client" not in stages[1]
 
@@ -23,7 +23,7 @@ def test_no_prefix_map_leaves_stages_unchanged():
 def test_matching_prefix_adds_client():
     stages = [{"name": "local-review-one"}, {"name": "local-review-two"}]
     _bake_prefix_clients(
-        _expanded_stages(stages), {"local-review-": "openrouter:doomclientv5"}
+        _expanded_stages(stages), ({}, {"local-review-": "openrouter:doomclientv5"})
     )
     assert stages[0].get("client") == "openrouter:doomclientv5"
     assert stages[1].get("client") == "openrouter:doomclientv5"
@@ -32,7 +32,7 @@ def test_matching_prefix_adds_client():
 def test_non_matching_stage_unchanged():
     stages = [{"name": "plan"}, {"name": "implement"}]
     _bake_prefix_clients(
-        _expanded_stages(stages), {"local-review-": "openrouter:doomclientv5"}
+        _expanded_stages(stages), ({}, {"local-review-": "openrouter:doomclientv5"})
     )
     assert "client" not in stages[0]
     assert "client" not in stages[1]
@@ -44,7 +44,7 @@ def test_respects_existing_client_in_yaml():
         {"name": "local-review-two"},
     ]
     _bake_prefix_clients(
-        _expanded_stages(stages), {"local-review-": "openrouter:doomclientv5"}
+        _expanded_stages(stages), ({}, {"local-review-": "openrouter:doomclientv5"})
     )
     assert stages[0].get("client") == "openai:gpt-5", "explicit YAML client preserved"
     assert stages[1].get("client") == "openrouter:doomclientv5"
@@ -61,7 +61,7 @@ def test_recursive_into_parallel():
         }
     ]
     _bake_prefix_clients(
-        _expanded_stages(stages), {"local-review-": "openrouter:doomclientv5"}
+        _expanded_stages(stages), ({}, {"local-review-": "openrouter:doomclientv5"})
     )
     children = stages[0]["parallel"]
     assert children[0].get("client") == "openrouter:doomclientv5"
@@ -79,7 +79,7 @@ def test_recursive_into_body():
         }
     ]
     _bake_prefix_clients(
-        _expanded_stages(stages), {"local-review-": "openrouter:doomclientv5"}
+        _expanded_stages(stages), ({}, {"local-review-": "openrouter:doomclientv5"})
     )
     children = stages[0]["body"]
     assert children[0].get("client") == "openrouter:doomclientv5"
@@ -97,7 +97,7 @@ def test_respects_existing_client_in_parallel_child():
         }
     ]
     _bake_prefix_clients(
-        _expanded_stages(stages), {"local-review-": "openrouter:doomclientv5"}
+        _expanded_stages(stages), ({}, {"local-review-": "openrouter:doomclientv5"})
     )
     children = stages[0]["parallel"]
     assert children[0].get("client") == "openai:gpt-5", (
@@ -114,10 +114,13 @@ def test_longest_matching_prefix_wins():
     ]
     _bake_prefix_clients(
         _expanded_stages(stages),
-        {
-            "review-": "openai:gpt-5",
-            "review-deploy-": "openrouter:doomclientv5",
-        },
+        (
+            {},
+            {
+                "review-": "openai:gpt-5",
+                "review-deploy-": "openrouter:doomclientv5",
+            },
+        ),
     )
     # "review-code" matches only "review-" (len 7).
     assert stages[0].get("client") == "openai:gpt-5"
@@ -128,7 +131,7 @@ def test_longest_matching_prefix_wins():
 
 def test_noop_on_empty_stages():
     _bake_prefix_clients(
-        _expanded_stages([]), {"local-review-": "openrouter:doomclientv5"}
+        _expanded_stages([]), ({}, {"local-review-": "openrouter:doomclientv5"})
     )
 
 
@@ -146,8 +149,9 @@ class TestIntegrationWithGlobalConfig:
                 }
             )
         )
-        prefixes = load_prefix_clients()
-        assert prefixes == {
+        exact, prefix = load_prefix_clients()
+        assert exact == {}
+        assert prefix == {
             "local-review-": "openrouter:doomclientv5",
             "plan-": "openai:gpt-5",
         }
@@ -157,7 +161,32 @@ class TestIntegrationWithGlobalConfig:
             {"name": "local-review-one"},
             {"name": "implement"},
         ]
-        _bake_prefix_clients(_expanded_stages(stages), prefixes)
+        _bake_prefix_clients(_expanded_stages(stages), (exact, prefix))
         assert stages[0].get("client") == "openai:gpt-5"
         assert stages[1].get("client") == "openrouter:doomclientv5"
         assert "client" not in stages[2]
+
+    def test_exact_match_takes_priority_over_prefix(self, sandbox):
+        """An exact-match key should match exactly and take priority over a prefix match."""
+        sandbox.config.mkdir(parents=True, exist_ok=True)
+        (sandbox.config / "config.json").write_text(
+            json.dumps(
+                {
+                    "default-client-by-stage": {
+                        "review": "openai:gpt-5",
+                        "review-*": "openrouter:doomclientv5",
+                    },
+                }
+            )
+        )
+        exact, prefix = load_prefix_clients()
+        assert exact == {"review": "openai:gpt-5"}
+        assert prefix == {"review-": "openrouter:doomclientv5"}
+
+        # "review" should match the exact key, not the prefix
+        stages = [{"name": "review"}, {"name": "review-code"}]
+        _bake_prefix_clients(_expanded_stages(stages), (exact, prefix))
+        assert stages[0].get("client") == "openai:gpt-5", "exact match should win"
+        assert stages[1].get("client") == "openrouter:doomclientv5", (
+            "prefix should match sub-string"
+        )
