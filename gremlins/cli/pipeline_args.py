@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import json
 import pathlib
+from typing import Any
 
+from gremlins.paths import user_config_root
 from gremlins.pipeline import Pipeline
 from gremlins.pipeline.discovery import resolve_pipeline_path
 
@@ -54,10 +57,26 @@ def extract_client_spec(args: list[str]) -> str:
     return extract_arg_value(args, "--client")
 
 
+def _load_global_config() -> dict[str, Any]:
+    path = user_config_root() / "config.json"
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        return {}
+    if not isinstance(data, dict):
+        raise ValueError(f"config file {path} must contain a JSON object, got {type(data).__name__}")
+    return data
+
+
 def launch_client_label(pipeline_args: list[str], pipeline: Pipeline | None) -> str:
     client_spec = extract_client_spec(pipeline_args)
     if client_spec:
         return client_spec
+    cfg = _load_global_config()
+    global_client = cfg.get("default_client", "") or ""
+    if global_client:
+        return str(global_client)
     if pipeline and pipeline.default_client:
         return str(pipeline.default_client)
     raise ValueError(
