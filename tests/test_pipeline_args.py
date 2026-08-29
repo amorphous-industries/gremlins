@@ -27,7 +27,7 @@ class TestLoadGlobalConfig:
     def test_raises_on_malformed_json(self, sandbox):
         sandbox.config.mkdir(parents=True, exist_ok=True)
         (sandbox.config / "config.json").write_text("{bad")
-        with pytest.raises(ValueError, match="Expecting"):
+        with pytest.raises(ValueError, match="config.json is not valid JSON"):
             _load_global_config()
 
 
