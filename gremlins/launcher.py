@@ -340,11 +340,11 @@ def _bake_prefix_clients(
     wins (most specific match).  A tied length is resolved by dict insertion
     order (last with that length wins).
     """
-    exact_map, prefix_map = prefix_map
-    if not exact_map and not prefix_map:
+    _exact_map, _prefix_map = prefix_map
+    if not _exact_map and not _prefix_map:
         return
     for stage in cast(list[dict[str, Any]], expanded.get("stages") or []):
-        _bake_prefix_clients_into_stage(stage, exact_map, prefix_map)
+        _bake_prefix_clients_into_stage(stage, _exact_map, _prefix_map)
 
 
 def _bake_prefix_clients_into_stage(

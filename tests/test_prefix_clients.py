@@ -114,10 +114,13 @@ def test_longest_matching_prefix_wins():
     ]
     _bake_prefix_clients(
         _expanded_stages(stages),
-        ({}, {
-            "review-": "openai:gpt-5",
-            "review-deploy-": "openrouter:doomclientv5",
-        }),
+        (
+            {},
+            {
+                "review-": "openai:gpt-5",
+                "review-deploy-": "openrouter:doomclientv5",
+            },
+        ),
     )
     # "review-code" matches only "review-" (len 7).
     assert stages[0].get("client") == "openai:gpt-5"
@@ -184,4 +187,6 @@ class TestIntegrationWithGlobalConfig:
         stages = [{"name": "review"}, {"name": "review-code"}]
         _bake_prefix_clients(_expanded_stages(stages), (exact, prefix))
         assert stages[0].get("client") == "openai:gpt-5", "exact match should win"
-        assert stages[1].get("client") == "openrouter:doomclientv5", "prefix should match sub-string"
+        assert stages[1].get("client") == "openrouter:doomclientv5", (
+            "prefix should match sub-string"
+        )
