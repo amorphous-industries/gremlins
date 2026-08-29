@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import pathlib
-from typing import Any
+from typing import Any, cast
 
 from gremlins.paths import user_config_root
 from gremlins.pipeline import Pipeline
@@ -68,7 +68,7 @@ def _load_global_config() -> dict[str, Any]:
         raise ValueError(
             f"config file {path} must contain a JSON object, got {type(data).__name__}"
         )
-    return data
+    return cast(dict[str, Any], data)
 
 
 def launch_client_label(pipeline_args: list[str], pipeline: Pipeline | None) -> str:
