@@ -66,4 +66,3 @@ class TestLaunchClientLabel:
 class FakePipeline:
     def __init__(self, default_client):
         self.default_client = default_client
-
