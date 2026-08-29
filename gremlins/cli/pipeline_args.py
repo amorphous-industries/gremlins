@@ -65,9 +65,7 @@ def _load_global_config() -> dict[str, Any]:
     except FileNotFoundError:
         return {}
     except json.JSONDecodeError as e:
-        raise ValueError(
-            f"config file {path} is not valid JSON: {e}"
-        ) from e
+        raise ValueError(f"config file {path} is not valid JSON: {e}") from e
     if not isinstance(data, dict):
         raise ValueError(
             f"config file {path} must contain a JSON object, got {type(data).__name__}"
