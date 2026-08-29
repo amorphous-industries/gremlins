@@ -65,7 +65,9 @@ def _load_global_config() -> dict[str, Any]:
     except FileNotFoundError:
         return {}
     if not isinstance(data, dict):
-        raise ValueError(f"config file {path} must contain a JSON object, got {type(data).__name__}")
+        raise ValueError(
+            f"config file {path} must contain a JSON object, got {type(data).__name__}"
+        )
     return data
 
 

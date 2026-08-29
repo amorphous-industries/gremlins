@@ -33,15 +33,11 @@ class TestLoadGlobalConfig:
 
 class TestLaunchClientLabel:
     def test_cli_flag_wins(self):
-        result = launch_client_label(
-            ["--client", "a:b"], FakePipeline("e:f")
-        )
+        result = launch_client_label(["--client", "a:b"], FakePipeline("e:f"))
         assert result == "a:b"
 
     def test_cli_flag_equals_form_wins(self):
-        result = launch_client_label(
-            ["--client=c:d"], FakePipeline("e:f")
-        )
+        result = launch_client_label(["--client=c:d"], FakePipeline("e:f"))
         assert result == "c:d"
 
     def test_global_config_beats_pipeline(self, sandbox):
@@ -62,9 +58,7 @@ class TestLaunchClientLabel:
 
     def test_global_config_empty_default_client_falls_through(self, sandbox):
         sandbox.config.mkdir(parents=True, exist_ok=True)
-        (sandbox.config / "config.json").write_text(
-            json.dumps({"default_client": ""})
-        )
+        (sandbox.config / "config.json").write_text(json.dumps({"default_client": ""}))
         result = launch_client_label([], FakePipeline("e:f"))
         assert result == "e:f"
 
