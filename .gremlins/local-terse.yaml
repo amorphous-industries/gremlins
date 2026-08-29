@@ -1,4 +1,3 @@
-default_client: openrouter:deepseek-v4-pro
 base_ref: current
 prompt_dir: prompts
 

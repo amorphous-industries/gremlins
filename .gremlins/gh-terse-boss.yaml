@@ -1,4 +1,3 @@
-default_client: xai:grok-4
 base_ref: current
 
 prompt_dir: prompts
