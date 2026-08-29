@@ -321,11 +321,46 @@ def _append_graft(
     return name
 
 
+def _bake_prefix_clients(expanded: dict[str, Any], prefix_map: dict[str, str]) -> None:
+    """Apply global config prefix rules to the expanded pipeline dict.
+
+    Modifies ``expanded["stages"]`` in place, adding a ``client`` field to
+    stages whose names match a prefix and which don't already have an
+    explicit ``client:``.  Child lists (``parallel``, ``body``) are recursed
+    into so loop/sequence/parallel stages are covered.
+    """
+    if not prefix_map:
+        return
+    for stage in cast(list[dict[str, Any]], expanded.get("stages") or []):
+        _bake_prefix_clients_into_stage(stage, prefix_map)
+
+
+def _bake_prefix_clients_into_stage(
+    stage: dict[str, Any], prefix_map: dict[str, str]
+) -> None:
+    name = stage.get("name", "")
+    if isinstance(name, str) and "client" not in stage:
+        for prefix, client_spec in prefix_map.items():
+            if name.startswith(prefix):
+                stage["client"] = client_spec
+                break
+    # Recurse into child containers for parallel, loop, sequence.
+    for key in ("parallel", "body"):
+        for child in cast(list[dict[str, Any]], stage.get(key) or []):
+            _bake_prefix_clients_into_stage(child, prefix_map)
+
+
 def _persist_expanded_pipeline(state_dir: pathlib.Path, pipeline_path: str) -> str:
+    from gremlins.cli.pipeline_args import load_prefix_clients
     from gremlins.pipeline.preprocess import expand_pipeline
     from gremlins.utils.yaml_io import dump_yaml_text
 
     expanded = expand_pipeline(pathlib.Path(pipeline_path))
+
+    # Bake global config prefix rules into the persisted pipeline so the
+    # child subprocess doesn't need to read the config file at runtime.
+    _bake_prefix_clients(expanded, load_prefix_clients())
+
     expanded["__gremlins_expanded__"] = True
     dest = state_dir / "pipeline.yaml"
     dest.write_text(dump_yaml_text(expanded), encoding="utf-8")

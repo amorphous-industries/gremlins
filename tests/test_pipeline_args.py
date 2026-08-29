@@ -4,7 +4,11 @@ import json
 
 import pytest
 
-from gremlins.cli.pipeline_args import _load_global_config, launch_client_label
+from gremlins.cli.pipeline_args import (
+    _load_global_config,
+    launch_client_label,
+    load_prefix_clients,
+)
 
 
 class TestLoadGlobalConfig:
@@ -14,9 +18,9 @@ class TestLoadGlobalConfig:
     def test_returns_parsed_dict(self, sandbox):
         sandbox.config.mkdir(parents=True, exist_ok=True)
         (sandbox.config / "config.json").write_text(
-            json.dumps({"default_client": "openai:gpt-4o"})
+            json.dumps({"default-client": "openai:gpt-4o"})
         )
-        assert _load_global_config() == {"default_client": "openai:gpt-4o"}
+        assert _load_global_config() == {"default-client": "openai:gpt-4o"}
 
     def test_raises_on_non_dict_top_level(self, sandbox):
         sandbox.config.mkdir(parents=True, exist_ok=True)
@@ -31,6 +35,61 @@ class TestLoadGlobalConfig:
             _load_global_config()
 
 
+class TestLoadPrefixClients:
+    def test_returns_empty_when_no_file(self, sandbox):
+        assert load_prefix_clients() == {}
+
+    def test_returns_empty_when_no_prefix_keys(self, sandbox):
+        sandbox.config.mkdir(parents=True, exist_ok=True)
+        (sandbox.config / "config.json").write_text(
+            json.dumps({"default-client": "a:b"})
+        )
+        assert load_prefix_clients() == {}
+
+    def test_extracts_prefix_rules(self, sandbox):
+        sandbox.config.mkdir(parents=True, exist_ok=True)
+        (sandbox.config / "config.json").write_text(
+            json.dumps(
+                {
+                    "default-client": "a:b",
+                    "default-client-by-stage": {
+                        "local-review-*": "openrouter:doomclientv5",
+                        "plan-*": "openai:gpt-5",
+                    },
+                }
+            )
+        )
+        result = load_prefix_clients()
+        assert result == {
+            "local-review-": "openrouter:doomclientv5",
+            "plan-": "openai:gpt-5",
+        }
+
+    def test_ignores_non_string_values(self, sandbox):
+        sandbox.config.mkdir(parents=True, exist_ok=True)
+        (sandbox.config / "config.json").write_text(
+            json.dumps(
+                {
+                    "default-client-by-stage": {
+                        "prefix-*": 42,
+                        "valid-*": "openrouter:model",
+                    },
+                }
+            )
+        )
+        result = load_prefix_clients()
+        assert result == {"valid-": "openrouter:model"}
+
+    def test_strips_trailing_star_only(self, sandbox):
+        sandbox.config.mkdir(parents=True, exist_ok=True)
+        (sandbox.config / "config.json").write_text(
+            json.dumps({"default-client-by-stage": {"local-*": "openrouter:model"}})
+        )
+        result = load_prefix_clients()
+        assert "local-" in result
+        assert result["local-"] == "openrouter:model"
+
+
 class TestLaunchClientLabel:
     def test_cli_flag_wins(self, sandbox):
         result = launch_client_label(["--client", "a:b"], FakePipeline("e:f"))
@@ -43,7 +102,7 @@ class TestLaunchClientLabel:
     def test_global_config_beats_pipeline(self, sandbox):
         sandbox.config.mkdir(parents=True, exist_ok=True)
         (sandbox.config / "config.json").write_text(
-            json.dumps({"default_client": "c:d"})
+            json.dumps({"default-client": "c:d"})
         )
         result = launch_client_label([], FakePipeline("e:f"))
         assert result == "c:d"
@@ -58,7 +117,7 @@ class TestLaunchClientLabel:
 
     def test_global_config_empty_default_client_falls_through(self, sandbox):
         sandbox.config.mkdir(parents=True, exist_ok=True)
-        (sandbox.config / "config.json").write_text(json.dumps({"default_client": ""}))
+        (sandbox.config / "config.json").write_text(json.dumps({"default-client": ""}))
         result = launch_client_label([], FakePipeline("e:f"))
         assert result == "e:f"
 

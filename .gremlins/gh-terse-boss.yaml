@@ -29,12 +29,11 @@ stages:
                   git fetch origin "refs/heads/$branch:refs/remotes/origin/$branch" && git checkout --detach "origin/$branch"
                 fi
               fi
-      - { name: handoff, type: gremlins:handoff, client: xai:grok-4 }
+      - { name: handoff, type: gremlins:handoff }
       - { include: gh-terse }
 
   - name: review-chain
     type: review-code
-    client: xai:grok-4
     prompt: [code-style, gremlins:review/chain.md, dev-env]
 
   - name: address-chain

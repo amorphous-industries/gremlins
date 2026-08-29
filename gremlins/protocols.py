@@ -35,6 +35,7 @@ class StageProtocol(Protocol):
     out_map: dict[str, str]
     gremlin: GremlinProtocol | None
     client: Any
+    client_explicit: bool
     skip_if_exists: str
 
     async def run(self, gremlin: Any) -> Any:
