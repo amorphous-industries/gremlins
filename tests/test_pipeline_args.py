@@ -27,16 +27,16 @@ class TestLoadGlobalConfig:
     def test_raises_on_malformed_json(self, sandbox):
         sandbox.config.mkdir(parents=True, exist_ok=True)
         (sandbox.config / "config.json").write_text("{bad")
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Expecting"):
             _load_global_config()
 
 
 class TestLaunchClientLabel:
-    def test_cli_flag_wins(self):
+    def test_cli_flag_wins(self, sandbox):
         result = launch_client_label(["--client", "a:b"], FakePipeline("e:f"))
         assert result == "a:b"
 
-    def test_cli_flag_equals_form_wins(self):
+    def test_cli_flag_equals_form_wins(self, sandbox):
         result = launch_client_label(["--client=c:d"], FakePipeline("e:f"))
         assert result == "c:d"
 
@@ -66,3 +66,4 @@ class TestLaunchClientLabel:
 class FakePipeline:
     def __init__(self, default_client):
         self.default_client = default_client
+

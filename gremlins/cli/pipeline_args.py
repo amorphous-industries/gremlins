@@ -76,11 +76,13 @@ def launch_client_label(pipeline_args: list[str], pipeline: Pipeline | None) -> 
     if client_spec:
         return client_spec
     cfg = _load_global_config()
-    global_client = cfg.get("default_client", "") or ""
+    global_client = cfg.get("default_client")
     if global_client:
         return str(global_client)
     if pipeline and pipeline.default_client:
         return str(pipeline.default_client)
     raise ValueError(
-        "no client configured — pass --client or ensure the pipeline declares default_client"
+        "no client configured — pass --client, set default_client in "
+        "~/.config/gremlins/config.json, or ensure the pipeline declares "
+        "default_client"
     )
