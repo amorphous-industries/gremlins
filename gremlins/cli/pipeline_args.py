@@ -73,12 +73,31 @@ def _load_global_config() -> dict[str, Any]:
     return cast(dict[str, Any], data)
 
 
+def load_prefix_clients() -> dict[str, str]:
+    """Extract prefix-based client rules from the global config.
+
+    Loads ``default-client-by-stage`` object from the config file, e.g.
+    ``{"default-client-by-stage": {"local-review-*": "openrouter:doomclientv5"}}``
+    means any stage whose name starts with ``local-review-`` gets that client.
+    Returns an empty dict when no config file exists or the key is absent.
+    """
+    cfg = _load_global_config()
+    raw = cfg.get("default-client-by-stage")
+    if not isinstance(raw, dict):
+        return {}
+    prefixes: dict[str, str] = {}
+    for key, value in raw.items():
+        if isinstance(key, str) and key.endswith("*") and isinstance(value, str):
+            prefixes[key[:-1]] = value
+    return prefixes
+
+
 def launch_client_label(pipeline_args: list[str], pipeline: Pipeline | None) -> str:
     client_spec = extract_client_spec(pipeline_args)
     if client_spec:
         return client_spec
     cfg = _load_global_config()
-    global_client = cfg.get("default_client")
+    global_client = cfg.get("default-client")
     if isinstance(global_client, str) and global_client:
         return global_client
     if pipeline and pipeline.default_client:

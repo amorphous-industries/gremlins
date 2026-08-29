@@ -61,13 +61,11 @@ stages:
       - name: local-review-one
         type: agent
         prompt: [code-style, terse, dev-env, local_review.md]
-        client: openrouter:deepseek-v4-pro
         out:
           local-review-one: "file://session/local-review-one.md"
       - name: local-review-two
         type: agent
         prompt: [code-style, terse, dev-env, local_review.md]
-        client: openrouter:x-ai/grok-4.5
         out:
           local-review-two: "file://session/local-review-two.md"
 

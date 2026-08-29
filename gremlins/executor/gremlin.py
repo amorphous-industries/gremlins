@@ -524,6 +524,7 @@ class Gremlin:
             )
         except (FileNotFoundError, _YamlLoadError, ValueError) as exc:
             raise ValueError(str(exc)) from exc
+
         resolved_client = None
         if client_label:
             resolved_client = Client.parse(client_label)
