@@ -106,22 +106,24 @@ def test_respects_existing_client_in_parallel_child():
     assert children[1].get("client") == "openrouter:doomclientv5"
 
 
-def test_multiple_prefixes_first_match_wins():
+def test_longest_matching_prefix_wins():
+    """When multiple prefixes match, the longest (most specific) wins."""
     stages = [
         {"name": "review-code"},
-        {"name": "local-review-one"},
-        {"name": "plan"},
+        {"name": "review-deploy-staging"},
     ]
     _bake_prefix_clients(
         _expanded_stages(stages),
         {
-            "local-review-": "openrouter:doomclientv5",
             "review-": "openai:gpt-5",
+            "review-deploy-": "openrouter:doomclientv5",
         },
     )
+    # "review-code" matches only "review-" (len 7).
     assert stages[0].get("client") == "openai:gpt-5"
+    # "review-deploy-staging" matches both, but "review-deploy-" (len 15) is
+    # longer than "review-" (len 7), so it wins.
     assert stages[1].get("client") == "openrouter:doomclientv5"
-    assert "client" not in stages[2]
 
 
 def test_noop_on_empty_stages():

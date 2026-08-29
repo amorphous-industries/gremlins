@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import pathlib
 from typing import Any, cast
 
 from gremlins.paths import user_config_root
 from gremlins.pipeline import Pipeline
 from gremlins.pipeline.discovery import resolve_pipeline_path
+
+logger = logging.getLogger(__name__)
 
 
 def resolve_pipeline(
@@ -88,8 +91,32 @@ def load_prefix_clients() -> dict[str, str]:
     prefixes: dict[str, str] = {}
     raw_dict = cast(dict[str, Any], raw)
     for key, value in raw_dict.items():
-        if key.endswith("*") and isinstance(value, str):
-            prefixes[key[:-1]] = value
+        if not isinstance(value, str):
+            logger.warning(
+                "config key %r in default-client-by-stage has non-string value "
+                "%r — skipping",
+                key,
+                value,
+            )
+            continue
+        if not key.endswith("*"):
+            logger.warning(
+                "config key %r in default-client-by-stage is missing a trailing "
+                "'*' — it must use a glob pattern like %r-* to match stage "
+                "names; skipping",
+                key,
+                key,
+            )
+            continue
+        prefix = key[:-1]
+        if not prefix:
+            logger.warning(
+                "config key %r in default-client-by-stage produces an empty "
+                "prefix, which would match every stage — skipping",
+                key,
+            )
+            continue
+        prefixes[prefix] = value
     return prefixes
 
 
@@ -105,7 +132,7 @@ def launch_client_label(pipeline_args: list[str], pipeline: Pipeline | None) -> 
         return str(pipeline.default_client)
     config_path = user_config_root() / "config.json"
     raise ValueError(
-        "no client configured — pass --client, set default_client in "
+        "no client configured — pass --client, set default-client in "
         f"{config_path}, or ensure the pipeline declares "
-        "default_client"
+        "default-client"
     )

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 
 import pytest
 
@@ -65,7 +66,7 @@ class TestLoadPrefixClients:
             "plan-": "openai:gpt-5",
         }
 
-    def test_ignores_non_string_values(self, sandbox):
+    def test_ignores_non_string_values(self, sandbox, caplog):
         sandbox.config.mkdir(parents=True, exist_ok=True)
         (sandbox.config / "config.json").write_text(
             json.dumps(
@@ -77,8 +78,46 @@ class TestLoadPrefixClients:
                 }
             )
         )
-        result = load_prefix_clients()
+        with caplog.at_level(logging.WARNING):
+            result = load_prefix_clients()
         assert result == {"valid-": "openrouter:model"}
+        assert "non-string value" in caplog.text
+        assert "prefix-*" in caplog.text
+
+    def test_skips_key_without_trailing_star(self, sandbox, caplog):
+        sandbox.config.mkdir(parents=True, exist_ok=True)
+        (sandbox.config / "config.json").write_text(
+            json.dumps(
+                {
+                    "default-client-by-stage": {
+                        "local-review": "openrouter:model",
+                        "plan-*": "openai:gpt-5",
+                    },
+                }
+            )
+        )
+        with caplog.at_level(logging.WARNING):
+            result = load_prefix_clients()
+        assert result == {"plan-": "openai:gpt-5"}
+        assert "missing a trailing '*'" in caplog.text
+        assert "local-review" in caplog.text
+
+    def test_skips_empty_prefix_from_bare_star(self, sandbox, caplog):
+        sandbox.config.mkdir(parents=True, exist_ok=True)
+        (sandbox.config / "config.json").write_text(
+            json.dumps(
+                {
+                    "default-client-by-stage": {
+                        "*": "openrouter:model",
+                        "plan-*": "openai:gpt-5",
+                    },
+                }
+            )
+        )
+        with caplog.at_level(logging.WARNING):
+            result = load_prefix_clients()
+        assert result == {"plan-": "openai:gpt-5"}
+        assert "empty prefix" in caplog.text
 
     def test_strips_trailing_star_only(self, sandbox):
         sandbox.config.mkdir(parents=True, exist_ok=True)

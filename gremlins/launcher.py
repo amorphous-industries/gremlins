@@ -328,6 +328,11 @@ def _bake_prefix_clients(expanded: dict[str, Any], prefix_map: dict[str, str]) -
     stages whose names match a prefix and which don't already have an
     explicit ``client:``.  Child lists (``parallel``, ``body``) are recursed
     into so loop/sequence/parallel stages are covered.
+
+    When multiple prefixes match a stage name, the **longest** prefix wins
+    (i.e. the most specific match).  Prefixes of equal length are resolved
+    by dict insertion order (tied prefix later in the dict wins only if an
+    earlier tied prefix of the same length did not match).
     """
     if not prefix_map:
         return
@@ -340,11 +345,21 @@ def _bake_prefix_clients_into_stage(
 ) -> None:
     name = stage.get("name", "")
     if isinstance(name, str) and "client" not in stage:
+        # Longest matching prefix wins (most specific match).
+        best_prefix: str | None = None
+        best_client: str | None = None
         for prefix, client_spec in prefix_map.items():
-            if name.startswith(prefix):
-                stage["client"] = client_spec
-                break
-    # Recurse into child containers for parallel, loop, sequence.
+            if name.startswith(prefix) and (
+                best_prefix is None or len(prefix) > len(best_prefix)
+            ):
+                best_prefix = prefix
+                best_client = client_spec
+        if best_prefix is not None:
+            stage["client"] = best_client
+    # Recurse into child containers. The authoritative set of container
+    # keys is defined by the stage-type-to-container mapping; see
+    # gremlins/pipeline/loader.py (STAGE_TYPES) and preprocess.py
+    # for the canonical list of stage types and their child fields.
     for key in ("parallel", "body"):
         for child in cast(list[dict[str, Any]], stage.get(key) or []):
             _bake_prefix_clients_into_stage(child, prefix_map)
