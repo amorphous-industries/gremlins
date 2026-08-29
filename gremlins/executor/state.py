@@ -515,6 +515,10 @@ class State:
                 base_state.data.set_stage(
                     entry.name, parent_stage=base_state.parent_stage
                 )
+            # Sync the per-stage client to state.json so fleet listings
+            # reflect the actual model in use for the current stage.
+            if str(base_state.client) != base_state.data.client:
+                base_state.data.patch(client=str(base_state.client))
             if attempt:
                 if base_state.child_key:
                     base_state.data.patch_parallel_attempt(
