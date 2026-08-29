@@ -325,14 +325,22 @@ def _bake_prefix_clients(expanded: dict[str, Any], prefix_map: dict[str, str]) -
     """Apply global config prefix rules to the expanded pipeline dict.
 
     Modifies ``expanded["stages"]`` in place, adding a ``client`` field to
-    stages whose names match a prefix and which don't already have an
-    explicit ``client:``.  Child lists (``parallel``, ``body``) are recursed
-    into so loop/sequence/parallel stages are covered.
+    stages whose names match an entry in ``prefix_map`` and which don't
+    already have an explicit ``client:``.  Child lists (``parallel``,
+    ``body``) are recursed into so loop/sequence/parallel stages are covered.
 
-    When multiple prefixes match a stage name, the **longest** prefix wins
-    (i.e. the most specific match).  Prefixes of equal length are resolved
-    by dict insertion order (tied prefix later in the dict wins only if an
-    earlier tied prefix of the same length did not match).
+    The map contains two kinds of entries:
+
+    * **Exact name matches** — keys stored as-is (e.g. ``"local-review-one"``).
+      These only match a stage whose name equals that string.
+
+    * **Prefix globs** — keys whose trailing ``*`` was stripped
+      (e.g. ``"local-review-"`` from ``"local-review-*"``).  These match any
+      stage whose name starts with the prefix.
+
+    When multiple entries match a stage name the **longest** key wins (most
+    specific match).  A tied length is resolved by dict insertion order (last
+    with that length wins).
     """
     if not prefix_map:
         return
@@ -367,6 +375,7 @@ def _bake_prefix_clients_into_stage(
 
 def _persist_expanded_pipeline(state_dir: pathlib.Path, pipeline_path: str) -> str:
     from gremlins.cli.pipeline_args import load_prefix_clients
+    from gremlins.config import get_config as _get_config
     from gremlins.pipeline.preprocess import expand_pipeline
     from gremlins.utils.yaml_io import dump_yaml_text
 
@@ -375,6 +384,14 @@ def _persist_expanded_pipeline(state_dir: pathlib.Path, pipeline_path: str) -> s
     # Bake global config prefix rules into the persisted pipeline so the
     # child subprocess doesn't need to read the config file at runtime.
     _bake_prefix_clients(expanded, load_prefix_clients())
+
+    # Inject default_client from global config if the pipeline doesn't
+    # declare one.  The child subprocess loads the persisted YAML without
+    # access to the config file, so we bake it in here.
+    if "default_client" not in expanded:
+        _global_client = _get_config().default_client
+        if _global_client:
+            expanded["default_client"] = _global_client
 
     expanded["__gremlins_expanded__"] = True
     dest = state_dir / "pipeline.yaml"

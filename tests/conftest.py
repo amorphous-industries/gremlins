@@ -204,6 +204,20 @@ def _restore_os_environ():
 
 
 @pytest.fixture(autouse=True)
+def _reset_config() -> None:
+    """Clear the gremlins.config module-level singleton between tests.
+
+    Each test gets a unique sandbox, so the previously cached Config
+    instance would point to the old sandbox's config.json.  Resetting
+    it here ensures get_config() re-reads from the new sandbox on its
+    first call.
+    """
+    from gremlins.config import clear
+
+    clear()
+
+
+@pytest.fixture(autouse=True)
 def sandbox(monkeypatch, request):
     node_id = re.sub(r"[^\w]", "_", request.node.nodeid)[-60:]
     scratch_dir = os.environ.get("GREMLINS_SCRATCH_DIR", "/tmp")

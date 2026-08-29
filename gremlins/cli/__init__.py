@@ -64,6 +64,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from gremlins import config as _config
+
+    _config.init()
+
     if argv is None:
         argv = sys.argv[1:]
 
