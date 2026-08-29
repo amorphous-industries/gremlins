@@ -176,7 +176,13 @@ async def _execute_bind_artifact(
     if os.path.isfile(value_str):
         shutil.copy2(value_str, dest_path)
     else:
-        dest_path.write_text(value_str, encoding="utf-8")
+        # Filepath may be relative to project root (e.g. --plan paths), not the worktree.
+        project_root = getattr(gremlin, "project_root", None) or ""
+        project_path = os.path.join(project_root, value_str) if project_root else None
+        if project_path and os.path.isfile(project_path):
+            shutil.copy2(project_path, dest_path)
+        else:
+            dest_path.write_text(value_str, encoding="utf-8")
 
     gremlin.registry.bind(artifact_key, uri)
 

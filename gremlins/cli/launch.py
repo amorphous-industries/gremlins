@@ -120,7 +120,19 @@ def launch_main(argv: list[str]) -> int:
         return 1
 
     try:
-        pipeline = Pipeline.from_yaml(pipeline_path)
+        # Quick pre-parse of --client from argv so we can inline it into the
+        # pipeline YAML before loader validation.
+        _client_override: str | None = None
+        for i, a in enumerate(argv):
+            if a == "--client" and i + 1 < len(argv):
+                _client_override = argv[i + 1]
+                break
+            if a.startswith("--client="):
+                _client_override = a.split("=", 1)[1]
+                break
+        pipeline = Pipeline.from_yaml(
+            pipeline_path, default_client_override=_client_override
+        )
     except (ValueError, YamlLoadError, FileNotFoundError) as exc:
         sys.stderr.write(
             f"error: pipeline '{name}' is invalid: {exc}\n  (file: {pipeline_path})\n"

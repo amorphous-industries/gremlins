@@ -103,6 +103,25 @@ def test_write_bail_file_noop_without_attempt(sandbox):
     assert not bail_files
 
 
+def test_write_bail_file_fallback_to_disk_attempt(sandbox):
+    """When attempt arg is empty but state.json on disk has an attempt
+    field, write_bail_file should read it from disk instead of no-oping."""
+    gremlin_id = "gr-bail-disk-fallback"
+    state_dir = sandbox.state / gremlin_id
+    state_dir.mkdir(parents=True)
+    (state_dir / "state.json").write_text(
+        json.dumps({"id": gremlin_id, "attempt": "disk-attempt-abc"})
+    )
+
+    state_mod.StateData.load(gremlin_id).write_bail_file("other", "reason", attempt="")
+
+    bail_path = state_dir / "bail_disk-attempt-abc.json"
+    assert bail_path.exists()
+    data = json.loads(bail_path.read_text())
+    assert data["class"] == "other"
+    assert data["detail"] == "reason"
+
+
 # ---------------------------------------------------------------------------
 # run_pipeline_main — gremlins/spawn/pipeline.py
 # ---------------------------------------------------------------------------
@@ -258,7 +277,8 @@ def test_launch_unified_dispatch_calls_launch(monkeypatch):
         lambda name, root: pathlib.Path(f"/fake/{name}.yaml"),
     )
     monkeypatch.setattr(
-        "gremlins.cli.launch.Pipeline.from_yaml", lambda path: _make_fake_pipeline()
+        "gremlins.cli.launch.Pipeline.from_yaml",
+        lambda path, **kw: _make_fake_pipeline(),
     )
     launched = []
     fake_proc = MagicMock()
@@ -329,7 +349,7 @@ def test_launch_invalid_pipeline_exits_nonzero_with_message(monkeypatch, capsys,
         lambda name, root: pathlib.Path(f"/fake/{name}.yaml"),
     )
 
-    def _raise(_path):
+    def _raise(_path, **kw):
         raise exc
 
     monkeypatch.setattr("gremlins.cli.launch.Pipeline.from_yaml", _raise)
@@ -353,7 +373,8 @@ def test_launch_unified_dispatch_help_for_resolved_pipeline(monkeypatch, capsys)
         lambda name, root: pathlib.Path(f"/fake/{name}.yaml"),
     )
     monkeypatch.setattr(
-        "gremlins.cli.launch.Pipeline.from_yaml", lambda path: _make_fake_pipeline()
+        "gremlins.cli.launch.Pipeline.from_yaml",
+        lambda path, **kw: _make_fake_pipeline(),
     )
     rc = main(["launch", "local", "--help"])
     assert rc == 0
@@ -377,7 +398,7 @@ def test_launch_list_prints_pipeline_names(tmp_path, monkeypatch, capsys):
 
     from gremlins.pipeline import Pipeline
 
-    def fake_load(path):
+    def fake_load(path, **kw):
         return Pipeline(name=path.stem, path=path, stages=[])
 
     monkeypatch.setattr("gremlins.cli.launch.Pipeline.from_yaml", fake_load)
@@ -396,7 +417,7 @@ def test_launch_list_shows_unloadable_on_exception(tmp_path, monkeypatch, capsys
         "gremlins.cli.launch.list_pipelines", lambda root: fake_pipelines
     )
 
-    def _raise(_path):
+    def _raise(_path, **kw):
         raise ValueError("bad yaml")
 
     monkeypatch.setattr("gremlins.cli.launch.Pipeline.from_yaml", _raise)

@@ -484,10 +484,10 @@ class Gremlin:
         Used when the landing cwd differs from the default (e.g., when walking
         up a chain of parent gremlins to find the topmost repository).
         """
-        state_data = StateData.load(self.gremlin_id)
+        data = StateData.load(self.gremlin_id)
         default_client = self.pipeline_data.default_client
         assert default_client is not None, "pipeline has no default_client"
-        kwargs = self._make_build_state_kwargs(state_data, default_client)
+        kwargs = self._make_build_state_kwargs(data, default_client)
         kwargs["cwd"] = cwd
         kwargs["worktree"] = None
         return build_state(**kwargs)
@@ -514,8 +514,15 @@ class Gremlin:
     ) -> Gremlin:
         try:
             pipeline_path = resolve_pipeline_path(pipeline_ref, project_dir)
-            pipeline = _PipelineData.from_yaml(pipeline_path)
-        except (FileNotFoundError, _YamlLoadError) as exc:
+            # Inline client at launch: if a --client label was provided and the
+            # pipeline YAML doesn't declare default_client, inject it so the
+            # loader never sees None.
+            pipeline = _PipelineData.from_yaml(
+                pipeline_path,
+                default_client_override=client_label
+                or (str(client) if client else None),
+            )
+        except (FileNotFoundError, _YamlLoadError, ValueError) as exc:
             raise ValueError(str(exc)) from exc
         resolved_client = None
         if client_label:

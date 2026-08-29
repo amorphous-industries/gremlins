@@ -209,7 +209,8 @@ async def run_pipeline(
     project_dir = pathlib.Path(project_root) if project_root else paths.project_root()
     try:
         _pipeline_preview = _PipelineData.from_yaml(
-            resolve_pipeline_path(str(pipeline_path), project_dir)
+            resolve_pipeline_path(str(pipeline_path), project_dir),
+            default_client_override=args.client,
         )
     except (FileNotFoundError, _YamlLoadError, ValueError) as exc:
         die(str(exc))

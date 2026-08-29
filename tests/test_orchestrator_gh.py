@@ -1536,8 +1536,8 @@ def test_gh_main_pipeline_default_client_model(tmp_path, monkeypatch):
         for child in getattr(stage, "body", []):
             _strip_clients_2(child)
 
-    def _from_yaml_copilot_default(path):
-        pipeline = _real_from_yaml(path)
+    def _from_yaml_copilot_default(path, **kwargs):
+        pipeline = _real_from_yaml(path, **kwargs)
         new_default = Client("openai", "gpt-4o")
         for s in pipeline.stages:
             _strip_clients_2(s)
