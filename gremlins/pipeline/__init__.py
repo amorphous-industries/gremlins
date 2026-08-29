@@ -94,11 +94,8 @@ class Pipeline:
 
         check_duplicate_producers(stages, extra_out=bootstrap.cli_out)
 
-        if default_client is None:
-            raise ValueError(
-                "pipeline is missing 'default_client' — every pipeline must declare one"
-            )
-        _fill_stage_clients(stages, default_client)
+        if default_client is not None:
+            _fill_stage_clients(stages, default_client)
 
         return cls(
             name=pipeline_name,

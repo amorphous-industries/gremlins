@@ -351,7 +351,11 @@ class Gremlin:
         for e in stages:
             self._set_gremlin_recursive(e)
             stage_client = e.client
-            assert stage_client is not None, f"stage {e.name!r} has no client"
+            if stage_client is None:
+                raise ValueError(
+                    f"stage {e.name!r} has no client — set a 'default_client' in the pipeline "
+                    "YAML, pass --client on the command line, or add 'client:' to the stage"
+                )
             stage_data = StateData(
                 gremlin_id=self.gremlin_id, state_file=self.state_file
             )
@@ -486,7 +490,11 @@ class Gremlin:
         """
         state_data = StateData.load(self.gremlin_id)
         default_client = self.pipeline_data.default_client
-        assert default_client is not None, "pipeline has no default_client"
+        if default_client is None:
+            raise ValueError(
+                "pipeline has no default_client — set a 'default_client' in the pipeline "
+                "YAML or pass --client on the command line"
+            )
         kwargs = self._make_build_state_kwargs(state_data, default_client)
         kwargs["cwd"] = cwd
         kwargs["worktree"] = None
@@ -593,7 +601,11 @@ class Gremlin:
 
             state_data = StateData.load(self.gremlin_id)
             default_client = resolved_client or self.pipeline_data.default_client
-            assert default_client is not None, "pipeline has no default_client"
+            if default_client is None:
+                raise ValueError(
+                    "pipeline has no default_client — set a 'default_client' in the pipeline "
+                    "YAML or pass --client on the command line"
+                )
             self.state = build_state(
                 **self._make_build_state_kwargs(state_data, default_client)
             )

@@ -27,7 +27,6 @@ stages:
       base_ref_to_open_pr: base_ref_to_open_pr
       pr_branch: pr_branch
       pr_title: pr_title
-      pr_body: pr_body
     out:
       pr-number: "file://session/pr-number.txt"
       pr-url:    "file://session/pr-url.txt"
@@ -37,9 +36,9 @@ stages:
       cmds:
         - |
           SUFFIX=$([ "{loop_iteration}" -gt 1 ] && echo "-iter{loop_iteration}" || echo "") &&
-          BRANCH="${pr_branch}${SUFFIX}" &&
+          BRANCH="$(printf '%s' "${pr_branch}")${SUFFIX}" &&
           git push origin "HEAD:refs/heads/$BRANCH" &&
-          URL="$(gh pr create --head "$BRANCH" --base "$base_ref_to_open_pr" --title "$pr_title" --body-file "{artifact:pr_body}")" &&
+          URL="$(gh pr create --head "$BRANCH" --base "$base_ref_to_open_pr" --title "$(printf '%s' "$pr_title")" --body-file "{artifact:pr_body}")" &&
           printf "%s" "${URL##*/}" > "{artifact_dir}/pr-number.txt" &&
           printf "%s" "$URL" > "{artifact_dir}/pr-url.txt" &&
           printf "%s" "$BRANCH" > "{artifact_dir}/pr-branch.txt"

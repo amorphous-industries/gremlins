@@ -1,5 +1,5 @@
-# Relies on LoopStage's head_stable exit predicate — only use in pipeline
-# positions where HEAD does not move between poll iterations.
+# Stops when the status file is written (via stop_when_exists: status) — only use
+# in pipeline positions where HEAD does not move between poll iterations.
 
 stages:
   - name: github-wait-copilot
