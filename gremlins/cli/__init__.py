@@ -64,10 +64,6 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    from gremlins import config as _config
-
-    _config.init()
-
     if argv is None:
         argv = sys.argv[1:]
 
@@ -78,6 +74,16 @@ def main(argv: list[str] | None = None) -> int:
     if sub in ("-h", "--help"):
         _build_parser().print_help()
         return 0
+
+    from gremlins import config as _config
+
+    try:
+        _config.init()
+    except ValueError as exc:
+        import sys as _sys
+
+        print(f"error: {exc}", file=_sys.stderr)
+        return 1
 
     entry = _DISPATCH.get(sub)
     if entry is not None:

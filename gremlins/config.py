@@ -60,24 +60,23 @@ class Config:
         return val if isinstance(val, str) and val else None
 
     @property
-    def default_client_by_stage(self) -> dict[str, str]:
-        """Return prefix → client-spec from ``default-client-by-stage``.
+    def default_client_by_stage(self) -> tuple[dict[str, str], dict[str, str]]:
+        """Return ``(exact_map, prefix_map)`` from ``default-client-by-stage``.
 
         Keys ending with ``*`` are prefix globs (the ``*`` is stripped).
-        Keys without ``*`` are exact name matches.  Returns a flat dict
-        where exact-name keys are stored as-is and prefix keys have their
-        trailing ``*`` removed.
+        Keys without ``*`` are exact name matches.
 
-        When a stage name matches both an exact key and a prefix key, the
-        exact match takes priority (enforced by ``_bake_prefix_clients``
-        which checks the exact map first).
+        Callers check the exact map first via equality, then fall through
+        to the prefix map via ``startswith``, so an exact match always
+        takes priority over a prefix match.
 
         Invalid entries are skipped with a warning.
         """
         raw = self._data.get("default-client-by-stage")
         if not isinstance(raw, dict):
-            return {}
-        result: dict[str, str] = {}
+            return {}, {}
+        exact: dict[str, str] = {}
+        prefix: dict[str, str] = {}
         for key, value in cast(dict[str, Any], raw).items():
             if not isinstance(value, str):
                 logger.warning(
@@ -88,8 +87,8 @@ class Config:
                 )
                 continue
             if key.endswith("*"):
-                prefix = key[:-1]
-                if not prefix:
+                p = key[:-1]
+                if not p:
                     logger.warning(
                         "config key %r in default-client-by-stage produces "
                         "an empty prefix, which would match every stage — "
@@ -97,11 +96,10 @@ class Config:
                         key,
                     )
                     continue
-                result[prefix] = value
+                prefix[p] = value
             else:
-                # Exact name match — store the key as-is.
-                result[key] = value
-        return result
+                exact[key] = value
+        return exact, prefix
 
     @property
     def raw(self) -> dict[str, Any]:

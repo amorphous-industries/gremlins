@@ -48,14 +48,14 @@ class TestLoadGlobalConfig:
 
 class TestLoadPrefixClients:
     def test_returns_empty_when_no_file(self, sandbox):
-        assert load_prefix_clients() == {}
+        assert load_prefix_clients() == ({}, {})
 
     def test_returns_empty_when_no_prefix_keys(self, sandbox):
         sandbox.config.mkdir(parents=True, exist_ok=True)
         (sandbox.config / "config.json").write_text(
             json.dumps({"default-client": "a:b"})
         )
-        assert load_prefix_clients() == {}
+        assert load_prefix_clients() == ({}, {})
 
     def test_extracts_prefix_rules(self, sandbox):
         sandbox.config.mkdir(parents=True, exist_ok=True)
@@ -70,8 +70,9 @@ class TestLoadPrefixClients:
                 }
             )
         )
-        result = load_prefix_clients()
-        assert result == {
+        exact, prefix = load_prefix_clients()
+        assert exact == {}
+        assert prefix == {
             "local-review-": "openrouter:doomclientv5",
             "plan-": "openai:gpt-5",
         }
@@ -89,8 +90,9 @@ class TestLoadPrefixClients:
             )
         )
         with caplog.at_level(logging.WARNING):
-            result = load_prefix_clients()
-        assert result == {"valid-": "openrouter:model"}
+            exact, prefix = load_prefix_clients()
+        assert exact == {}
+        assert prefix == {"valid-": "openrouter:model"}
         assert "non-string value" in caplog.text
         assert "prefix-*" in caplog.text
 
@@ -106,11 +108,9 @@ class TestLoadPrefixClients:
                 }
             )
         )
-        result = load_prefix_clients()
-        assert result == {
-            "local-review": "openrouter:model",
-            "plan-": "openai:gpt-5",
-        }
+        exact, prefix = load_prefix_clients()
+        assert exact == {"local-review": "openrouter:model"}
+        assert prefix == {"plan-": "openai:gpt-5"}
 
     def test_skips_empty_prefix_from_bare_star(self, sandbox, caplog):
         sandbox.config.mkdir(parents=True, exist_ok=True)
@@ -125,8 +125,9 @@ class TestLoadPrefixClients:
             )
         )
         with caplog.at_level(logging.WARNING):
-            result = load_prefix_clients()
-        assert result == {"plan-": "openai:gpt-5"}
+            exact, prefix = load_prefix_clients()
+        assert exact == {}
+        assert prefix == {"plan-": "openai:gpt-5"}
         assert "empty prefix" in caplog.text
 
     def test_strips_trailing_star_only(self, sandbox):
@@ -134,9 +135,9 @@ class TestLoadPrefixClients:
         (sandbox.config / "config.json").write_text(
             json.dumps({"default-client-by-stage": {"local-*": "openrouter:model"}})
         )
-        result = load_prefix_clients()
-        assert "local-" in result
-        assert result["local-"] == "openrouter:model"
+        exact, prefix = load_prefix_clients()
+        assert exact == {}
+        assert prefix == {"local-": "openrouter:model"}
 
 
 class TestLaunchClientLabel:

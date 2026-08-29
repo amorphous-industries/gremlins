@@ -57,12 +57,14 @@ def extract_client_spec(args: list[str]) -> str:
     return extract_arg_value(args, "--client")
 
 
-def load_prefix_clients() -> dict[str, str]:
-    """Extract prefix-based client rules from the global config.
+def load_prefix_clients() -> tuple[dict[str, str], dict[str, str]]:
+    """Extract client rules from the global config.
 
-    Returns an empty dict when no config file exists or no prefix rules
-    are defined.  Delegates to the central ``gremlins.config`` module's
-    ``default_client_by_stage`` property, which handles validation.
+    Returns ``(exact_map, prefix_map)`` — exact stage-name keys and
+    prefix globs (with the ``*`` stripped).  Returns two empty dicts
+    when no config file exists or no rules are defined.  Delegates to
+    the central ``gremlins.config`` module's ``default_client_by_stage``
+    property, which handles validation.
     """
     from gremlins.config import get_config
 

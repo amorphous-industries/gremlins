@@ -218,7 +218,9 @@ async def run_pipeline(
             if _global_client:
                 _effective_client_override = _global_client
         except Exception:
-            pass
+            logger.warning(
+                "failed to read default-client from global config", exc_info=True
+            )
     try:
         _pipeline_preview = _PipelineData.from_yaml(
             resolve_pipeline_path(str(pipeline_path), project_dir),
