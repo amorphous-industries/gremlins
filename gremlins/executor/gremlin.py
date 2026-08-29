@@ -351,11 +351,7 @@ class Gremlin:
         for e in stages:
             self._set_gremlin_recursive(e)
             stage_client = e.client
-            if stage_client is None:
-                raise ValueError(
-                    f"stage {e.name!r} has no client — set a 'default_client' in the pipeline "
-                    "YAML, pass --client on the command line, or add 'client:' to the stage"
-                )
+            assert stage_client is not None, f"stage {e.name!r} has no client"
             stage_data = StateData(
                 gremlin_id=self.gremlin_id, state_file=self.state_file
             )
@@ -488,14 +484,10 @@ class Gremlin:
         Used when the landing cwd differs from the default (e.g., when walking
         up a chain of parent gremlins to find the topmost repository).
         """
-        state_data = StateData.load(self.gremlin_id)
+        data = StateData.load(self.gremlin_id)
         default_client = self.pipeline_data.default_client
-        if default_client is None:
-            raise ValueError(
-                "pipeline has no default_client — set a 'default_client' in the pipeline "
-                "YAML or pass --client on the command line"
-            )
-        kwargs = self._make_build_state_kwargs(state_data, default_client)
+        assert default_client is not None, "pipeline has no default_client"
+        kwargs = self._make_build_state_kwargs(data, default_client)
         kwargs["cwd"] = cwd
         kwargs["worktree"] = None
         return build_state(**kwargs)
@@ -522,8 +514,15 @@ class Gremlin:
     ) -> Gremlin:
         try:
             pipeline_path = resolve_pipeline_path(pipeline_ref, project_dir)
-            pipeline = _PipelineData.from_yaml(pipeline_path)
-        except (FileNotFoundError, _YamlLoadError) as exc:
+            # Inline client at launch: if a --client label was provided and the
+            # pipeline YAML doesn't declare default_client, inject it so the
+            # loader never sees None.
+            pipeline = _PipelineData.from_yaml(
+                pipeline_path,
+                default_client_override=client_label
+                or (str(client) if client else None),
+            )
+        except (FileNotFoundError, _YamlLoadError, ValueError) as exc:
             raise ValueError(str(exc)) from exc
         resolved_client = None
         if client_label:
@@ -601,11 +600,7 @@ class Gremlin:
 
             state_data = StateData.load(self.gremlin_id)
             default_client = resolved_client or self.pipeline_data.default_client
-            if default_client is None:
-                raise ValueError(
-                    "pipeline has no default_client — set a 'default_client' in the pipeline "
-                    "YAML or pass --client on the command line"
-                )
+            assert default_client is not None, "pipeline has no default_client"
             self.state = build_state(
                 **self._make_build_state_kwargs(state_data, default_client)
             )

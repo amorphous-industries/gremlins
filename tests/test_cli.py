@@ -277,7 +277,8 @@ def test_launch_unified_dispatch_calls_launch(monkeypatch):
         lambda name, root: pathlib.Path(f"/fake/{name}.yaml"),
     )
     monkeypatch.setattr(
-        "gremlins.cli.launch.Pipeline.from_yaml", lambda path: _make_fake_pipeline()
+        "gremlins.cli.launch.Pipeline.from_yaml",
+        lambda path, **kw: _make_fake_pipeline(),
     )
     launched = []
     fake_proc = MagicMock()
@@ -348,7 +349,7 @@ def test_launch_invalid_pipeline_exits_nonzero_with_message(monkeypatch, capsys,
         lambda name, root: pathlib.Path(f"/fake/{name}.yaml"),
     )
 
-    def _raise(_path):
+    def _raise(_path, **kw):
         raise exc
 
     monkeypatch.setattr("gremlins.cli.launch.Pipeline.from_yaml", _raise)
@@ -372,7 +373,8 @@ def test_launch_unified_dispatch_help_for_resolved_pipeline(monkeypatch, capsys)
         lambda name, root: pathlib.Path(f"/fake/{name}.yaml"),
     )
     monkeypatch.setattr(
-        "gremlins.cli.launch.Pipeline.from_yaml", lambda path: _make_fake_pipeline()
+        "gremlins.cli.launch.Pipeline.from_yaml",
+        lambda path, **kw: _make_fake_pipeline(),
     )
     rc = main(["launch", "local", "--help"])
     assert rc == 0
@@ -396,7 +398,7 @@ def test_launch_list_prints_pipeline_names(tmp_path, monkeypatch, capsys):
 
     from gremlins.pipeline import Pipeline
 
-    def fake_load(path):
+    def fake_load(path, **kw):
         return Pipeline(name=path.stem, path=path, stages=[])
 
     monkeypatch.setattr("gremlins.cli.launch.Pipeline.from_yaml", fake_load)
@@ -415,7 +417,7 @@ def test_launch_list_shows_unloadable_on_exception(tmp_path, monkeypatch, capsys
         "gremlins.cli.launch.list_pipelines", lambda root: fake_pipelines
     )
 
-    def _raise(_path):
+    def _raise(_path, **kw):
         raise ValueError("bad yaml")
 
     monkeypatch.setattr("gremlins.cli.launch.Pipeline.from_yaml", _raise)

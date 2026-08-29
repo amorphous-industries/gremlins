@@ -43,7 +43,9 @@ class Pipeline:
         )
 
     @classmethod
-    def from_yaml(cls, path: pathlib.Path) -> Pipeline:
+    def from_yaml(
+        cls, path: pathlib.Path, *, default_client_override: str | None = None
+    ) -> Pipeline:
         importlib.import_module("gremlins.clients")
 
         from gremlins.pipeline.loader import check_duplicate_producers, parse_stages
@@ -94,8 +96,15 @@ class Pipeline:
 
         check_duplicate_producers(stages, extra_out=bootstrap.cli_out)
 
-        if default_client is not None:
-            _fill_stage_clients(stages, default_client)
+        if default_client is None and default_client_override is not None:
+            default_client = Client.parse(default_client_override)
+
+        if default_client is None:
+            raise ValueError(
+                "pipeline is missing 'default_client' — set a 'default_client' in the pipeline "
+                "YAML or pass --client on the command line"
+            )
+        _fill_stage_clients(stages, default_client)
 
         return cls(
             name=pipeline_name,
