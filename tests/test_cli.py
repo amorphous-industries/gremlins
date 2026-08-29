@@ -113,9 +113,7 @@ def test_write_bail_file_fallback_to_disk_attempt(sandbox):
         json.dumps({"id": gremlin_id, "attempt": "disk-attempt-abc"})
     )
 
-    state_mod.StateData.load(gremlin_id).write_bail_file(
-        "other", "reason", attempt=""
-    )
+    state_mod.StateData.load(gremlin_id).write_bail_file("other", "reason", attempt="")
 
     bail_path = state_dir / "bail_disk-attempt-abc.json"
     assert bail_path.exists()
