@@ -43,29 +43,20 @@ stage-definitions:
         - "git diff --cached --quiet || git commit -m 'normalize'"
         - "git push 2>/dev/null || true"
 
-  run-checks-and-fix:
-    required-options:
-      - cmds
-    stages:
-      - type: verify
-        options:
-          cmds: "{{options.cmds}}"
-          max_iterations: 7
-        prompt:
-          - dev-env-howto.md
-          - verify_fix.md
-          - gremlins:bail_section_fix.md
-
-  normalize-and-fix:
-    stages:
-      - { type: normalize }
-      - { type: run-checks-and-fix, options: { cmds: ["make check"] } }
-      - { type: run-checks-and-fix, options: { cmds: ["make test"] } }
-
 stages:
   - { type: gremlins:plan-gh, prompt: [code-style, terse, gremlins:plan_gh.md] }
   - { type: gremlins:implement, prompt: [code-style, terse, dev-env, no_lint_in_implement.md, gremlins:implement_gh.md] }
-  - { type: normalize-and-fix }
+  - { type: normalize }
+  - type: verify
+    options:
+      cmds: ["make check"]
+      max_iterations: 7
+    prompt: [dev-env-howto.md, gremlins:verify_fix.md, gremlins:bail_section_fix.md]
+  - type: verify
+    options:
+      cmds: ["PYTEST_ADDOPTS='-q --tb=short --no-header' make test"]
+      max_iterations: 7
+    prompt: [dev-env-howto.md, gremlins:verify_fix.md, gremlins:bail_section_fix.md]
 
   - parallel:
       - name: local-review-one
@@ -88,10 +79,30 @@ stages:
       review-one: local-review-one
       review-two: local-review-two
 
-  - { type: normalize-and-fix }
+  - { type: normalize }
+  - type: verify
+    options:
+      cmds: ["make check"]
+      max_iterations: 7
+    prompt: [dev-env-howto.md, gremlins:verify_fix.md, gremlins:bail_section_fix.md]
+  - type: verify
+    options:
+      cmds: ["PYTEST_ADDOPTS='-q --tb=short --no-header' make test"]
+      max_iterations: 7
+    prompt: [dev-env-howto.md, gremlins:verify_fix.md, gremlins:bail_section_fix.md]
   - { type: gremlins:github-open-pr }
   - { type: gremlins:github-request-copilot-review }
   - { type: gremlins:github-wait-copilot, in: {pr: pr} }
   - { name: github-address-pull-request-reviews, type: agent, in: {pr: pr}, prompt: [code-style, terse, dev-env, gremlins:github_address_pull_request_reviews.md, gremlins:bail_section.md] }
-  - { type: normalize-and-fix }
+  - { type: normalize }
+  - type: verify
+    options:
+      cmds: ["make check"]
+      max_iterations: 7
+    prompt: [dev-env-howto.md, gremlins:verify_fix.md, gremlins:bail_section_fix.md]
+  - type: verify
+    options:
+      cmds: ["PYTEST_ADDOPTS='-q --tb=short --no-header' make test"]
+      max_iterations: 7
+    prompt: [dev-env-howto.md, gremlins:verify_fix.md, gremlins:bail_section_fix.md]
   - { type: gremlins:github-wait-ci, in: {pr: pr}, prompt: [terse, dev-env, gremlins:ci_fix.md, gremlins:bail_section_fix.md] }

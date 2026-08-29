@@ -20,7 +20,7 @@ bootstrap:
 prompts:
   code-style: gremlins:code_style.md
   terse: terse_style.md
-  verify: [dev-env-howto.md, verify_fix.md, gremlins:bail_section_fix.md]
+  verify: [dev-env-howto.md, gremlins:verify_fix.md, gremlins:bail_section_fix.md]
   dev-env: dev-env-howto.md
 
 stage-definitions:
@@ -37,11 +37,26 @@ stages:
   - { type: gremlins:plan,      prompt: [code-style, terse, gremlins:plan.md] }
   - { type: gremlins:implement,  prompt: [code-style, terse, dev-env, no_lint_in_implement.md, gremlins:implement_local.md] }
   - { type: normalize }
-  - { name: verify-check, type: verify, options: { cmds: ["make check"] }, prompt: verify }
+  - name: verify-check
+    type: verify
+    options:
+      cmds: ["make check"]
+      max_iterations: 7
+    prompt: verify
 
   - { type: gremlins:review-code,  prompt: [code-style, terse, dev-env, gremlins:review/detail.md] }
   - { name: address-code, type: agent, in: {text: review-code}, prompt: [code-style, terse, dev-env, gremlins:address.md, gremlins:bail_section.md] }
 
   - { type: normalize }
-  - { name: verify-check-final, type: verify, options: { cmds: ["make check"] }, prompt: verify }
-  - { name: verify-test, type: verify, options: { cmds: ["make test"] }, prompt: verify }
+  - name: verify-check-final
+    type: verify
+    options:
+      cmds: ["make check"]
+      max_iterations: 7
+    prompt: verify
+  - name: verify-test
+    type: verify
+    options:
+      cmds: ["PYTEST_ADDOPTS='-q --tb=short --no-header' make test"]
+      max_iterations: 7
+    prompt: verify
