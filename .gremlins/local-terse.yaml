@@ -44,7 +44,7 @@ stages:
       max_iterations: 7
     prompt: verify
 
-  - { type: gremlins:review-code,  prompt: [code-style, terse, dev-env, gremlins:review/detail.md] }
+  - { type: gremlins:review-code,  prompt: [code-style, terse, dev-env, local_review.md] }
   - { name: address-code, type: agent, in: {text: review-code}, prompt: [code-style, terse, dev-env, gremlins:address.md, gremlins:bail_section.md] }
 
   - { type: normalize }

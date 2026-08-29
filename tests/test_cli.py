@@ -103,6 +103,27 @@ def test_write_bail_file_noop_without_attempt(sandbox):
     assert not bail_files
 
 
+def test_write_bail_file_fallback_to_disk_attempt(sandbox):
+    """When attempt arg is empty but state.json on disk has an attempt
+    field, write_bail_file should read it from disk instead of no-oping."""
+    gremlin_id = "gr-bail-disk-fallback"
+    state_dir = sandbox.state / gremlin_id
+    state_dir.mkdir(parents=True)
+    (state_dir / "state.json").write_text(
+        json.dumps({"id": gremlin_id, "attempt": "disk-attempt-abc"})
+    )
+
+    state_mod.StateData.load(gremlin_id).write_bail_file(
+        "other", "reason", attempt=""
+    )
+
+    bail_path = state_dir / "bail_disk-attempt-abc.json"
+    assert bail_path.exists()
+    data = json.loads(bail_path.read_text())
+    assert data["class"] == "other"
+    assert data["detail"] == "reason"
+
+
 # ---------------------------------------------------------------------------
 # run_pipeline_main — gremlins/spawn/pipeline.py
 # ---------------------------------------------------------------------------

@@ -215,7 +215,18 @@ class StateData:
         self, bail_class: str, bail_detail: str = "", *, attempt: str = ""
     ) -> None:
         sf = self.state_file or resolve_state_file(self.gremlin_id)
-        if sf is None or not sf.exists() or not attempt or not bail_class:
+        if sf is None or not sf.exists() or not bail_class:
+            return
+        if not attempt:
+            # If the caller passed an empty attempt (e.g. from a stale
+            # in-memory StateData that wasn't refreshed after a child
+            # runner patched state.json on disk), try to read it now.
+            try:
+                data = json.loads(sf.read_text(encoding="utf-8"))
+                attempt = data.get("attempt") or ""
+            except Exception:
+                pass
+        if not attempt:
             return
         try:
             state_dir = sf.parent

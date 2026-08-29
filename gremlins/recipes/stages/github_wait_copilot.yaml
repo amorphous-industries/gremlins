@@ -5,6 +5,7 @@ stages:
   - name: github-wait-copilot
     type: loop
     max-iterations: "{{options.max_iterations | default(40)}}"
+    stop_when_exists: status
     options:
       interval: "{{options.interval | default(20)}}"
     body:
@@ -13,12 +14,13 @@ stages:
         in:
           pr_number: pr-number
         out:
-          status: "file://session/status"
+          status?: "file://session/status"
         options:
           timeout: 30
           cmds:
             - |
               review=$(gh api "repos/{repo}/pulls/$pr_number/reviews" \
                 --jq '.[] | select(.user.login | test("[Cc]opilot")) | .state | select(. != "PENDING")')
-              [ -n "$review" ] && exit 0
-              exit 1
+              if [ -n "$review" ]; then
+                printf '%s' "$review" > "{artifact_dir}/status"
+              fi
