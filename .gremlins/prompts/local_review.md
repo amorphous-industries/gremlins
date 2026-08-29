@@ -2,6 +2,8 @@
 
 Review the changes on the current branch against `{base_ref}` and output findings as text.
 
+**Do not run any tests, checks, linters, or build commands.** This is a code review only — read-only analysis of the diff. Do not compile, format-check, lint, type-check, or execute anything.
+
 ## Step 1: Gather the diff
 
 Check diff size:
@@ -34,7 +36,7 @@ A file whose diff is itself > 80 000 bytes is rare; if it happens, read it in ch
 
 ## Step 2: Review the code
 
-Analyze every file in the diff thoroughly. For each change, evaluate:
+**Review only — do not run tests, checks, linters, or any shell commands beyond `git diff`.** Analyze every file in the diff thoroughly. For each change, evaluate:
 
 - **Correctness**: Logic errors, off-by-ones, missing edge cases, race conditions
 - **Security**: Injection, auth gaps, secrets, OWASP top 10
