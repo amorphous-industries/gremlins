@@ -36,7 +36,7 @@ stage-definitions:
     type: verify
     options:
       cmds:
-        - "make -j8 check test"
+        - "make -j8 check && make -j8 test"
       max_iterations: 7
     prompt: verify
 

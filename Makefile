@@ -1,4 +1,4 @@
-MAKEFLAGS += -j$(shell sysctl -n hw.ncpu 2>/dev/null || nproc)
+MAKEFLAGS += -j$(shell sysctl -n hw.ncpu 2>/dev/null || nproc) --output-sync=line
 
 TEST_FILES := $(wildcard tests/test_*.py)
 
