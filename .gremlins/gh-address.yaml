@@ -2,8 +2,8 @@ base_ref: main
 prompt_dir: prompts
 
 land:
-  in:
-    PR_URL: pr-url
+  interpolation:
+    PR_URL: artifact.pr-url
   options:
     cmds:
       - gh pr merge --squash --delete-branch "$PR_URL"
@@ -25,7 +25,7 @@ bootstrap:
     - uv pip install -e ".[dev]"
 
 stages:
-  - { name: github-address-pull-request-reviews, type: agent, in: {pr: pr}, prompt: [code-style, terse, dev-env, gremlins:github_address_pull_request_reviews.md, gremlins:bail_section.md] }
+  - { name: github-address-pull-request-reviews, type: agent, interpolation: {pr: artifact.pr}, prompt: [code-style, terse, dev-env, gremlins:github_address_pull_request_reviews.md, gremlins:bail_section.md] }
   - type: exec
     options:
       cmds:

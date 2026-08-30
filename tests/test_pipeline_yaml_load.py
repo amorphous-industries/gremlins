@@ -229,15 +229,15 @@ def test_stage_definition_call_site_out_applied(tmp_path: pathlib.Path) -> None:
         stages:
           - name: normalize
             type: normalize
-            out:
-              commits: git://range
+            bind:
+              artifact.commits: git://range
         """,
     )
     expanded = expand_pipeline(p)
     stage = expanded["stages"][0]
     assert stage["type"] == "exec"
     assert stage["name"] == "normalize"
-    assert stage["out"] == {"commits": "git://range"}
+    assert stage["bind"] == {"artifact.commits": "git://range"}
 
 
 def test_stage_definition_reused_twice_with_different_out(
@@ -253,14 +253,14 @@ def test_stage_definition_reused_twice_with_different_out(
             options:
               cmds: ["ruff format ."]
         stages:
-          - { type: normalize, out: { a: git://range } }
-          - { type: normalize, out: { b: git://range } }
+          - { type: normalize, bind: { artifact.a: git://range } }
+          - { type: normalize, bind: { artifact.b: git://range } }
         """,
     )
     expanded = expand_pipeline(p)
     stages = expanded["stages"]
-    assert stages[0]["out"] == {"a": "git://range"}
-    assert stages[1]["out"] == {"b": "git://range"}
+    assert stages[0]["bind"] == {"artifact.a": "git://range"}
+    assert stages[1]["bind"] == {"artifact.b": "git://range"}
     assert stages[0]["type"] == "exec"
     assert stages[1]["type"] == "exec"
 
@@ -273,15 +273,15 @@ def test_stage_definition_with_out_rejected(tmp_path: pathlib.Path) -> None:
         stage-definitions:
           bad:
             type: exec
-            out:
-              key: git://range
+            bind:
+              artifact.key: git://range
             options:
               cmds: ["echo hi"]
         stages:
           - { type: bad }
         """,
     )
-    with pytest.raises(ValueError, match="must not declare 'out:'"):
+    with pytest.raises(ValueError, match="must not declare 'bind:'"):
         expand_pipeline(p)
 
 

@@ -1,4 +1,4 @@
-"""Agent primitive stage: resolves in: artifacts, renders prompt, invokes agent, verifies out:."""
+"""Agent primitive stage: resolves interpolation artifacts, renders prompt, invokes agent, verifies bind outputs."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import json
 import secrets
 from typing import TYPE_CHECKING, Any, cast
 
-from gremlins.artifacts.resolve import resolve_in_map
+from gremlins.artifacts.resolve import resolve_interpolation_map
 from gremlins.artifacts.uri import Uri
 from gremlins.stages.agent_runner import run_agent
 from gremlins.stages.base import Stage, get_client_from_dict
@@ -20,13 +20,13 @@ if TYPE_CHECKING:
 class Agent(Stage):
     """YAML type: agent.
 
-    in:  var_name -> registry_key   (resolved content substituted into prompt)
-    out: registry_key -> uri_string (bound before run, verified after)
+    interpolation:  var_name -> artifact.registry_key   (resolved content substituted into prompt)
+    bind: artifact.registry_key -> uri_string (bound before run, verified after)
 
     Options:
         model: override the pipeline-default model for this stage.
 
-    When out: declares file://session/<name> bindings, the agent is instructed
+    When bind: declares file://session/<name> bindings, the agent is instructed
     via the {out_file} prompt variable (single output) or the {out_files} JSON
     mapping (multiple outputs) to write each file to
     {artifact_dir}/<uuid-slug>_<name>. The slug is bound into the artifact
@@ -52,24 +52,34 @@ class Agent(Stage):
         prompts: list[str],
         options: dict[str, Any],
         *,
-        in_map: dict[str, str] | None = None,
-        out_map: dict[str, str] | None = None,
+        interpolation_map: dict[str, str] | None = None,
+        bind_map: dict[str, str] | None = None,
     ) -> None:
         super().__init__(name)
         self.prompts = prompts
         self.options = options
-        self.in_map = in_map or {}
-        self.out_map = out_map or {}
+        self.interpolation_map = interpolation_map or {}
+        self.bind_map = bind_map or {}
 
     @classmethod
     def with_dict(cls, d: dict[str, Any], depth: int = 0) -> Agent:
+        from gremlins.stages.constants import (
+            strip_artifact_prefix,
+            strip_artifact_prefix_keys,
+        )
+
         name = d.get("name") or ""
-        raw_in: object = d.get("in") or {}
-        raw_out: object = d.get("out") or {}
-        if not isinstance(raw_in, dict):
-            raise ValueError(f"stage {name!r}: 'in' must be a mapping")
-        if not isinstance(raw_out, dict):
-            raise ValueError(f"stage {name!r}: 'out' must be a mapping")
+        raw_interpolation: object = d.get("interpolation") or {}
+        raw_bind: object = d.get("bind") or {}
+        if "in" in d or "out" in d:
+            raise ValueError(
+                f"stage {name!r}: 'in'/'out' keys are no longer supported; "
+                f"use 'interpolation'/'bind' with 'artifact.' prefix on registry keys"
+            )
+        if not isinstance(raw_interpolation, dict):
+            raise ValueError(f"stage {name!r}: 'interpolation' must be a mapping")
+        if not isinstance(raw_bind, dict):
+            raise ValueError(f"stage {name!r}: 'bind' must be a mapping")
         for k in cast(dict[str, Any], d.get("options") or {}):
             if k in FRAMEWORK_KEYS - {"model"}:
                 raise ValueError(
@@ -79,8 +89,10 @@ class Agent(Stage):
             name,
             d.get("prompt") or [],
             d.get("options") or {},
-            in_map=dict(cast(dict[str, str], raw_in)),
-            out_map=dict(cast(dict[str, str], raw_out)),
+            interpolation_map=strip_artifact_prefix(
+                cast(dict[str, str], raw_interpolation), name
+            ),
+            bind_map=strip_artifact_prefix_keys(cast(dict[str, str], raw_bind), name),
         )
         stage.client = get_client_from_dict(d)
         return stage
@@ -93,24 +105,26 @@ class Agent(Stage):
         raw_model = cast(str | None, opts.pop("model", None))
 
         try:
-            resolved = resolve_in_map(state.artifacts, self.in_map)
+            resolved = resolve_interpolation_map(
+                state.artifacts, self.interpolation_map
+            )
         except ValueError as exc:
             raise Bail(f"agent {self.name}: {exc}") from exc
 
-        out_map = {
+        resolved_bindings = {
             self.substitute_vars(k, state, resolved): self.substitute_vars(
                 v, state, resolved
             )
-            for k, v in self.out_map.items()
+            for k, v in self.bind_map.items()
         }
-        file_names = self._file_outputs(out_map)
+        file_names = self._file_outputs(resolved_bindings)
         slug = secrets.token_hex(4)
         slugged = {name: f"{slug}_{name}" for name in file_names}
 
-        # Rewrite out_map URIs to include the slug so the registry binds
+        # Rewrite bind_map URIs to include the slug so the registry binds
         # the actual on-disk filename.
         slugged_out: dict[str, str] = {}
-        for k, v in out_map.items():
+        for k, v in resolved_bindings.items():
             uri = Uri.parse(v)
             if uri.scheme == "file" and uri.path.startswith("session/"):
                 name = uri.path[len("session/") :]
@@ -159,7 +173,7 @@ class Agent(Stage):
 
     @staticmethod
     def _file_outputs(out_map: dict[str, str]) -> list[str]:
-        """Return the file://session/<name> filenames declared in out:, in order.
+        """Return the file://session/<name> filenames declared in bind:, in order.
 
         Rejects names containing '/' or '..' to prevent path-traversal escapes.
         """

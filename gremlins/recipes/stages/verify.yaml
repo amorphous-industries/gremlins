@@ -10,9 +10,9 @@ stages:
     body:
       - name: cmd
         type: exec
-        out:
-          verify_log: "file://session/exec-{name}.log"
-          done?: "file://session/done"
+        bind:
+          artifact.verify_log: "file://session/exec-{name}.log"
+          artifact.done?: "file://session/done"
         options:
           cmds:
             - ({{options.cmds}}); rc=$?; printf '%d' "$rc" > "{artifact_dir}/exec_exit_code"; if [ "$rc" -eq 0 ]; then printf 'done' > "{artifact_dir}/done"; fi; true
@@ -21,5 +21,5 @@ stages:
         skip_if_exists: done
         prompt:
           - "{{prompt}}"
-        in:
-          verify_output: verify_log
+        interpolation:
+          verify_output: artifact.verify_log

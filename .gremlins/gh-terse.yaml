@@ -17,8 +17,8 @@ bootstrap:
     - uv pip install -e ".[dev]"
 
 land:
-  in:
-    PR_URL: pr-url
+  interpolation:
+    PR_URL: artifact.pr-url
   options:
     cmds:
       - gh pr merge --squash --delete-branch "$PR_URL"
@@ -60,20 +60,20 @@ stages:
       - name: local-review-one
         type: agent
         prompt: [code-style, terse, dev-env, local_review.md]
-        out:
-          local-review-one: "file://session/local-review-one.md"
+        bind:
+          artifact.local-review-one: "file://session/local-review-one.md"
       - name: local-review-two
         type: agent
         prompt: [code-style, terse, dev-env, local_review.md]
-        out:
-          local-review-two: "file://session/local-review-two.md"
+        bind:
+          artifact.local-review-two: "file://session/local-review-two.md"
 
   - name: local-address
     type: agent
     prompt: [code-style, terse, dev-env, local_address.md, no_lint_in_implement.md, gremlins:bail_section.md]
-    in:
-      review-one: local-review-one
-      review-two: local-review-two
+    interpolation:
+      review-one: artifact.local-review-one
+      review-two: artifact.local-review-two
 
   - { type: normalize }
   - type: verify
@@ -88,8 +88,8 @@ stages:
     prompt: [dev-env-howto.md, gremlins:verify_fix.md, gremlins:bail_section_fix.md]
   - { type: gremlins:github-open-pr }
   - { type: gremlins:github-request-copilot-review }
-  - { type: gremlins:github-wait-copilot, in: {pr: pr} }
-  - { name: github-address-pull-request-reviews, type: agent, in: {pr: pr}, prompt: [code-style, terse, dev-env, gremlins:github_address_pull_request_reviews.md, gremlins:bail_section.md] }
+  - { type: gremlins:github-wait-copilot, interpolation: {pr: artifact.pr} }
+  - { name: github-address-pull-request-reviews, type: agent, interpolation: {pr: artifact.pr}, prompt: [code-style, terse, dev-env, gremlins:github_address_pull_request_reviews.md, gremlins:bail_section.md] }
   - { type: normalize }
   - type: verify
     options:
@@ -101,4 +101,4 @@ stages:
       cmds: ["PYTEST_ADDOPTS='-q --tb=short --no-header' make test"]
       max_iterations: 7
     prompt: [dev-env-howto.md, gremlins:verify_fix.md, gremlins:bail_section_fix.md]
-  - { type: gremlins:github-wait-ci, in: {pr: pr}, prompt: [terse, dev-env, gremlins:ci_fix.md, gremlins:bail_section_fix.md] }
+  - { type: gremlins:github-wait-ci, interpolation: {pr: artifact.pr}, prompt: [terse, dev-env, gremlins:ci_fix.md, gremlins:bail_section_fix.md] }

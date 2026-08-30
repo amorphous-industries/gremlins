@@ -318,9 +318,9 @@ def _expand_stage_def(
             raise ValueError(
                 f"stage-definition {def_name!r}: 'stages' must be a non-empty list"
             )
-        if "out" in definition:
+        if "bind" in definition:
             raise ValueError(
-                f"stage-definition {def_name!r} must not declare 'out:' keys; "
+                f"stage-definition {def_name!r} must not declare 'bind:' keys; "
                 "declare them at each call site instead"
             )
         inner_list = cast(list[dict[str, Any]], inner_list)
@@ -358,17 +358,19 @@ def _expand_stage_def(
                     inner["_auto_name"] = inner.pop("name")
                 if "client" in call_site:
                     inner["client"] = call_site["client"]
-                if "in" in call_site:
-                    merged_in = dict(cast(dict[str, Any], inner.get("in") or {}))
-                    merged_in.update(cast(dict[str, Any], call_site["in"]))
-                    inner["in"] = merged_in
-            if i == last_idx and "out" in call_site:
-                if "out" in inner:
-                    raise ValueError(
-                        f"stage-definition {def_name!r}: inner stage {i} declares 'out:'; "
-                        "call-site must not also declare 'out:'"
+                if "interpolation" in call_site:
+                    merged_in = dict(
+                        cast(dict[str, Any], inner.get("interpolation") or {})
                     )
-                inner["out"] = call_site["out"]
+                    merged_in.update(cast(dict[str, Any], call_site["interpolation"]))
+                    inner["interpolation"] = merged_in
+            if i == last_idx and "bind" in call_site:
+                if "bind" in inner:
+                    raise ValueError(
+                        f"stage-definition {def_name!r}: inner stage {i} declares 'bind:'; "
+                        "call-site must not also declare 'bind:'"
+                    )
+                inner["bind"] = call_site["bind"]
             result.extend(
                 _expand_entry(
                     inner,
@@ -383,13 +385,13 @@ def _expand_stage_def(
         return result
 
     # Single-primitive definition (existing behavior)
-    if "out" in definition:
+    if "bind" in definition:
         raise ValueError(
-            f"stage-definition {def_name!r} must not declare 'out:' keys; "
+            f"stage-definition {def_name!r} must not declare 'bind:' keys; "
             "declare them at each call site instead"
         )
     merged = dict(definition)
-    for key in ("name", "in", "out"):
+    for key in ("name", "interpolation", "bind"):
         if key in call_site:
             merged[key] = call_site[key]
     if "name" not in call_site and "name" in merged:

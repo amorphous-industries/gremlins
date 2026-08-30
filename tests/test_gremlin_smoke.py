@@ -104,7 +104,7 @@ def test_resume_unbinds_stale_exec_out_keys(tmp_path):
     state_dir = tmp_path / "state"
     state_dir.mkdir()
 
-    stage = Exec("normalize", {}, out_map={"normalize-commits": "git://range"})
+    stage = Exec("normalize", {}, bind_map={"normalize-commits": "git://range"})
     pipeline = Pipeline(name="test", path=tmp_path, stages=[stage])
     gremlin = Gremlin(
         [stage],
@@ -126,7 +126,7 @@ def test_resume_unbind_only_affects_exec_stages(tmp_path):
     state_dir = tmp_path / "state"
     state_dir.mkdir()
 
-    exec_stage = Exec("work", {}, out_map={"work-out": "git://range"})
+    exec_stage = Exec("work", {}, bind_map={"work-out": "git://range"})
     pipeline = Pipeline(name="test", path=tmp_path, stages=[exec_stage])
     gremlin = Gremlin(
         [exec_stage],

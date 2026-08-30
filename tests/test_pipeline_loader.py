@@ -739,15 +739,15 @@ default_client: openai:gpt-4o
 stages:
   - name: stage-a
     type: exec
-    out:
-      plan: "file://session/plan-a.md"
+    bind:
+      artifact.plan: "file://session/plan-a.md"
   - name: stage-b
     type: exec
-    out:
-      plan: "file://session/plan-b.md"
+    bind:
+      artifact.plan: "file://session/plan-b.md"
 """,
     )
-    with pytest.raises(ValueError, match="duplicate out.*plan.*stage-a.*stage-b"):
+    with pytest.raises(ValueError, match="duplicate bind.*plan.*stage-a.*stage-b"):
         Pipeline.from_yaml(tmp_path / "pipeline.yaml")
 
 
@@ -761,12 +761,12 @@ default_client: openai:gpt-4o
 stages:
   - name: stage-a
     type: exec
-    out:
-      plan: "file://session/plan.md"
+    bind:
+      artifact.plan: "file://session/plan.md"
   - name: stage-b
     type: exec
-    out:
-      plan: "file://session/plan.md"
+    bind:
+      artifact.plan: "file://session/plan.md"
 """,
     )
     pipeline = Pipeline.from_yaml(yaml_path)
@@ -783,12 +783,12 @@ default_client: openai:gpt-4o
 stages:
   - name: stage-a
     type: exec
-    out:
-      plan?: "file://session/plan-a.md"
+    bind:
+      artifact.plan?: "file://session/plan-a.md"
   - name: stage-b
     type: exec
-    out:
-      plan?: "file://session/plan-b.md"
+    bind:
+      artifact.plan?: "file://session/plan-b.md"
 """,
     )
     pipeline = Pipeline.from_yaml(yaml_path)
@@ -805,13 +805,13 @@ default_client: openai:gpt-4o
 stages:
   - name: plan
     type: exec
-    out:
-      plan: "file://session/plan.md"
+    bind:
+      artifact.plan: "file://session/plan.md"
   - name: publish-as-issue
     type: exec
     skip_if_exists: plan-issue-number
-    out:
-      plan: "gh://issue/123"
+    bind:
+      artifact.plan: "gh://issue/123"
 """,
     )
     pipeline = Pipeline.from_yaml(yaml_path)
@@ -831,15 +831,15 @@ stages:
     body:
       - name: check
         type: exec
-        out:
-          status: "file://session/status-a.txt"
+        bind:
+          artifact.status: "file://session/status-a.txt"
   - name: loop-two
     type: loop
     body:
       - name: check
         type: exec
-        out:
-          status: "file://session/status-b.txt"
+        bind:
+          artifact.status: "file://session/status-b.txt"
 """,
     )
     pipeline = Pipeline.from_yaml(yaml_path)
@@ -859,16 +859,16 @@ stages:
     body:
       - name: producer-a
         type: exec
-        out:
-          artifact: "file://session/a.md"
+        bind:
+          artifact.artifact: "file://session/a.md"
       - name: producer-b
         type: exec
-        out:
-          artifact: "file://session/b.md"
+        bind:
+          artifact.artifact: "file://session/b.md"
 """,
     )
     with pytest.raises(
-        ValueError, match="duplicate out.*artifact.*producer-a.*producer-b"
+        ValueError, match="duplicate bind.*artifact.*producer-a.*producer-b"
     ):
         Pipeline.from_yaml(tmp_path / "pipeline.yaml")
 
@@ -886,15 +886,15 @@ stages:
     body:
       - name: step-a
         type: exec
-        out:
-          result: "file://session/result-a.txt"
+        bind:
+          artifact.result: "file://session/result-a.txt"
       - name: step-b
         type: exec
-        out:
-          result: "file://session/result-b.txt"
+        bind:
+          artifact.result: "file://session/result-b.txt"
 """,
     )
-    with pytest.raises(ValueError, match="duplicate out.*result.*step-a.*step-b"):
+    with pytest.raises(ValueError, match="duplicate bind.*result.*step-a.*step-b"):
         Pipeline.from_yaml(tmp_path / "pipeline.yaml")
 
 

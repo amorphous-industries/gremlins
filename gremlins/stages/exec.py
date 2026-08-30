@@ -10,11 +10,15 @@ from gremlins.artifacts.registry import (
     DuplicateArtifact,
     MissingArtifact,
 )
-from gremlins.artifacts.resolve import resolve_in_map
+from gremlins.artifacts.resolve import resolve_interpolation_map
 from gremlins.artifacts.schemes import snapshot_head_before
 from gremlins.artifacts.uri import Uri
 from gremlins.stages.base import Stage
-from gremlins.stages.constants import FRAMEWORK_KEYS
+from gremlins.stages.constants import (
+    FRAMEWORK_KEYS,
+    strip_artifact_prefix,
+    strip_artifact_prefix_keys,
+)
 from gremlins.stages.outcome import Bail, Done, Outcome
 from gremlins.utils import proc as _proc
 
@@ -73,23 +77,28 @@ class Exec(Stage):
         name: str,
         options: dict[str, Any],
         *,
-        in_map: dict[str, str] | None = None,
-        out_map: dict[str, str] | None = None,
+        interpolation_map: dict[str, str] | None = None,
+        bind_map: dict[str, str] | None = None,
     ) -> None:
         super().__init__(name)
         self.options = options
-        self.in_map = in_map or {}
-        self.out_map = out_map or {}
+        self.interpolation_map = interpolation_map or {}
+        self.bind_map = bind_map or {}
 
     @classmethod
     def with_dict(cls, d: dict[str, Any], depth: int = 0) -> Exec:
         name = d.get("name") or ""
-        raw_in: object = d.get("in") or {}
-        raw_out: object = d.get("out") or {}
-        if not isinstance(raw_in, dict):
-            raise ValueError(f"stage {name!r}: 'in' must be a mapping")
-        if not isinstance(raw_out, dict):
-            raise ValueError(f"stage {name!r}: 'out' must be a mapping")
+        raw_interpolation: object = d.get("interpolation") or {}
+        raw_bind: object = d.get("bind") or {}
+        if "in" in d or "out" in d:
+            raise ValueError(
+                f"stage {name!r}: 'in'/'out' keys are no longer supported; "
+                f"use 'interpolation'/'bind' with 'artifact.' prefix on registry keys"
+            )
+        if not isinstance(raw_interpolation, dict):
+            raise ValueError(f"stage {name!r}: 'interpolation' must be a mapping")
+        if not isinstance(raw_bind, dict):
+            raise ValueError(f"stage {name!r}: 'bind' must be a mapping")
         for k in cast(dict[str, Any], d.get("options") or {}):
             if k in FRAMEWORK_KEYS:
                 raise ValueError(
@@ -98,8 +107,10 @@ class Exec(Stage):
         return cls(
             name,
             d.get("options") or {},
-            in_map=dict(cast(dict[str, str], raw_in)),
-            out_map=dict(cast(dict[str, str], raw_out)),
+            interpolation_map=strip_artifact_prefix(
+                cast(dict[str, str], raw_interpolation), name
+            ),
+            bind_map=strip_artifact_prefix_keys(cast(dict[str, str], raw_bind), name),
         )
 
     async def run(self, gremlin: Gremlin) -> Outcome:
@@ -107,12 +118,14 @@ class Exec(Stage):
         if state is None:
             raise RuntimeError("exec stage requires gremlin.state to be initialized")
         try:
-            extra_env = resolve_in_map(state.artifacts, self.in_map)
+            extra_env = resolve_interpolation_map(
+                state.artifacts, self.interpolation_map
+            )
         except ValueError as exc:
             raise Bail(f"exec {self.name}: {exc}") from exc
 
         pre_sha: str | None = None
-        if any(Uri.is_range(v) for v in self.out_map.values()):
+        if any(Uri.is_range(v) for v in self.bind_map.values()):
             pre_sha = snapshot_head_before(cwd=pathlib.Path(state.cwd))
 
         cmds = [
@@ -142,12 +155,12 @@ class Exec(Stage):
             shell_output = (result.stdout + result.stderr).strip()
             shell_rc = result.returncode
             if result.returncode != 0:
-                if result.returncode == 2 and _BAIL_KEY in self.out_map:
+                if result.returncode == 2 and _BAIL_KEY in self.bind_map:
                     bail_triggered = True
                 else:
                     raise Bail(f"exec {self.name}: exited {result.returncode}")
 
-        for raw_key, raw_uri_str in self.out_map.items():
+        for raw_key, raw_uri_str in self.bind_map.items():
             key = self.substitute_vars(raw_key, state, extra_env)
             optional = key.endswith("?")
             if optional:

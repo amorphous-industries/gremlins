@@ -14,9 +14,9 @@ stages:
               fi
       - name: handoff-init
         type: exec
-        out:
-          rolling-plan: "file://session/rolling-plan.md"
-          boss-spec: "file://session/boss-spec.md"
+        bind:
+          artifact.rolling-plan: "file://session/rolling-plan.md"
+          artifact.boss-spec: "file://session/boss-spec.md"
         options:
           cmds:
             - |
@@ -32,21 +32,21 @@ stages:
         prompt:
           - "gremlins:handoff.md"
           - "gremlins:code_style.md"
-        in:
-          plan_text: rolling-plan
-          spec_section: "boss-spec?"
-        out:
-          rolling-plan: "file://session/rolling-plan.md"
-          child-plan:   "file://session/child-plan.md"
-          signal:       "file://session/signal.json"
+        interpolation:
+          plan_text: artifact.rolling-plan
+          spec_section: "artifact.boss-spec?"
+        bind:
+          artifact.rolling-plan: "file://session/rolling-plan.md"
+          artifact.child-plan:   "file://session/child-plan.md"
+          artifact.signal:       "file://session/signal.json"
         options:
           idle_timeout: 3600
 
       - name: translate-signal
         type: exec
-        out:
-          bail: "file://session/bail-reason.txt"
-          done?: "file://session/done"
+        bind:
+          artifact.bail: "file://session/bail-reason.txt"
+          artifact.done?: "file://session/done"
         options:
           cmds:
             - |
@@ -95,12 +95,12 @@ stages:
         prompt:
           - "gremlins:handoff_sanitize.md"
           - "gremlins:code_style.md"
-        in:
-          rolling_plan_text: rolling-plan
+        interpolation:
+          rolling_plan_text: artifact.rolling-plan
         options:
           model: haiku
-        out:
-          rolling-plan: "file://session/rolling-plan.md"
+        bind:
+          artifact.rolling-plan: "file://session/rolling-plan.md"
 
       - name: restore-rolling-plan
         type: exec

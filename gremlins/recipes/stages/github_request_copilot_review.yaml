@@ -2,9 +2,9 @@ stages:
   - { type: gremlins:github-discover-repo }
   - name: github-request-copilot-review
     type: exec
-    in:
-      pr_number: pr-number
-      repo: repo
+    interpolation:
+      pr_number: artifact.pr-number
+      repo: artifact.repo
     options:
       cmds:
         - 'gh pr edit "$pr_number" --repo "$repo" --add-reviewer copilot-pull-request-reviewer'

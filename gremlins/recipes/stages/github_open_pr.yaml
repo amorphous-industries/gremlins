@@ -1,37 +1,37 @@
 stages:
   - name: resolve-pr-base
     type: exec
-    in:
-      prev_branch: pr-branch?
-    out:
-      base_ref_to_open_pr: "file://session/pr-base-ref.txt"
+    interpolation:
+      prev_branch: artifact.pr-branch?
+    bind:
+      artifact.base_ref_to_open_pr: "file://session/pr-base-ref.txt"
     options:
       cmds:
         - 'printf "%s" "${prev_branch:-{base_ref}}" > "{artifact_dir}/pr-base-ref.txt"'
 
   - name: compose-pr
     type: agent
-    in:
-      base_ref_to_open_pr: base_ref_to_open_pr
-      plan_source_issue_number: plan-source-issue-number?
+    interpolation:
+      base_ref_to_open_pr: artifact.base_ref_to_open_pr
+      plan_source_issue_number: artifact.plan-source-issue-number?
     prompt:
       - gremlins:github_open_pull_request.md
-    out:
-      pr_title:  "file://session/pr-title.txt"
-      pr_body:   "file://session/pr-body.md"
-      pr_branch: "file://session/pr-branch.txt"
+    bind:
+      artifact.pr_title:  "file://session/pr-title.txt"
+      artifact.pr_body:   "file://session/pr-body.md"
+      artifact.pr_branch: "file://session/pr-branch.txt"
 
   - name: push-and-open
     type: exec
-    in:
-      base_ref_to_open_pr: base_ref_to_open_pr
-      pr_branch: pr_branch
-      pr_title: pr_title
-    out:
-      pr-number: "file://session/pr-number.txt"
-      pr-url:    "file://session/pr-url.txt"
-      pr-branch: "file://session/pr-branch.txt"
-      pr: "gh://pr/{read:pr-number}"
+    interpolation:
+      base_ref_to_open_pr: artifact.base_ref_to_open_pr
+      pr_branch: artifact.pr_branch
+      pr_title: artifact.pr_title
+    bind:
+      artifact.pr-number: "file://session/pr-number.txt"
+      artifact.pr-url:    "file://session/pr-url.txt"
+      artifact.pr-branch: "file://session/pr-branch.txt"
+      artifact.pr: "gh://pr/{read:pr-number}"
     options:
       cmds:
         - |

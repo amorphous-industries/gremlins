@@ -28,13 +28,20 @@ def _make_state(tmp_path: pathlib.Path, **kw):
     )
 
 
-def _exec(name: str = "test", cmds=None, *, in_map=None, out_map=None, timeout=None):
+def _exec(
+    name: str = "test",
+    cmds=None,
+    *,
+    interpolation_map=None,
+    bind_map=None,
+    timeout=None,
+):
     options = {}
     if cmds is not None:
         options["cmds"] = cmds
     if timeout is not None:
         options["timeout"] = timeout
-    return Exec(name, options, in_map=in_map, out_map=out_map)
+    return Exec(name, options, interpolation_map=interpolation_map, bind_map=bind_map)
 
 
 # ---------------------------------------------------------------------------
@@ -61,7 +68,7 @@ def test_no_cmds_returns_done(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_in_map_injects_env_var(tmp_path):
+def test_interpolation_map_injects_env_var(tmp_path):
     state = _make_state(tmp_path)
     (state.artifact_dir / "value.txt").write_text("hello")
     state.artifacts.bind("my-key", Uri.parse("file://session/value.txt"))
@@ -69,15 +76,15 @@ def test_in_map_injects_env_var(tmp_path):
     out_file = tmp_path / "captured.txt"
     stage = _exec(
         cmds=[f'echo "$MY_VAR" > {out_file}'],
-        in_map={"MY_VAR": "my-key"},
+        interpolation_map={"MY_VAR": "my-key"},
     )
     asyncio.run(stage.run(MockGremlin(state=state)))
     assert out_file.read_text().strip() == "hello"
 
 
-def test_in_map_missing_artifact_raises(tmp_path):
+def test_interpolation_map_missing_artifact_raises(tmp_path):
     state = _make_state(tmp_path)
-    stage = _exec(cmds=["true"], in_map={"X": "not-bound"})
+    stage = _exec(cmds=["true"], interpolation_map={"X": "not-bound"})
     with pytest.raises(MissingArtifact):
         asyncio.run(stage.run(MockGremlin(state=state)))
 
@@ -87,19 +94,19 @@ def test_in_map_missing_artifact_raises(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_out_file_scheme_binds_and_verifies(tmp_path):
+def test_bind_file_scheme_binds_and_verifies(tmp_path):
     state = _make_state(tmp_path)
     (state.artifact_dir / "out.txt").write_text("data")
-    stage = _exec(cmds=["true"], out_map={"result": "file://session/out.txt"})
+    stage = _exec(cmds=["true"], bind_map={"result": "file://session/out.txt"})
     result = asyncio.run(stage.run(MockGremlin(state=state)))
     assert isinstance(result, Done)
     assert state.artifacts.produced("result")
     assert state.artifacts.resolve("result") == Uri.parse("file://session/out.txt")
 
 
-def test_out_file_scheme_missing_file_raises(tmp_path):
+def test_bind_file_scheme_missing_file_raises(tmp_path):
     state = _make_state(tmp_path)
-    stage = _exec(cmds=["true"], out_map={"result": "file://session/missing.txt"})
+    stage = _exec(cmds=["true"], bind_map={"result": "file://session/missing.txt"})
     with pytest.raises(FileNotFoundError):
         asyncio.run(stage.run(MockGremlin(state=state)))
 
@@ -109,7 +116,7 @@ def test_out_file_scheme_missing_file_raises(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_out_git_range_binds_commit_range(tmp_path, monkeypatch):
+def test_bind_git_range_binds_commit_range(tmp_path, monkeypatch):
     state = _make_state(tmp_path)
     monkeypatch.setattr(
         "gremlins.stages.exec.snapshot_head_before", lambda cwd=None: "abc123"
@@ -117,7 +124,7 @@ def test_out_git_range_binds_commit_range(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "gremlins.artifacts.registry.git_utils.head_sha", lambda cwd=None: "def456"
     )
-    stage = _exec(cmds=["true"], out_map={"commits": "git://range"})
+    stage = _exec(cmds=["true"], bind_map={"commits": "git://range"})
     result = asyncio.run(stage.run(MockGremlin(state=state)))
     assert isinstance(result, Done)
     assert state.artifacts.produced("commits")
@@ -125,7 +132,7 @@ def test_out_git_range_binds_commit_range(tmp_path, monkeypatch):
     assert str(bound_uri) == "git://range/abc123..def456"
 
 
-def test_out_git_range_empty_diff_still_binds(tmp_path, monkeypatch):
+def test_bind_git_range_empty_diff_still_binds(tmp_path, monkeypatch):
     state = _make_state(tmp_path)
     monkeypatch.setattr(
         "gremlins.stages.exec.snapshot_head_before", lambda cwd=None: "abc123"
@@ -134,7 +141,7 @@ def test_out_git_range_empty_diff_still_binds(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "gremlins.artifacts.registry.git_utils.head_sha", lambda cwd=None: "abc123"
     )
-    stage = _exec(cmds=["true"], out_map={"commits": "git://range"})
+    stage = _exec(cmds=["true"], bind_map={"commits": "git://range"})
     result = asyncio.run(stage.run(MockGremlin(state=state)))
     assert isinstance(result, Done)
     assert state.artifacts.produced("commits")
@@ -145,12 +152,12 @@ def test_out_git_range_empty_diff_still_binds(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_out_read_sub_resolves_uri(tmp_path):
+def test_bind_read_sub_resolves_uri(tmp_path):
     state = _make_state(tmp_path)
     foo_file = state.artifact_dir / "foo.txt"
     stage = _exec(
         cmds=[f'echo 42 > "{foo_file}"'],
-        out_map={
+        bind_map={
             "foo": "file://session/foo.txt",
             "bar": "gh://pr/{read:foo}",
         },
@@ -160,11 +167,11 @@ def test_out_read_sub_resolves_uri(tmp_path):
     assert state.artifacts.resolve("bar") == Uri.parse("gh://pr/42")
 
 
-def test_out_read_sub_backward_ref_raises(tmp_path):
+def test_bind_read_sub_backward_ref_raises(tmp_path):
     state = _make_state(tmp_path)
     stage = _exec(
         cmds=["true"],
-        out_map={
+        bind_map={
             "bar": "gh://pr/{read:foo}",
             "foo": "file://session/foo.txt",
         },
@@ -173,9 +180,9 @@ def test_out_read_sub_backward_ref_raises(tmp_path):
         asyncio.run(stage.run(MockGremlin(state=state)))
 
 
-def test_out_read_sub_unbound_key_raises(tmp_path):
+def test_bind_read_sub_unbound_key_raises(tmp_path):
     state = _make_state(tmp_path)
-    stage = _exec(cmds=["true"], out_map={"bar": "gh://pr/{read:nonexistent}"})
+    stage = _exec(cmds=["true"], bind_map={"bar": "gh://pr/{read:nonexistent}"})
     with pytest.raises(MissingArtifact):
         asyncio.run(stage.run(MockGremlin(state=state)))
 
@@ -264,13 +271,13 @@ def test_timeout_raises_bail(tmp_path):
 
 
 def test_bail_artifact_on_exit_2(tmp_path):
-    """Exit code 2 with bail in out_map writes the bail artifact."""
+    """Exit code 2 with bail in bind_map writes the bail artifact."""
     state = _make_state(tmp_path)
     bail_file = state.artifact_dir / "bail"
     bail_file.write_text("something broke")
     stage = _exec(
         cmds=["exit 2"],
-        out_map={"bail": "file://session/bail"},
+        bind_map={"bail": "file://session/bail"},
     )
     result = asyncio.run(stage.run(MockGremlin(state=state)))
     assert isinstance(result, Done)
