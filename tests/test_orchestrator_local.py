@@ -4,11 +4,10 @@ import json
 import shutil
 
 import pytest
-from conftest import MINIMAL_EVENTS
+from conftest import MINIMAL_EVENTS, write_done_from_shell_cmd
 from conftest import REVIEW_LABELS as _REVIEW_LABELS
 from conftest import ReviewCreatingClient as _ReviewCreatingClient
 from conftest import common_local_patches as _common_patches
-from conftest import write_done_from_shell_cmd
 
 from gremlins.clients.client import Client
 from gremlins.executor.run import run_pipeline
