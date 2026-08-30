@@ -64,8 +64,8 @@ class Agent(Stage):
     @classmethod
     def with_dict(cls, d: dict[str, Any], depth: int = 0) -> Agent:
         from gremlins.stages.exec import (
-            _strip_artifact_prefix,
-            _strip_artifact_prefix_keys,
+            strip_artifact_prefix,
+            strip_artifact_prefix_keys,
         )
 
         name = d.get("name") or ""
@@ -89,10 +89,10 @@ class Agent(Stage):
             name,
             d.get("prompt") or [],
             d.get("options") or {},
-            interpolation_map=_strip_artifact_prefix(
+            interpolation_map=strip_artifact_prefix(
                 cast(dict[str, str], raw_interpolation), name
             ),
-            bind_map=_strip_artifact_prefix_keys(cast(dict[str, str], raw_bind), name),
+            bind_map=strip_artifact_prefix_keys(cast(dict[str, str], raw_bind), name),
         )
         stage.client = get_client_from_dict(d)
         return stage

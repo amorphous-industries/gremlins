@@ -1,6 +1,6 @@
 """Stage framework constants."""
 
-_ARTIFACT_PREFIX = "artifact."
+ARTIFACT_PREFIX = "artifact."
 
 FRAMEWORK_KEYS = frozenset(
     {
