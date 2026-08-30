@@ -15,7 +15,7 @@ stages:
 
   - name: publish-as-issue
     type: exec
-    skip_if_exists: plan-source-issue-number
+    skip_if_exists: plan-issue-number
     options:
       cmds:
         - |

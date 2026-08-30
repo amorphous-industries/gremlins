@@ -498,18 +498,25 @@ def test_plan_skip_if_exists_on_resume(tmp_path, monkeypatch):
 
 
 def test_publish_as_issue_skip_when_source_bound(tmp_path, monkeypatch):
-    """publish-as-issue skipped when bootstrap already bound plan-source-issue-number.
+    """publish-as-issue skipped when bootstrap already bound plan-issue-number.
 
     When --plan #XYZ is passed at launch, the bootstrap fetches the issue body,
-    binds plan + plan-source-issue-number, and writes plan.md. Both the plan
-    agent and publish-as-issue see skip_if_exists and are skipped — no new
-    GitHub issue is created.
+    binds both plan-source-issue-number and plan-issue-number, and writes
+    plan.md. The plan agent and publish-as-issue both see skip_if_exists and
+    are skipped — no new GitHub issue is created.
     """
     _init_git_repo(tmp_path)
     monkeypatch.chdir(tmp_path)
 
     artifact_dir, state_file = _patch_common(monkeypatch, tmp_path)
     (artifact_dir / "plan.md").write_text("# Plan\nDo stuff.\n", encoding="utf-8")
+
+    # Add plan-issue-number to registry + disk, simulating bootstrap binding
+    (artifact_dir / "plan-issue-number.txt").write_text("42", encoding="utf-8")
+    registry_path = tmp_path / "scratch" / "gr-test" / "registry.json"
+    reg = json.loads(registry_path.read_text())
+    reg["plan-issue-number"] = "file://session/plan-issue-number.txt"
+    registry_path.write_text(json.dumps(reg))
 
     shell_cmds: list[str] = []
     from gremlins.utils import proc as _proc_mod
@@ -1583,23 +1590,16 @@ def test_gh_main_pipeline_default_client_model(tmp_path, monkeypatch):
 
 
 def test_publish_as_issue_runs_when_no_source_bound(tmp_path, monkeypatch):
-    """publish-as-issue runs when plan-source-issue-number is absent.
+    """publish-as-issue runs when plan-issue-number is absent.
 
-    When no --plan is passed at launch, the bootstrap does not bind
-    plan-source-issue-number. The plan agent runs (writing plan.md), then
-    publish-as-issue runs and creates a new GitHub issue via gh issue create.
+    When no --plan is passed at launch, bootstrap does not bind
+    plan-issue-number. publish-as-issue sees no skip guard, runs
+    gh issue create, and writes plan-issue-number.txt.
     """
     _init_git_repo(tmp_path)
     monkeypatch.chdir(tmp_path)
 
     artifact_dir, state_file = _patch_common(monkeypatch, tmp_path)
-
-    # Remove plan-source-issue-number so publish-as-issue doesn't skip.
-    registry_path = tmp_path / "scratch" / "gr-test" / "registry.json"
-    reg = json.loads(registry_path.read_text())
-    reg.pop("plan-source-issue-number", None)
-    registry_path.write_text(json.dumps(reg))
-    (artifact_dir / "plan-source-issue-number.txt").unlink(missing_ok=True)
 
     # Remove plan.md so the plan agent runs instead of skipping.
     (artifact_dir / "plan.md").unlink(missing_ok=True)
