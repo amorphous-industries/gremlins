@@ -38,4 +38,4 @@ stages:
   - name: address-chain
     type: agent
     prompt: [code-style, gremlins:address.md, gremlins:bail_section.md, dev-env]
-    in: {text: review-chain}
+    interpolation: {text: artifact.review-chain}
