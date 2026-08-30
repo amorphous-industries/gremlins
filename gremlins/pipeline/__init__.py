@@ -32,6 +32,7 @@ class Pipeline:
     base_ref: str = "current"
     bootstrap: Bootstrap = dataclasses.field(default_factory=Bootstrap)
     land: Exec | None = None
+
     def uses_loop_handoff(self) -> bool:
         first = self.stages[0] if self.stages else None
         return (

@@ -346,9 +346,7 @@ class Gremlin:
             self._set_gremlin_recursive(e)
             stage_client = e.client
             assert stage_client is not None, f"stage {e.name!r} has no client"
-            stage_data = StateData(
-                gremlin_id=self.gremlin_id
-            )
+            stage_data = StateData(gremlin_id=self.gremlin_id)
             stage_state = build_state(
                 **self._make_build_state_kwargs(stage_data, stage_client)
             )

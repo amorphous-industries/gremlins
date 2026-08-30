@@ -28,7 +28,6 @@ from gremlins.pipeline import Pipeline as _PipelineData
 from gremlins.pipeline.discovery import resolve_pipeline_path
 from gremlins.protocols import StageProtocol
 from gremlins.stages.outcome import Bail
-from gremlins.utils import proc as _proc
 from gremlins.utils.git import (
     has_commits,
     has_dirty_worktree,

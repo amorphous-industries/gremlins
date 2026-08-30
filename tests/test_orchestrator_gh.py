@@ -1646,9 +1646,9 @@ def test_publish_as_issue_runs_when_no_source_bound(tmp_path, monkeypatch):
     )
     assert result == 0
 
-    assert any(
-        "gh issue create" in cmd for cmd in shell_cmds
-    ), "publish-as-issue should have run gh issue create"
+    assert any("gh issue create" in cmd for cmd in shell_cmds), (
+        "publish-as-issue should have run gh issue create"
+    )
     assert (artifact_dir / "plan-issue-number.txt").exists(), (
         "publish-as-issue should have written plan-issue-number.txt"
     )

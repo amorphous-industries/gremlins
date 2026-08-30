@@ -1013,6 +1013,3 @@ def test_launch_explicit_gremlin_id_stale_dir_refused(lenv, monkeypatch):
             gremlin_id=gremlin_id,
             project_root=str(lenv.repo),
         )
-
-
-

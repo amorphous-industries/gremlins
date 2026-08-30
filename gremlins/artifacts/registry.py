@@ -9,7 +9,7 @@ import pathlib
 import secrets
 import shutil
 from collections.abc import Iterable, Mapping
-from typing import Any, cast
+from typing import Any
 
 from gremlins.artifacts._protocol import SchemeResolver
 from gremlins.artifacts.schemes import (

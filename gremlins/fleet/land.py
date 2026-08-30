@@ -775,7 +775,7 @@ def _land_gh(
             pr_url = value
             break
         if isinstance(value, dict):
-            uri = value.get("uri") or value.get("url")
+            uri: str | None = value.get("uri") or value.get("url")  # type: ignore[reportUnknownMemberType]
             if isinstance(uri, str):
                 pr_url = uri
                 break
