@@ -16,7 +16,6 @@ from typing import Any, cast
 
 from gremlins import paths as _paths
 from gremlins.artifacts.registry import ArtifactRegistry
-from gremlins.artifacts.uri import Uri
 from gremlins.clients.client import Client
 from gremlins.executor.state import (
     State,

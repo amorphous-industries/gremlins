@@ -17,7 +17,6 @@ from gremlins.artifacts.schemes import (
     GitResolver,
     OpaqueResolver,
 )
-from gremlins.artifacts.uri import Uri
 from gremlins.utils import git as git_utils
 
 logger = logging.getLogger(__name__)
@@ -212,13 +211,17 @@ class ArtifactRegistry:
             bound_key = f"{key}/{key_prefix}" if key_prefix else key
             if bound_key in self.data:
                 continue
-            if key.startswith("file://session/") and copy_files and isinstance(value, str):
+            if (
+                key.startswith("file://session/")
+                and copy_files
+                and isinstance(value, str)
+            ):
                 src = pathlib.Path(value)
                 if not src.exists():
                     logger.warning("child artifact missing: %s", src)
                     continue
                 dest_dir = dest_artifact_dir or self.file_resolver._artifact_dir
-                name = key[len("file://session/"):]
+                name = key[len("file://session/") :]
                 dest_name = f"{key_prefix}/{name}" if key_prefix else name
                 dest = dest_dir / dest_name
                 dest.parent.mkdir(parents=True, exist_ok=True)

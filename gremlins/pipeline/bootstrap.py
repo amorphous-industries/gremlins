@@ -131,7 +131,9 @@ class Bootstrap:
             cli_out_dict = cast(dict[str, Any], cli_out_raw)
             cli_out_optional = {
                 str(k): str(v)
-                for k, v in cast(dict[str, Any], cli_out_dict.pop("optional", {})).items()
+                for k, v in cast(
+                    dict[str, Any], cli_out_dict.pop("optional", {})
+                ).items()
             }
             cli_out = {str(k): str(v) for k, v in cli_out_dict.items()}
 

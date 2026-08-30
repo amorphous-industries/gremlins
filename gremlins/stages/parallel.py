@@ -531,7 +531,7 @@ class _ParallelExecutor:
                         logger.warning("child artifact missing: %s", src)
                         continue
                     dest_dir = parent_state.artifact_dir
-                    name = key[len("file://session/"):]
+                    name = key[len("file://session/") :]
                     dest_name = f"{child_key}/{name}" if multi else name
                     dest = dest_dir / dest_name
                     dest.parent.mkdir(parents=True, exist_ok=True)

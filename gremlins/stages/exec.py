@@ -163,8 +163,7 @@ class Exec(Stage):
             shell_rc = result.returncode
             if result.returncode != 0:
                 if result.returncode == 2 and (
-                    _BAIL_KEY in self.out_map
-                    or _BAIL_KEY in self.out_optional_map
+                    _BAIL_KEY in self.out_map or _BAIL_KEY in self.out_optional_map
                 ):
                     bail_triggered = True
                 else:
@@ -205,9 +204,7 @@ class Exec(Stage):
                     raise
             else:
                 uri = Uri.parse(uri_str)
-                materialized = state.artifacts.resolver(uri.scheme).materialize(
-                    uri_str
-                )
+                materialized = state.artifacts.resolver(uri.scheme).materialize(uri_str)
                 try:
                     state.artifacts.resolver(uri.scheme).verify_produced(materialized)
                 except FileNotFoundError:
