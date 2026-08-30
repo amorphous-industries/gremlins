@@ -220,7 +220,7 @@ class ArtifactRegistry:
                 if not src.exists():
                     logger.warning("child artifact missing: %s", src)
                     continue
-                dest_dir = dest_artifact_dir or self.file_resolver._artifact_dir
+                dest_dir = dest_artifact_dir or self.file_resolver.artifact_dir
                 name = key[len("file://session/") :]
                 dest_name = f"{key_prefix}/{name}" if key_prefix else name
                 dest = dest_dir / dest_name

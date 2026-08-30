@@ -33,6 +33,7 @@ class StageProtocol(Protocol):
     path: Any
     body: Any
     out_map: dict[str, str]
+    out_optional_map: dict[str, str]
     gremlin: GremlinProtocol | None
     client: Any
     # Whether ``client`` was explicitly set from YAML or prefix baking,

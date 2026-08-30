@@ -16,6 +16,11 @@ class FileArtifactResolver:
     def __init__(self, artifact_dir: pathlib.Path) -> None:
         self._artifact_dir = artifact_dir
 
+    @property
+    def artifact_dir(self) -> pathlib.Path:
+        """Public accessor for the artifact directory."""
+        return self._artifact_dir
+
     def _path_from_uri_str(self, uri_str: str) -> pathlib.Path:
         uri = Uri.parse(uri_str)
         return self._path(uri)

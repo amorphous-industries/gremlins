@@ -97,7 +97,9 @@ class Exec(Stage):
         in_dict = cast(dict[str, str], raw_in)
         in_optional = {
             str(k): str(v)
-            for k, v in cast(dict[str, Any], in_dict.pop("optional", {})).items()
+            for k, v in cast(
+                dict[str, Any], in_dict.pop("optional", cast(dict[str, Any], {}))
+            ).items()
         }
         if isinstance(raw_out, list):
             out_list = [str(v) for v in cast(list[Any], raw_out)]
@@ -107,7 +109,9 @@ class Exec(Stage):
             out_dict = cast(dict[str, str], raw_out)
             out_optional = {
                 str(k): str(v)
-                for k, v in cast(dict[str, Any], out_dict.pop("optional", {})).items()
+                for k, v in cast(
+                    dict[str, Any], out_dict.pop("optional", cast(dict[str, Any], {}))
+                ).items()
             }
             out_map = {str(k): str(v) for k, v in out_dict.items()}
         return cls(
