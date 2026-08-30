@@ -1,5 +1,4 @@
 base_ref: main
-github_integration: true
 prompt_dir: prompts
 
 bootstrap:
