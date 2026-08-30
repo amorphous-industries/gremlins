@@ -429,7 +429,6 @@ class State:
     client: Client
     artifact_dir: pathlib.Path
     artifacts: ArtifactRegistry
-    repo: str = ""
     cwd: str = ""
     args: argparse.Namespace = dataclasses.field(default_factory=argparse.Namespace)
     pipeline_data: Pipeline | None = None
@@ -556,7 +555,6 @@ def build_state(
     *,
     args: argparse.Namespace | None = None,
     pipeline_data: Pipeline | None = None,
-    repo: str = "",
     cwd: str = "",
     worktree: pathlib.Path | None = None,
     worktree_parent: pathlib.Path | None = None,
@@ -571,7 +569,6 @@ def build_state(
         client=client,
         artifact_dir=artifact_dir,
         artifacts=artifacts or reg,
-        repo=repo,
         cwd=cwd
         or (str(worktree) if worktree is not None else str(_paths.project_root())),
         args=args if args is not None else argparse.Namespace(),

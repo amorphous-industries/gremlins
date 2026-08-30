@@ -97,7 +97,6 @@ def _subs_state() -> State:
         client=FakeClient(fixtures={}),
         artifact_dir=pathlib.Path("/tmp/sess"),
         pipeline_data=_PIPELINE,
-        repo="owner/proj",
         cwd="/work",
         base_ref="trunk",
     )

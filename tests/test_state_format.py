@@ -16,7 +16,6 @@ def _make_state(
     loop_iteration: int = 1,
     attempt: str = "",
     scope_names: list[str] | None = None,
-    repo: str = "",
     cwd: str = "",
     base_ref: str = "",
 ):
@@ -29,7 +28,6 @@ def _make_state(
         data=data,
         client=FakeClient(),
         artifact_dir=artifact_dir,
-        repo=repo,
         cwd=cwd,
         base_ref=base_ref,
     )
