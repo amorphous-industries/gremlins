@@ -20,8 +20,8 @@ from gremlins.clients.client import Client
 from gremlins.executor.state import (
     State,
     StateData,
-    read_state_json,
     build_state,
+    read_state_json,
     write_state,
 )
 from gremlins.pipeline import Pipeline as _PipelineData
