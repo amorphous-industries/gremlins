@@ -497,20 +497,19 @@ def test_plan_skip_if_exists_on_resume(tmp_path, monkeypatch):
     assert "implement" in labels
 
 
-def test_publish_as_issue_skip_if_exists(tmp_path, monkeypatch):
-    """publish-as-issue skipped when plan-issue-number artifact is already verified."""
+def test_publish_as_issue_skip_when_source_bound(tmp_path, monkeypatch):
+    """publish-as-issue skipped when bootstrap already bound plan-source-issue-number.
+
+    When --plan #XYZ is passed at launch, the bootstrap fetches the issue body,
+    binds plan + plan-source-issue-number, and writes plan.md. Both the plan
+    agent and publish-as-issue see skip_if_exists and are skipped — no new
+    GitHub issue is created.
+    """
     _init_git_repo(tmp_path)
     monkeypatch.chdir(tmp_path)
 
     artifact_dir, state_file = _patch_common(monkeypatch, tmp_path)
     (artifact_dir / "plan.md").write_text("# Plan\nDo stuff.\n", encoding="utf-8")
-    (artifact_dir / "plan-issue-number.txt").write_text("42", encoding="utf-8")
-
-    # Add plan-issue-number to registry so skip_if_exists fires.
-    registry_path = tmp_path / "scratch" / "gr-test" / "registry.json"
-    reg = json.loads(registry_path.read_text())
-    reg["plan-issue-number"] = "file://session/plan-issue-number.txt"
-    registry_path.write_text(json.dumps(reg))
 
     shell_cmds: list[str] = []
     from gremlins.utils import proc as _proc_mod
@@ -1581,3 +1580,74 @@ def test_gh_main_pipeline_default_client_model(tmp_path, monkeypatch):
     assert not bad, (
         f"{len(bad)} stage(s) used wrong model: {[(c.label, c.model) for c in bad]}"
     )
+
+
+def test_publish_as_issue_runs_when_no_source_bound(tmp_path, monkeypatch):
+    """publish-as-issue runs when plan-source-issue-number is absent.
+
+    When no --plan is passed at launch, the bootstrap does not bind
+    plan-source-issue-number. The plan agent runs (writing plan.md), then
+    publish-as-issue runs and creates a new GitHub issue via gh issue create.
+    """
+    _init_git_repo(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    artifact_dir, state_file = _patch_common(monkeypatch, tmp_path)
+
+    # Remove plan-source-issue-number so publish-as-issue doesn't skip.
+    registry_path = tmp_path / "scratch" / "gr-test" / "registry.json"
+    reg = json.loads(registry_path.read_text())
+    reg.pop("plan-source-issue-number", None)
+    registry_path.write_text(json.dumps(reg))
+    (artifact_dir / "plan-source-issue-number.txt").unlink(missing_ok=True)
+
+    # Remove plan.md so the plan agent runs instead of skipping.
+    (artifact_dir / "plan.md").unlink(missing_ok=True)
+
+    shell_cmds: list[str] = []
+    from gremlins.utils import proc as _proc_mod
+
+    _orig_shell = _proc_mod.run_shell_async
+
+    async def _recording_shell(cmd, **kwargs):
+        if isinstance(cmd, str):
+            shell_cmds.append(cmd)
+        return await _orig_shell(cmd, **kwargs)
+
+    monkeypatch.setattr(_proc_mod, "run_shell_async", _recording_shell)
+
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        _make_gh_subprocess(issue_body="# Plan\nDo stuff.\n"),
+    )
+    monkeypatch.setattr(
+        "gremlins.stages.loop.LoopStage.run", _async(lambda self, pipe: None)
+    )
+
+    client = _CommittingClient(
+        git_dir=tmp_path,
+        artifact_dir=artifact_dir,
+        fixtures={
+            "plan": MINIMAL_EVENTS,
+            "implement": IMPL_EVENTS,
+            "compose-pr": MINIMAL_EVENTS,
+            "github-review-pull-request": MINIMAL_EVENTS,
+            "github-address-pull-request-reviews": MINIMAL_EVENTS,
+        },
+    )
+
+    result = asyncio.run(
+        run_pipeline(
+            _gh_pipeline_path(tmp_path), argv=[], gremlin_id="gr-test", client=client
+        )
+    )
+    assert result == 0
+
+    assert any(
+        "gh issue create" in cmd for cmd in shell_cmds
+    ), "publish-as-issue should have run gh issue create"
+    assert (artifact_dir / "plan-issue-number.txt").exists(), (
+        "publish-as-issue should have written plan-issue-number.txt"
+    )
+    assert "plan" in [c.label for c in client.calls]
