@@ -153,7 +153,9 @@ class Exec(Stage):
                 len(cmds),
             )
             for i, c in enumerate(cmds):
-                logger.debug("exec %s:   cmd[%d] %s", self.name, i, c.replace("\n", "\\n"))
+                logger.debug(
+                    "exec %s:   cmd[%d] %s", self.name, i, c.replace("\n", "\\n")
+                )
             _t0 = time.monotonic()
             result = await _proc.run_shell_async(
                 joined,
@@ -169,9 +171,7 @@ class Exec(Stage):
             shell_output = (result.stdout + result.stderr).strip()
             shell_rc = result.returncode
             out_summary = (
-                f" (output: {len(shell_output)} chars)"
-                if shell_output
-                else ""
+                f" (output: {len(shell_output)} chars)" if shell_output else ""
             )
             logger.debug(
                 "exec %s: done in %.2fs rc=%d%s",

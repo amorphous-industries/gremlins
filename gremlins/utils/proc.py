@@ -11,8 +11,6 @@ import time
 from collections.abc import AsyncIterator
 from typing import Any
 
-logger = logging.getLogger(__name__)
-
 from _gremlins_core.utils.proc import (
     run as _run,
 )
@@ -34,6 +32,8 @@ from _gremlins_core.utils.proc import (
 from _gremlins_core.utils.proc import (
     terminate_with_grace as _terminate_with_grace,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def run(
