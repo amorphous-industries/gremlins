@@ -1,4 +1,4 @@
-"""Concrete SchemeResolver implementations for file://, git://, and gh:// URIs."""
+"""Concrete SchemeResolver implementations for file://, git://, and opaque URIs."""
 
 from __future__ import annotations
 
@@ -81,19 +81,22 @@ class GitResolver:
         self.read(uri)
 
 
-def snapshot_head_before(cwd: pathlib.Path | None = None) -> str:
-    """Return current HEAD sha for use with ArtifactRegistry.bind_git_commit_range()."""
-    sha = git_utils.head_sha(cwd=cwd)
-    if not sha:
-        raise RuntimeError("could not resolve HEAD")
-    return sha
-
-
-class GhOpaqueResolver:
-    """gh:// URIs are opaque identifiers; returns {"uri": <uri-string>} without calling gh."""
+class OpaqueResolver:
+    """Resolves opaque URIs: returns {"uri": <uri-string>} without calling any
+    external tool.  Used for built-in URI schemes that have no concrete resolver
+    (currently ``gh://``).  Pipeline authors can store custom-scheme values via
+    ``registry.write(key, "custom://value")`` which are returned as raw strings."""
 
     def read(self, uri: Uri) -> dict[str, str]:
         return {"uri": str(uri)}
 
     def verify_produced(self, uri: Uri) -> None:
         pass
+
+
+def snapshot_head_before(cwd: pathlib.Path | None = None) -> str:
+    """Return current HEAD sha for use with ArtifactRegistry.bind_git_commit_range()."""
+    sha = git_utils.head_sha(cwd=cwd)
+    if not sha:
+        raise RuntimeError("could not resolve HEAD")
+    return sha

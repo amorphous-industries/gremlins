@@ -155,8 +155,6 @@ class Gremlin:
         worktree_dir: pathlib.Path | None = None,
         worktree_parent: pathlib.Path | None = None,
         resume_from: str | None = None,
-        repo: str = "",
-        state_file: pathlib.Path | None = None,
         project_root: str = "",
         base_ref_sha: str = "",
         base_ref: str = "",
@@ -185,8 +183,6 @@ class Gremlin:
         self.worktree_dir = worktree_dir
         self.worktree_parent = worktree_parent
         self.resume_from = resume_from
-        self.repo = repo
-        self.state_file = state_file
         self.project_root = project_root
         self.base_ref_sha = base_ref_sha
         self.base_ref = base_ref
@@ -296,7 +292,6 @@ class Gremlin:
             artifact_dir=child_artifact_dir,
             args=state.args,
             pipeline_data=effective_pipeline,
-            repo=state.repo,
             cwd=child_cwd,
             worktree=child_worktree,
             worktree_parent=state.worktree_parent,
@@ -336,7 +331,6 @@ class Gremlin:
             "client": client,
             "artifact_dir": self.artifact_dir,
             "pipeline_data": self.pipeline_data,
-            "repo": self.repo,
             "cwd": self._cwd,
             "worktree": self.worktree_dir,
             "worktree_parent": self.worktree_parent,
@@ -352,9 +346,7 @@ class Gremlin:
             self._set_gremlin_recursive(e)
             stage_client = e.client
             assert stage_client is not None, f"stage {e.name!r} has no client"
-            stage_data = StateData(
-                gremlin_id=self.gremlin_id, state_file=self.state_file
-            )
+            stage_data = StateData(gremlin_id=self.gremlin_id)
             stage_state = build_state(
                 **self._make_build_state_kwargs(stage_data, stage_client)
             )
@@ -508,7 +500,6 @@ class Gremlin:
         fetch_worktree: bool = False,
         worktree_dir: pathlib.Path | None = None,
         client_label: str = "",
-        repo: str = "",
         stage_inputs: dict[str, Any] | None = None,
         client: Client | None = None,
     ) -> Gremlin:
@@ -545,7 +536,6 @@ class Gremlin:
             base_ref_sha=base_ref_sha,
             base_ref=base_ref,
             fetch_worktree=fetch_worktree,
-            repo=repo,
         )
 
         State.setup_dirs(
@@ -690,7 +680,6 @@ class Gremlin:
             client=client,
             artifact_dir=artifact_dir,
             pipeline_data=pipeline_data,
-            repo=str(spec.get("repo") or ""),
             child_key=spec.get("child_key") or None,
             parent_stage=str(spec.get("parent_stage") or ""),
             worktree=worktree,
@@ -712,7 +701,6 @@ class Gremlin:
             worktree_dir=worktree,
             worktree_parent=worktree_parent,
             project_root=str(project_root),
-            repo=str(spec.get("repo") or ""),
             base_ref=str(spec.get("base_ref") or ""),
         )
         gremlin.state = state

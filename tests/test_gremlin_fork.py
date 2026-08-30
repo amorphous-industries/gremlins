@@ -71,7 +71,6 @@ def test_fork_without_worktree(tmp_path, tmp_repo, monkeypatch):
             data=state_data,
             client=FakeClient(),
             artifact_dir=artifact_dir,
-            repo="test-repo",
             cwd=str(tmp_repo),
             worktree=None,
             artifacts=registry,
@@ -95,7 +94,6 @@ def test_fork_without_worktree(tmp_path, tmp_repo, monkeypatch):
         assert forked.artifact_dir == tmp_path / "scratch" / "gr-2" / "artifacts"
         assert (forked.artifact_dir / "spec.md").read_text() == "# Spec\n"
         assert forked.worktree is None
-        assert forked.repo == state.repo
         assert forked.base_ref == state.base_ref
 
         # Verify source is not mutated
@@ -137,7 +135,6 @@ def test_fork_with_worktree(tmp_path, tmp_repo, monkeypatch):
             data=state_data,
             client=FakeClient(),
             artifact_dir=artifact_dir,
-            repo="test-repo",
             cwd=str(worktree_path),
             worktree=worktree_path,
             worktree_parent=worktree_parent,
@@ -166,7 +163,6 @@ def test_fork_with_worktree(tmp_path, tmp_repo, monkeypatch):
             assert forked.worktree != worktree_path
             assert forked.worktree.exists()
             assert forked.cwd == str(forked.worktree)
-            assert forked.repo == state.repo
             assert forked.base_ref == state.base_ref
 
             # Verify worktree is at the same commit
@@ -229,7 +225,6 @@ def test_fork_preserves_registry(tmp_path, tmp_repo, monkeypatch):
             data=state_data,
             client=FakeClient(),
             artifact_dir=artifact_dir,
-            repo="test-repo",
             cwd=str(tmp_repo),
             worktree=None,
             artifacts=registry,
@@ -290,7 +285,6 @@ def test_fork_with_branch_pipeline_scopes_child(tmp_path, tmp_repo, monkeypatch)
             data=state_data,
             client=FakeClient(),
             artifact_dir=artifact_dir,
-            repo="test-repo",
             cwd=str(tmp_repo),
             pipeline_data=parent_pipeline,
         )

@@ -97,7 +97,6 @@ def _subs_state() -> State:
         client=FakeClient(fixtures={}),
         artifact_dir=pathlib.Path("/tmp/sess"),
         pipeline_data=_PIPELINE,
-        repo="owner/proj",
         cwd="/work",
         base_ref="trunk",
     )
@@ -106,10 +105,8 @@ def _subs_state() -> State:
 def test_substitute_vars_renders_shared_framework_keys() -> None:
     stage = _SimpleStage("st", [], {})
     state = _subs_state()
-    text = "{name} {model} {artifact_dir} {repo} {cwd} {base_ref}"
-    assert stage.substitute_vars(text, state) == (
-        "st fake /tmp/sess owner/proj /work trunk"
-    )
+    text = "{name} {model} {artifact_dir} {cwd} {base_ref}"
+    assert stage.substitute_vars(text, state) == ("st fake /tmp/sess /work trunk")
 
 
 def test_substitute_vars_framework_wins_over_options_and_extra() -> None:
@@ -118,8 +115,8 @@ def test_substitute_vars_framework_wins_over_options_and_extra() -> None:
     out = stage.substitute_vars(
         "{repo} {x} {y}", state, extra={"repo": "from-extra", "y": "extra-y"}
     )
-    # framework {repo} wins over both option and extra; extra wins over option for {y}.
-    assert out == "owner/proj opt-x extra-y"
+    # {repo} comes from extra (not framework); extra wins over option for {y}.
+    assert out == "from-extra opt-x extra-y"
 
 
 def test_substitute_vars_extra_wins_over_options() -> None:

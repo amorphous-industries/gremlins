@@ -28,7 +28,6 @@ from gremlins.pipeline import Pipeline as _PipelineData
 from gremlins.pipeline.discovery import resolve_pipeline_path
 from gremlins.protocols import StageProtocol
 from gremlins.stages.outcome import Bail
-from gremlins.utils import proc as _proc
 from gremlins.utils.git import (
     has_commits,
     has_dirty_worktree,
@@ -38,23 +37,6 @@ from gremlins.utils.git import (
 from gremlins.utils.yaml_io import YamlLoadError as _YamlLoadError
 
 logger = logging.getLogger(__name__)
-
-
-def _get_repo() -> str:
-    r = _proc.run(["git", "remote", "get-url", "origin"], timeout=10)
-    if r.returncode != 0:
-        raise RuntimeError(
-            f"cannot read git remote: {r.stderr.strip() or r.stdout.strip()}"
-        )
-    url = r.stdout.strip().removesuffix(".git")
-    # handles https://github.com/owner/repo and git@github.com:owner/repo
-    owner_repo = url.split("github.com")[-1].lstrip(":/")
-    if "/" not in owner_repo:
-        raise RuntimeError(
-            f"cannot parse owner/repo from remote URL: {r.stdout.strip()!r}"
-        )
-    return owner_repo
-
 
 _HANDLED_SIGS = tuple(
     getattr(signal, name)
@@ -203,8 +185,7 @@ async def run_pipeline(
         base_ref_sha = ""
         base_ref = ""
 
-    # PR refs like pull/<N>/head need to be fetched from the remote
-    fetch_worktree = base_ref.startswith("pull/") and base_ref.endswith("/head")
+    fetch_worktree = False
 
     project_dir = pathlib.Path(project_root) if project_root else paths.project_root()
     # Fall back to global config's default-client when --client is absent, so
@@ -228,13 +209,7 @@ async def run_pipeline(
         )
     except (FileNotFoundError, _YamlLoadError, ValueError) as exc:
         die(str(exc))
-    gh = _pipeline_preview.github_integration
-    if gh and shutil.which("gh") is None:
-        die("gh CLI not found")
-
     logger.info("artifact: %s", artifact_dir)
-
-    gh_repo = _get_repo() if gh else ""
     try:
         gremlin = Gremlin.initialize_with_runtime(
             gremlin_id=gremlin_id,
@@ -250,7 +225,6 @@ async def run_pipeline(
             base_ref=base_ref,
             fetch_worktree=fetch_worktree,
             client_label=args.client or "",
-            repo=gh_repo,
             stage_inputs=stage_inputs,
             client=client,
         )
@@ -338,13 +312,10 @@ async def run_pipeline(
                 )
             return 1
 
-    if gh:
-        gremlin.state_file = gremlin.state_dir / "state.json"
-
     _stage_clients = _unique_clients(gremlin.stages)
     _signal_clients = [client] if client is not None else _stage_clients
 
-    if not gh and resume_from:
+    if resume_from:
         _expanded_stage_names = [s.name for s in gremlin.stages]
 
         def _name_idx(stage_name: str) -> int:
@@ -397,11 +368,7 @@ async def run_pipeline(
     if total_cost > 0:
         gremlin.state.data.patch(total_cost_usd=total_cost)
 
-    if gh:
-        pr_url = gremlin.registry.get_pr_url() or "unknown"
-        logger.info("done. PR: %s", pr_url)
-    else:
-        logger.info("done. artifacts in: %s", artifact_dir)
+    logger.info("done. artifacts in: %s", artifact_dir)
     if total_cost > 0:
         logger.info("total cost: $%.4f", total_cost)
 

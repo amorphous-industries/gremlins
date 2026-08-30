@@ -21,8 +21,6 @@ pub struct Pipeline {
     pub bootstrap: Option<Py<PyAny>>,
     #[pyo3(get, set)]
     pub land: Option<Py<PyAny>>,
-    #[pyo3(get, set)]
-    pub github_integration: bool,
 }
 
 #[pymethods]
@@ -94,11 +92,6 @@ impl Pipeline {
             })
             .transpose()?
             .unwrap_or_else(|| "current".to_string());
-
-        let github_integration: bool = raw_dict
-            .get_item("github_integration")?
-            .and_then(|v| v.extract::<bool>().ok())
-            .unwrap_or(false);
 
         let raw_stages_val = raw_dict.get_item("stages")?;
         let empty_list = PyList::empty(py);
@@ -185,7 +178,6 @@ impl Pipeline {
             base_ref,
             bootstrap,
             land: land_stage,
-            github_integration,
         })
     }
 
@@ -251,7 +243,6 @@ mod tests {
             base_ref: "current".to_string(),
             bootstrap: None,
             land: None,
-            github_integration: false,
         };
         Python::attach(|py| {
             assert!(!p.uses_loop_handoff(py));
