@@ -147,7 +147,7 @@ class Exec(Stage):
         timeout: float | None = float(raw_timeout) if raw_timeout is not None else None
         if cmds:
             joined = " && ".join(cmds)
-            logger.debug(
+            logger.info(
                 "exec %s: running %d command(s)",
                 self.name,
                 len(cmds),
@@ -173,21 +173,15 @@ class Exec(Stage):
             out_summary = (
                 f" (output: {len(shell_output)} chars)" if shell_output else ""
             )
-            logger.debug(
+            logger.info(
                 "exec %s: done in %.2fs rc=%d%s",
                 self.name,
                 elapsed,
                 result.returncode,
                 out_summary,
             )
-            if shell_output and result.returncode != 0:
-                # Show last few lines of output on failure for quick triage
-                tail = shell_output[-500:]
-                logger.debug(
-                    "exec %s: tail of output (last 500 chars):\n%s",
-                    self.name,
-                    tail,
-                )
+            if shell_output:
+                logger.debug("exec %s: output:\n%s", self.name, shell_output)
             if result.returncode != 0:
                 if result.returncode == 2 and _BAIL_KEY in self.bind_map:
                     bail_triggered = True
