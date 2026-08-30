@@ -23,5 +23,3 @@ stages:
           - "{{prompt}}"
         in:
           verify_output: verify_log
-        out:
-          done: "file://session/done"
