@@ -201,7 +201,8 @@ fn _check_scope(stages: &Bound<'_, PyList>) -> PyResult<()> {
     for i in 0..len {
         let stage = stages.get_item(i)?;
         let bind_map_attr = stage.getattr("bind_map").ok();
-        let bind_map: Option<&Bound<'_, PyDict>> = bind_map_attr.as_ref().and_then(|v| v.cast().ok());
+        let bind_map: Option<&Bound<'_, PyDict>> =
+            bind_map_attr.as_ref().and_then(|v| v.cast().ok());
 
         if let Some(bind_map) = bind_map {
             for (raw_key, uri_str) in bind_map.iter() {
