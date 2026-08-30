@@ -6,17 +6,17 @@ stages:
     skip_if_exists: plan
     prompt:
       - "{{prompt}}"
-    in:
-      instructions: "instructions?"
-    out:
-      plan: "file://session/plan.md"
+    interpolation:
+      instructions: "artifact.instructions?"
+    bind:
+      artifact.plan: "file://session/plan.md"
     options:
       idle_timeout: 600
 
   - name: set-description
     type: exec
-    out:
-      description?: "file://session/description.txt"
+    bind:
+      artifact.description?: "file://session/description.txt"
     options:
       cmds:
         - "head -1 \"{artifact:plan}\" | sed 's/^#\\+ *//' > \"{artifact_dir}/description.txt\""

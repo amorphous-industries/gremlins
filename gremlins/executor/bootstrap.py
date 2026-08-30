@@ -247,5 +247,5 @@ async def run_pipeline_bootstrap(
     if bootstrap.cli_out:
         from gremlins.stages.exec import Exec
 
-        binder = Exec("bootstrap", {}, out_map=dict(bootstrap.cli_out))
+        binder = Exec("bootstrap", {}, bind_map=dict(bootstrap.cli_out))
         await binder.run(gremlin)

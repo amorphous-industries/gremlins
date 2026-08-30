@@ -397,7 +397,7 @@ class Gremlin:
         start_idx = names.index(self.resume_from)
         for stage in self.stages[start_idx:]:
             if stage.type == "exec":
-                for key in stage.out_map:
+                for key in stage.bind_map:
                     if self.registry.produced(key):
                         self.registry.unbind(key)
 

@@ -17,8 +17,8 @@ bootstrap:
     - gremlins:bind_artifact(instructions, instructions, file://session/instructions.txt)
 
 land:
-  in:
-    PR_URL: pr-url
+  interpolation:
+    PR_URL: artifact.pr-url
   options:
     cmds:
       - gh pr merge --squash --delete-branch "$PR_URL"
@@ -39,8 +39,8 @@ stages:
   - { type: gremlins:implement, prompt: [code-style, gremlins:implement_gh.md] }
   - name: normalize
     type: normalize
-    out:
-      normalize-commits: git://range
+    bind:
+      artifact.normalize-commits: git://range
   - { name: verify-check, type: verify, options: { cmds: ["make check"] }, prompt: verify }
   - { name: verify-test,  type: verify, options: { cmds: ["make test"] },  prompt: verify }
   - { name: open-pr,   type: gremlins:github-open-pr }

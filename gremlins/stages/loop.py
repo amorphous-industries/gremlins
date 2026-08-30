@@ -139,7 +139,7 @@ class LoopStage(Stage):
             gremlin.state.record_state_field(loop_iteration=iteration)
             gremlin.state.artifacts.unbind(_BAIL_KEY)
             for child in self.body:
-                for raw_key in getattr(child, "out_map", {}):
+                for raw_key in getattr(child, "bind_map", {}):
                     key = raw_key.removesuffix("?")
                     gremlin.state.artifacts.unbind(key)
             runners = (

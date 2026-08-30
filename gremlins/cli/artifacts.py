@@ -59,7 +59,7 @@ def _walk(stages: list[Any], info: dict[str, dict[str, Any]]) -> None:
 
 def _collect(st: Any, info: dict[str, dict[str, Any]]) -> None:
     nm = getattr(st, "name", "?")
-    for k, u in getattr(st, "out_map", {}).items():
+    for k, u in getattr(st, "bind_map", {}).items():
         k = k[:-1] if k.endswith("?") else k
         uri = Uri.parse_or_none(u)
         sch = uri.scheme if uri else "?"
@@ -76,7 +76,7 @@ def _collect(st: Any, info: dict[str, dict[str, Any]]) -> None:
             d["scheme"] = sch
         if nm not in d["producers"]:
             d["producers"].append(nm)
-    for ref in getattr(st, "in_map", {}).values():
+    for ref in getattr(st, "interpolation_map", {}).values():
         k = ref.split("?", 1)[0].split(".", 1)[0]
         if not k:
             continue

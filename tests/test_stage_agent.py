@@ -43,8 +43,8 @@ def _make_state(
 def _make_agent(
     *,
     prompts: list[str] | None = None,
-    in_map: dict[str, str] | None = None,
-    out_map: dict[str, str] | None = None,
+    interpolation_map: dict[str, str] | None = None,
+    bind_map: dict[str, str] | None = None,
     options: dict[str, Any] | None = None,
     name: str = "my-agent",
 ) -> Agent:
@@ -52,8 +52,8 @@ def _make_agent(
         name,
         prompts or ["Hello {content}"],
         options or {},
-        in_map=in_map,
-        out_map=out_map,
+        interpolation_map=interpolation_map,
+        bind_map=bind_map,
     )
 
 
@@ -68,7 +68,7 @@ def test_in_content_substituted_into_prompt(tmp_path):
 
     client = FakeClient(fixtures={"my-agent": MINIMAL_EVENTS})
     state = _make_state(tmp_path, client, registry=registry)
-    agent = _make_agent(prompts=["Process: {plan_text}"], in_map={"plan_text": "plan"})
+    agent = _make_agent(prompts=["Process: {plan_text}"], interpolation_map={"plan_text": "plan"})
 
     asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
 
@@ -78,16 +78,16 @@ def test_in_content_substituted_into_prompt(tmp_path):
 
 def test_missing_in_key_raises_missing_artifact(tmp_path):
     state = _make_state(tmp_path)
-    agent = _make_agent(in_map={"content": "unbound-key"})
+    agent = _make_agent(interpolation_map={"content": "unbound-key"})
 
     with pytest.raises(MissingArtifact):
         asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
 
 
-def test_no_in_map_runs_prompt_unchanged(tmp_path):
+def test_no_interpolation_map_runs_prompt_unchanged(tmp_path):
     client = FakeClient(fixtures={"my-agent": MINIMAL_EVENTS})
     state = _make_state(tmp_path, client)
-    agent = _make_agent(prompts=["Static prompt"], in_map=None)
+    agent = _make_agent(prompts=["Static prompt"], interpolation_map=None)
 
     result = asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
 
@@ -112,7 +112,7 @@ def test_verify_produced_passes_when_out_file_written(tmp_path):
     state = _make_state(tmp_path, client)
     agent = _make_agent(
         prompts=["Write output to `{out_file}`"],
-        out_map={"result": "file://session/output.md"},
+        bind_map={"result": "file://session/output.md"},
     )
 
     result = asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
@@ -127,14 +127,14 @@ def test_verify_produced_fails_when_out_file_missing(tmp_path):
     state = _make_state(tmp_path, client)
     agent = _make_agent(
         prompts=["Write output"],
-        out_map={"result": "file://session/missing.md"},
+        bind_map={"result": "file://session/missing.md"},
     )
 
     with pytest.raises(FileNotFoundError):
         asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
 
 
-def test_out_uri_bound_in_registry_before_agent_runs(tmp_path):
+def test_bind_uri_bound_in_registry_before_agent_runs(tmp_path):
     seen_bound_before_run: list[bool] = []
 
     class CheckingClient(FakeClient):
@@ -155,7 +155,7 @@ def test_out_uri_bound_in_registry_before_agent_runs(tmp_path):
     state = _make_state(tmp_path, client)
     agent = _make_agent(
         prompts=["Write output to `{out_file}`"],
-        out_map={"result": "file://session/output.md"},
+        bind_map={"result": "file://session/output.md"},
     )
 
     asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
@@ -165,28 +165,40 @@ def test_out_uri_bound_in_registry_before_agent_runs(tmp_path):
 # --- with_dict parsing ---
 
 
-def test_with_dict_parses_in_and_out_maps(tmp_path):
+def test_with_dict_parses_interpolation_and_bind_maps(tmp_path):
     d = {
         "name": "my-agent",
         "type": "agent",
         "prompt": ["Do {task}"],
-        "in": {"task": "task-key"},
-        "out": {"result": "file://session/result.md"},
+        "interpolation": {"task": "artifact.task-key"},
+        "bind": {"artifact.result": "file://session/result.md"},
     }
     agent = Agent.with_dict(d)
-    assert agent.in_map == {"task": "task-key"}
-    assert agent.out_map == {"result": "file://session/result.md"}
+    assert agent.interpolation_map == {"task": "task-key"}
+    assert agent.bind_map == {"result": "file://session/result.md"}
 
 
-def test_with_dict_rejects_non_dict_in(tmp_path):
-    d = {"name": "x", "type": "agent", "in": "not-a-dict"}
-    with pytest.raises(ValueError, match="'in' must be a mapping"):
+def test_with_dict_rejects_non_dict_interpolation(tmp_path):
+    d = {"name": "x", "type": "agent", "interpolation": "not-a-dict"}
+    with pytest.raises(ValueError, match="'interpolation' must be a mapping"):
         Agent.with_dict(d)
 
 
-def test_with_dict_rejects_non_dict_out(tmp_path):
-    d = {"name": "x", "type": "agent", "out": ["list"]}
-    with pytest.raises(ValueError, match="'out' must be a mapping"):
+def test_with_dict_rejects_non_dict_bind(tmp_path):
+    d = {"name": "x", "type": "agent", "bind": ["list"]}
+    with pytest.raises(ValueError, match="'bind' must be a mapping"):
+        Agent.with_dict(d)
+
+
+def test_with_dict_rejects_old_in_key(tmp_path):
+    d = {"name": "x", "type": "agent", "in": {"task": "key"}}
+    with pytest.raises(ValueError, match="'in'/'out' keys are no longer supported"):
+        Agent.with_dict(d)
+
+
+def test_with_dict_rejects_old_out_key(tmp_path):
+    d = {"name": "x", "type": "agent", "out": {"key": "uri"}}
+    with pytest.raises(ValueError, match="'in'/'out' keys are no longer supported"):
         Agent.with_dict(d)
 
 
@@ -209,7 +221,7 @@ def test_single_file_out_prompt_gets_slug_prefixed_name(tmp_path):
     state = _make_state(tmp_path, client)
     agent = _make_agent(
         prompts=["Write to `{out_file}`"],
-        out_map={"result": "file://session/output.md"},
+        bind_map={"result": "file://session/output.md"},
     )
 
     asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
@@ -240,7 +252,7 @@ def test_single_file_out_keeps_slug_in_artifact_dir(tmp_path):
     state = _make_state(tmp_path, client)
     agent = _make_agent(
         prompts=["Write to `{out_file}`"],
-        out_map={"result": "file://session/output.md"},
+        bind_map={"result": "file://session/output.md"},
     )
 
     result = asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
@@ -267,7 +279,7 @@ def test_single_file_out_uses_substituted_out_map_name(tmp_path):
     agent = _make_agent(
         name="review-code",
         prompts=["Write review to `{out_file}`"],
-        out_map={"{name}": "file://session/{name}.md"},
+        bind_map={"{name}": "file://session/{name}.md"},
     )
 
     result = asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
@@ -282,7 +294,7 @@ def test_single_file_out_missing_source_raises(tmp_path):
     state = _make_state(tmp_path, client)
     agent = _make_agent(
         prompts=["Write nothing"],
-        out_map={"result": "file://session/never-written.md"},
+        bind_map={"result": "file://session/never-written.md"},
     )
 
     with pytest.raises(FileNotFoundError):
@@ -297,7 +309,7 @@ def test_multi_file_out_prompt_gets_json_mapping(tmp_path):
     state = _make_state(tmp_path, client)
     agent = _make_agent(
         prompts=["Write to {out_files}"],
-        out_map={
+        bind_map={
             "blah": "file://session/blah.md",
             "foo": "file://session/foo.md",
             "biz": "file://session/biz.md",
@@ -332,7 +344,7 @@ def test_multi_file_out_renames_only_written_files(tmp_path):
     state = _make_state(tmp_path, client)
     agent = _make_agent(
         prompts=["Write to {out_files}"],
-        out_map={
+        bind_map={
             "blah": "file://session/blah.md",
             "foo": "file://session/foo.md",
             "biz": "file://session/biz.md",
@@ -357,7 +369,7 @@ def test_multi_file_out_missing_files_do_not_raise(tmp_path):
     state = _make_state(tmp_path, client)
     agent = _make_agent(
         prompts=["Write nothing"],
-        out_map={
+        bind_map={
             "blah": "file://session/blah.md",
             "foo": "file://session/foo.md",
         },

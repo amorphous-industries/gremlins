@@ -24,7 +24,7 @@ def _check_scope(stages: list[Stage], extra_out: dict[str, str] | None = None) -
             key = raw_key[:-1] if raw_key.endswith("?") else raw_key
             seen[key] = ("bootstrap", uri_str)
     for stage in stages:
-        for raw_key, uri_str in getattr(stage, "out_map", {}).items():
+        for raw_key, uri_str in getattr(stage, "bind_map", {}).items():
             if raw_key.endswith("?"):
                 continue
             existing = seen.get(raw_key)
@@ -32,7 +32,7 @@ def _check_scope(stages: list[Stage], extra_out: dict[str, str] | None = None) -
                 prev_name, prev_uri = existing
                 if prev_uri != uri_str and not getattr(stage, "skip_if_exists", None):
                     raise ValueError(
-                        f"duplicate out: key {raw_key!r}: declared by both "
+                        f"duplicate bind: key {raw_key!r}: declared by both "
                         f"{prev_name!r} and {stage.name!r}"
                     )
             else:

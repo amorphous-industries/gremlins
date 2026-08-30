@@ -29,8 +29,8 @@ def test_agent_stage_e2e_reads_artifact_and_writes_output(tmp_path):
             "name": "summarise",
             "type": "agent",
             "prompt": ["Summarise the following and write to `{out_file}`:\n\n{src}"],
-            "in": {"src": "source-doc"},
-            "out": {"summary": "file://session/summary.md"},
+            "interpolation": {"src": "artifact.source-doc"},
+            "bind": {"artifact.summary": "file://session/summary.md"},
         }
     ]
     stages = parse_stages(raw)

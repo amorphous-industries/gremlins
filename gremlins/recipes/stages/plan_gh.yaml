@@ -6,10 +6,10 @@ stages:
     skip_if_exists: plan
     prompt:
       - "{{prompt}}"
-    in:
-      instructions: "instructions?"
-    out:
-      plan: "file://session/plan.md"
+    interpolation:
+      instructions: "artifact.instructions?"
+    bind:
+      artifact.plan: "file://session/plan.md"
     options:
       idle_timeout: 600
 
@@ -38,8 +38,8 @@ stages:
             *) printf '# %s\n\n%s\n' "$title" "$body" > "$plan_file" ;;
           esac
           printf '%s' "$number" > "{artifact_dir}/plan-source-issue-number.txt"
-    out:
-      plan-source-issue-number?: "file://session/plan-source-issue-number.txt"
+    bind:
+      artifact.plan-source-issue-number?: "file://session/plan-source-issue-number.txt"
 
   - name: publish-as-issue
     type: exec
@@ -58,13 +58,13 @@ stages:
               --body-file "{artifact_dir}/plan.md" \
               --title "$title")
           printf '%s' "${url##*/}" > "{artifact_dir}/plan-issue-number.txt"
-    out:
-      plan-issue-number: "file://session/plan-issue-number.txt"
+    bind:
+      artifact.plan-issue-number: "file://session/plan-issue-number.txt"
 
   - name: set-description
     type: exec
-    out:
-      description?: "file://session/description.txt"
+    bind:
+      artifact.description?: "file://session/description.txt"
     options:
       cmds:
         - "head -1 \"{artifact:plan}\" | sed 's/^#\\+ *//' > \"{artifact_dir}/description.txt\""

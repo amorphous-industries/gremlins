@@ -73,7 +73,7 @@ def _require_impl_progress_exec() -> Exec:
     return Exec(
         "require-impl-progress",
         {"cmds": cmds},
-        in_map={"base_sha": "base_sha"},
+        interpolation_map={"base_sha": "base_sha"},
     )
 
 

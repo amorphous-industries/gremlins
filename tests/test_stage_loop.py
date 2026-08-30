@@ -260,7 +260,7 @@ def test_loop_patches_loop_iteration_to_state(tmp_path, make_state_dir):
 
 
 def test_loop_unbinds_out_keys_between_iterations(tmp_path):
-    """out_map keys unbound each iteration so exec can rebind to a different URI."""
+    """bind_map keys unbound each iteration so exec can rebind to a different URI."""
     from gremlins.stages.exec import Exec
 
     (tmp_path / "artifacts").mkdir(exist_ok=True)
@@ -276,7 +276,7 @@ def test_loop_unbinds_out_keys_between_iterations(tmp_path):
             _set_done(state)
         return Done()
 
-    exec_stage = Exec("stage", {}, out_map={"loop-out": "file://session/out-0.txt"})
+    exec_stage = Exec("stage", {}, bind_map={"loop-out": "file://session/out-0.txt"})
     loop = LoopStage(
         "loop",
         body=[exec_stage],

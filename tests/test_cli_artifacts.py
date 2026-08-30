@@ -22,8 +22,8 @@ def _pipe(name="p", stages=None, land=None):
 def _st(name="s", out=None, inp=None, body=None):
     st = MagicMock()
     st.name = name
-    st.out_map = out or {}
-    st.in_map = inp or {}
+    st.bind_map = out or {}
+    st.interpolation_map = inp or {}
     st.body = body or []
     return st
 

@@ -92,7 +92,7 @@ def _make_review_code_stage(client: ReviewCreatingClient) -> Agent:
             "`{out_file}` is the canonical and required location.",
         ],
         {},
-        out_map={"review-code": "file://session/{name}-{model}.md"},
+        bind_map={"review-code": "file://session/{name}-{model}.md"},
     )
 
 
@@ -126,7 +126,7 @@ def test_review_code_stage_includes_style_from_prompts(tmp_path):
             "`{out_file}` is the canonical and required location.",
         ],
         {},
-        out_map={"review-code": "file://session/{name}-{model}.md"},
+        bind_map={"review-code": "file://session/{name}-{model}.md"},
     )
     artifact_dir = tmp_path / "session"
     artifact_dir.mkdir()
