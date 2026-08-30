@@ -106,18 +106,24 @@ class StateData:
     def __init__(self, gremlin_id: str | None = None) -> None:
         self.gremlin_id = gremlin_id
         self.state_file = resolve_state_file(gremlin_id)
+        self._cache: dict[str, Any] | None = None
 
     def __getattr__(self, name: str) -> Any:
         if name not in self.FIELD_DEFAULTS:
             raise AttributeError(f"{type(self).__name__!r} has no field {name!r}")
-        data = read_state_json(self.state_file)
-        val = data.get(name)
-        if val is None:
-            return copy.deepcopy(self.FIELD_DEFAULTS[name])
-        return val
+        if self._cache is None:
+            self._cache = read_state_json(self.state_file)
+        if name not in self._cache:
+            default = self.FIELD_DEFAULTS[name]
+            if isinstance(default, list):
+                return list(default)
+            if isinstance(default, dict):
+                return dict(default)
+            return default
+        return self._cache[name]
 
     def __setattr__(self, name: str, value: Any) -> None:
-        if name in ("gremlin_id", "state_file"):
+        if name in ("gremlin_id", "state_file", "_cache"):
             super().__setattr__(name, value)
         else:
             raise TypeError(
@@ -131,6 +137,7 @@ class StateData:
         data["id"] = self.gremlin_id
         write_state(state_dir, data)
         self.state_file = state_dir / "state.json"
+        self._cache = None
 
     def patch(self, _delete: tuple[str, ...] = (), **fields: object) -> None:
         sf = self.state_file or resolve_state_file(self.gremlin_id)
@@ -146,6 +153,7 @@ class StateData:
             locked_update(sf, _apply)
         except Exception:
             pass
+        self._cache = None
 
     def read_str(self, field: str) -> str:
         sf = self.state_file or resolve_state_file(self.gremlin_id)

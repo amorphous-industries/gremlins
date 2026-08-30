@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import dataclasses
+import datetime as _dt
 import json
 import logging
 import pathlib
+import secrets as _secrets
 from typing import Any
 
 from gremlins.executor.state import StateData
@@ -83,8 +85,6 @@ class ParallelGroupState:
         bail_path = state_dir / f"bail_{attempt}.json"
         if bail_path.exists():
             return
-        import datetime as _dt
-        import secrets as _secrets
 
         payload = json.dumps(
             {

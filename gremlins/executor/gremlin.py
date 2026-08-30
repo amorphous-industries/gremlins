@@ -77,6 +77,11 @@ def write_initial_state(
         "stage": "starting",
         "pid": None,
         "stage_inputs": stage_inputs,
+        "loop_iteration": 1,
+        "attempt": "",
+        "group_name": "",
+        "child_key": "",
+        "exit_code": None,
     }
     write_state(state_dir, state_dict)
 
@@ -276,11 +281,22 @@ class Gremlin:
             )
             child_pipeline_path = str(branch_yaml_path)
 
-        # Read parent state from disk, build child dict
+        # Read parent state from disk, build child dict from known fields only.
+        # Exclude transient runtime keys that should not leak into the child.
+        _fork_transient = frozenset({
+            "parallel_worktrees", "done_children", "parallel_attempts",
+            "active_children", "token_usage", "subprocess_cost_usd",
+            "total_cost_usd", "stage", "stage_updated_at", "sub_stage",
+            "ended_at", "status", "pid", "exit_code",
+        })
         parent_dict = read_state_json(state.data.state_file)
-        child_dict = dict(parent_dict)
+        child_dict = {
+            k: parent_dict[k] if k in parent_dict else v
+            for k, v in StateData.FIELD_DEFAULTS.items()
+            if k not in _fork_transient
+        }
+        child_dict["id"] = target_id
         child_dict.update(
-            id=target_id,
             parent_id=parent_id or parent_dict.get("parent_id", ""),
             group_name=group_name or parent_dict.get("group_name", ""),
             child_key=child_key or parent_dict.get("child_key", ""),

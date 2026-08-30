@@ -99,9 +99,8 @@ def test_write_bail_file_noop_without_attempt(sandbox):
     assert not bail_files
 
 
-def test_write_bail_file_fallback_to_disk_attempt(sandbox):
-    """When attempt arg is empty but state.json on disk has an attempt
-    field, write_bail_file should read it from disk instead of no-oping."""
+def test_write_bail_file_reads_attempt_from_disk(sandbox):
+    """write_bail_file reads attempt from state.json on disk."""
     gremlin_id = "gr-bail-disk-fallback"
     state_dir = sandbox.state / gremlin_id
     state_dir.mkdir(parents=True)
