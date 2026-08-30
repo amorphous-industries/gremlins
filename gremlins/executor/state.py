@@ -120,7 +120,12 @@ class StateData:
             if isinstance(default, dict):
                 return dict(default)  # type: ignore[arg-type]
             return default
-        return self._cache[name]
+        value: object = self._cache[name]
+        if isinstance(value, list):
+            return list(value)  # type: ignore[arg-type]
+        if isinstance(value, dict):
+            return dict(value)  # type: ignore[arg-type]
+        return value
 
     def __setattr__(self, name: str, value: Any) -> None:
         if name in ("gremlin_id", "state_file", "_cache"):
@@ -188,7 +193,9 @@ class StateData:
         sf = self.state_file or resolve_state_file(self.gremlin_id)
         if sf is None or not sf.exists() or not bail_class:
             return
-        attempt = self.attempt  # reads from disk via __getattr__
+        # Read attempt directly from disk to avoid stale _cache issues
+        # when another process has patched state.json concurrently.
+        attempt = read_state_json(sf).get("attempt") or ""
         if not attempt:
             return
         try:
