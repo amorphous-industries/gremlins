@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import logging
 import os
 import pathlib
 import re
+import time
 from typing import TYPE_CHECKING, Any, cast
 
 from gremlins.artifacts.registry import (
@@ -21,6 +23,8 @@ from gremlins.stages.constants import (
 )
 from gremlins.stages.outcome import Bail, Done, Outcome
 from gremlins.utils import proc as _proc
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from gremlins.executor.gremlin import Gremlin
@@ -142,23 +146,60 @@ class Exec(Stage):
         raw_timeout = self.options.get("timeout")
         timeout: float | None = float(raw_timeout) if raw_timeout is not None else None
         if cmds:
+            joined = " && ".join(cmds)
+            logger.debug(
+                "exec %s: running %d command(s)",
+                self.name,
+                len(cmds),
+            )
+            for i, c in enumerate(cmds):
+                logger.debug(
+                    "exec %s:   cmd[%d] %s", self.name, i, c.replace("\n", "\\n")
+                )
+            _t0 = time.monotonic()
             result = await _proc.run_shell_async(
-                " && ".join(cmds),
+                joined,
                 cwd=pathlib.Path(state.cwd),
                 env={**os.environ, **extra_env},
                 timeout=timeout,
             )
+            elapsed = time.monotonic() - _t0
             log_path = state.artifact_dir / f"exec-{self.name}.log"
             log_path.write_text(
                 result.stdout + result.stderr or "(no output)\n", encoding="utf-8"
             )
             shell_output = (result.stdout + result.stderr).strip()
             shell_rc = result.returncode
-            if result.returncode != 0:
-                if result.returncode == 2 and _BAIL_KEY in self.bind_map:
+            out_summary = (
+                f" (output: {len(shell_output)} chars)" if shell_output else ""
+            )
+            logger.debug(
+                "exec %s: done in %.2fs rc=%d%s",
+                self.name,
+                elapsed,
+                shell_rc,
+                out_summary,
+            )
+            if shell_output:
+                logger.debug(
+                    "exec %s: output written to %s (%d chars)",
+                    self.name,
+                    log_path,
+                    len(shell_output),
+                )
+            if shell_rc != 0:
+                if shell_output:
+                    tail = shell_output[-500:]
+                    logger.warning(
+                        "exec %s: rc=%d, last 500 chars of output:\n%s",
+                        self.name,
+                        shell_rc,
+                        tail,
+                    )
+                if shell_rc == 2 and _BAIL_KEY in self.bind_map:
                     bail_triggered = True
                 else:
-                    raise Bail(f"exec {self.name}: exited {result.returncode}")
+                    raise Bail(f"exec {self.name}: exited {shell_rc}")
 
         for raw_key, raw_uri_str in self.bind_map.items():
             key = self.substitute_vars(raw_key, state, extra_env)
@@ -181,6 +222,12 @@ class Exec(Stage):
                         f"exec {self.name}: git://range requires pre-snapshot"
                     )
                 state.artifacts.bind_git_commit_range(key, pre_sha)
+                logger.debug(
+                    "exec %s: bound %s = git://range (pre_sha=%s)",
+                    self.name,
+                    key,
+                    pre_sha,
+                )
             else:
                 uri = Uri.parse(uri_str)
                 try:
@@ -196,6 +243,7 @@ class Exec(Stage):
                     raise
                 try:
                     state.artifacts.bind(key, uri)
+                    logger.debug("exec %s: bound %s = %s", self.name, key, uri_str)
                 except DuplicateArtifact:
                     if optional:
                         continue

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import pathlib
 import signal
 import subprocess
 import sys
+import time
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -30,6 +32,8 @@ from _gremlins_core.utils.proc import (
 from _gremlins_core.utils.proc import (
     terminate_with_grace as _terminate_with_grace,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def run(
@@ -110,6 +114,13 @@ async def run_shell_async(
     env: dict[str, str] | None = None,
     timeout: float | None = None,
 ) -> subprocess.CompletedProcess[str]:
+    _t0 = time.monotonic()
+    cwd_str = os.fspath(cwd) if cwd else None
+    logger.debug(
+        "run_shell_async: starting%s%s",
+        f" cwd={cwd_str}" if cwd_str else "",
+        f" timeout={timeout}s" if timeout is not None else "",
+    )
     proc = await asyncio.create_subprocess_shell(
         cmd,
         cwd=cwd,
@@ -118,14 +129,26 @@ async def run_shell_async(
         env=env,
         start_new_session=True,
     )
+    logger.debug(
+        "run_shell_async: pid=%d shell_cmd=%s",
+        proc.pid,
+        cmd.replace("\n", "\\n")[:200],
+    )
     try:
         stdout_b, stderr_b = await asyncio.wait_for(proc.communicate(), timeout=timeout)
     except TimeoutError:
+        elapsed = time.monotonic() - _t0
         try:
             os.killpg(proc.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
         stdout_b, stderr_b = await proc.communicate()
+        logger.warning(
+            "run_shell_async: pid=%d timed out after %.2fs (timeout=%s)",
+            proc.pid,
+            elapsed,
+            timeout,
+        )
         return subprocess.CompletedProcess(
             cmd,
             124,
@@ -133,13 +156,30 @@ async def run_shell_async(
             stderr_b.decode() + f"timed out after {timeout}s\n",
         )
     except asyncio.CancelledError:
+        elapsed = time.monotonic() - _t0
         try:
             os.killpg(proc.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
         await asyncio.shield(proc.communicate())
+        logger.warning(
+            "run_shell_async: pid=%d cancelled after %.2fs%s%s",
+            proc.pid,
+            elapsed,
+            f" cwd={cwd_str}" if cwd_str else "",
+            f" timeout={timeout}s" if timeout is not None else "",
+        )
         raise
+    elapsed = time.monotonic() - _t0
     assert proc.returncode is not None
+    logger.debug(
+        "run_shell_async: pid=%d done in %.2fs rc=%d stdout=%d stderr=%d",
+        proc.pid,
+        elapsed,
+        proc.returncode,
+        len(stdout_b or b""),
+        len(stderr_b or b""),
+    )
     return subprocess.CompletedProcess(
         cmd, proc.returncode, stdout_b.decode(), stderr_b.decode()
     )
