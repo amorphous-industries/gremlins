@@ -1,5 +1,4 @@
 import pytest
-
 from gremlins.utils.pr import pr_arg_to_ref
 
 
