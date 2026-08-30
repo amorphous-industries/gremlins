@@ -147,7 +147,7 @@ class Exec(Stage):
         timeout: float | None = float(raw_timeout) if raw_timeout is not None else None
         if cmds:
             joined = " && ".join(cmds)
-            logger.info(
+            logger.debug(
                 "exec %s: running %d command(s)",
                 self.name,
                 len(cmds),
@@ -173,20 +173,33 @@ class Exec(Stage):
             out_summary = (
                 f" (output: {len(shell_output)} chars)" if shell_output else ""
             )
-            logger.info(
+            logger.debug(
                 "exec %s: done in %.2fs rc=%d%s",
                 self.name,
                 elapsed,
-                result.returncode,
+                shell_rc,
                 out_summary,
             )
             if shell_output:
-                logger.debug("exec %s: output:\n%s", self.name, shell_output)
-            if result.returncode != 0:
-                if result.returncode == 2 and _BAIL_KEY in self.bind_map:
+                logger.debug(
+                    "exec %s: output written to %s (%d chars)",
+                    self.name,
+                    log_path,
+                    len(shell_output),
+                )
+            if shell_rc != 0:
+                if shell_output:
+                    tail = shell_output[-500:]
+                    logger.warning(
+                        "exec %s: rc=%d, last 500 chars of output:\n%s",
+                        self.name,
+                        shell_rc,
+                        tail,
+                    )
+                if shell_rc == 2 and _BAIL_KEY in self.bind_map:
                     bail_triggered = True
                 else:
-                    raise Bail(f"exec {self.name}: exited {result.returncode}")
+                    raise Bail(f"exec {self.name}: exited {shell_rc}")
 
         for raw_key, raw_uri_str in self.bind_map.items():
             key = self.substitute_vars(raw_key, state, extra_env)

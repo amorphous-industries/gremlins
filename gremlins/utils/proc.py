@@ -163,7 +163,11 @@ async def run_shell_async(
             pass
         await asyncio.shield(proc.communicate())
         logger.warning(
-            "run_shell_async: pid=%d cancelled after %.2fs", proc.pid, elapsed
+            "run_shell_async: pid=%d cancelled after %.2fs%s%s",
+            proc.pid,
+            elapsed,
+            f" cwd={cwd_str}" if cwd_str else "",
+            f" timeout={timeout}s" if timeout is not None else "",
         )
         raise
     elapsed = time.monotonic() - _t0
