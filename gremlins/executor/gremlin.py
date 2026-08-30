@@ -302,16 +302,16 @@ class Gremlin:
             }
         )
         parent_dict = read_state_json(state.data.state_file)
-        child_dict = {}
+        child_dict: dict[str, Any] = {}
         for k, v in StateData.FIELD_DEFAULTS.items():
             if k in _fork_transient:
                 continue
             if k in parent_dict:
                 child_dict[k] = parent_dict[k]
             elif isinstance(v, list):
-                child_dict[k] = list(v)
+                child_dict[k] = list(cast(list[Any], v))
             elif isinstance(v, dict):
-                child_dict[k] = dict(v)
+                child_dict[k] = dict(cast(dict[str, Any], v))
             else:
                 child_dict[k] = v
         child_dict["id"] = target_id
