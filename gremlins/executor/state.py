@@ -114,11 +114,11 @@ class StateData:
         if self._cache is None:
             self._cache = read_state_json(self.state_file)
         if name not in self._cache:
-            default = self.FIELD_DEFAULTS[name]
+            default: object = self.FIELD_DEFAULTS[name]
             if isinstance(default, list):
-                return list(default)
+                return list(default)  # type: ignore[arg-type]
             if isinstance(default, dict):
-                return dict(default)
+                return dict(default)  # type: ignore[arg-type]
             return default
         return self._cache[name]
 
