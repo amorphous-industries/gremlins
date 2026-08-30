@@ -109,9 +109,7 @@ class StateData:
 
     def __getattr__(self, name: str) -> Any:
         if name not in self.FIELD_DEFAULTS:
-            raise AttributeError(
-                f"{type(self).__name__!r} has no field {name!r}"
-            )
+            raise AttributeError(f"{type(self).__name__!r} has no field {name!r}")
         data = _read_state_json(self.state_file)
         val = data.get(name)
         if val is None:
@@ -178,9 +176,7 @@ class StateData:
         except Exception:
             pass
 
-    def write_bail_file(
-        self, bail_class: str, bail_detail: str = ""
-    ) -> None:
+    def write_bail_file(self, bail_class: str, bail_detail: str = "") -> None:
         sf = self.state_file or resolve_state_file(self.gremlin_id)
         if sf is None or not sf.exists() or not bail_class:
             return

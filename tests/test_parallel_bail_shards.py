@@ -96,9 +96,7 @@ def test_write_bail_file_no_child_key_writes_bail_file(sandbox):
     state_dir = sf.parent
     StateData(gremlin_id).patch(attempt="stage-abc")
 
-    StateData(gremlin_id).write_bail_file(
-        "other", "child A bailed"
-    )
+    StateData(gremlin_id).write_bail_file("other", "child A bailed")
 
     bail_path = state_dir / "bail_stage-abc.json"
     assert bail_path.exists()

@@ -243,9 +243,7 @@ def test_write_bail_file_creates_bail_file(sandbox):
     _make_state_dir(sandbox.state, gremlin_id)
 
     StateData(gremlin_id).patch(attempt="stage-abc123")
-    StateData(gremlin_id).write_bail_file(
-        "other", "something went wrong"
-    )
+    StateData(gremlin_id).write_bail_file("other", "something went wrong")
 
     bail_file = sandbox.state / gremlin_id / "bail_stage-abc123.json"
     assert bail_file.exists()

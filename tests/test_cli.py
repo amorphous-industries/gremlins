@@ -64,9 +64,7 @@ def test_write_bail_file_creates_file(sandbox):
     sf.write_text(json.dumps({"id": gremlin_id}))
 
     state_mod.StateData(gremlin_id).patch(attempt="test-attempt")
-    state_mod.StateData(gremlin_id).write_bail_file(
-        "other", "reason"
-    )
+    state_mod.StateData(gremlin_id).write_bail_file("other", "reason")
 
     bail_path = state_dir / "bail_test-attempt.json"
     assert bail_path.exists()
@@ -83,12 +81,8 @@ def test_write_bail_file_idempotent(sandbox):
     sf.write_text(json.dumps({"id": gremlin_id}))
 
     state_mod.StateData(gremlin_id).patch(attempt="attempt-1")
-    state_mod.StateData(gremlin_id).write_bail_file(
-        "other", "first"
-    )
-    state_mod.StateData(gremlin_id).write_bail_file(
-        "security", "second"
-    )
+    state_mod.StateData(gremlin_id).write_bail_file("other", "first")
+    state_mod.StateData(gremlin_id).write_bail_file("security", "second")
 
     data = json.loads((state_dir / "bail_attempt-1.json").read_text())
     assert data["class"] == "other"  # not overwritten

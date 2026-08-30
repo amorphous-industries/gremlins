@@ -339,9 +339,7 @@ async def run_pipeline(
         await gremlin.run()
     except Bail as b:
         assert gremlin.state is not None
-        gremlin.state.data.write_bail_file(
-            "other", b.reason
-        )
+        gremlin.state.data.write_bail_file("other", b.reason)
         return 1
     except Exception as exc:
         assert gremlin.state is not None
