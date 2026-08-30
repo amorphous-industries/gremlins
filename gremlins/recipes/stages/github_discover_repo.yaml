@@ -1,0 +1,9 @@
+stages:
+  - name: github-discover-repo
+    type: exec
+    skip_if_exists: repo
+    out:
+      repo: "file://session/repo.txt"
+    options:
+      cmds:
+        - 'gh repo view --json nameWithOwner -q ".nameWithOwner" > "{artifact_dir}/repo.txt"'

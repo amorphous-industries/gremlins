@@ -212,6 +212,12 @@ def _patch_common(
     async def _noop_gh_shell(cmd, *, cwd=None, env=None, timeout=None):
         if isinstance(cmd, str):
             if cmd.lstrip().startswith("gh "):
+                # If gh repo view, write repo.txt so discover stage passes
+                m_repo = re.search(r'"([^"]+/repo\.txt)"', cmd)
+                if m_repo:
+                    p = pathlib.Path(m_repo.group(1))
+                    p.parent.mkdir(parents=True, exist_ok=True)
+                    p.write_text("owner/repo\n")
                 return _subprocess_mod.CompletedProcess(cmd, 0, "", "")
             m = re.search(r'"([^"]+/pr-number\.txt)"', cmd)
             if m:
@@ -351,8 +357,10 @@ def test_gh_pipeline_stage_names(tmp_path):
         "open-pr",
         "compose-pr",
         "push-and-open",
+        "github-discover-repo",
         "github-request-copilot-review",
         "github-review-pull-request",
+        "github-discover-repo-2",
         "github-wait-copilot",
         "github-address-pull-request-reviews",
         "ci-gate",

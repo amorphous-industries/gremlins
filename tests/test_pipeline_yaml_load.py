@@ -478,8 +478,9 @@ def test_gremlins_prefix_type_accepts_dashes(tmp_path: pathlib.Path) -> None:
         """,
     )
     expanded = expand_pipeline(p)
-    assert len(expanded["stages"]) == 1
+    assert len(expanded["stages"]) == 2
     assert expanded["stages"][0]["type"] == "exec"
+    assert expanded["stages"][1]["type"] == "exec"
 
 
 def test_gremlins_prefix_type_unknown_raises(tmp_path: pathlib.Path) -> None:
