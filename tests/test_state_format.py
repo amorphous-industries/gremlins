@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import json
 import pathlib
 
 from gremlins.executor.state import StateData, build_state
@@ -19,11 +20,10 @@ def _make_state(
     cwd: str = "",
     base_ref: str = "",
 ):
-    data = dataclasses.replace(
-        StateData.load(None),
-        loop_iteration=loop_iteration,
-        attempt=attempt,
-    )
+    sf = artifact_dir / "state.json"
+    sf.write_text(json.dumps({"loop_iteration": loop_iteration, "attempt": attempt}))
+    data = StateData(gremlin_id=None)
+    data.state_file = sf
     state = build_state(
         data=data,
         client=FakeClient(),

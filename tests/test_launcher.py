@@ -510,7 +510,7 @@ def test_write_terminal_state_preserves_worktree_for_gh(lenv, monkeypatch, tmp_p
     }
     (state_dir / "state.json").write_text(json.dumps(state_json), encoding="utf-8")
 
-    StateData.load("test-gr-id-abc123").write_terminal_state(0)
+    StateData("test-gr-id-abc123").write_terminal_state(0)
 
     assert removed == [], "worktree must not be removed on exit"
 
@@ -535,7 +535,7 @@ def test_write_terminal_state_preserves_worktree_for_local(lenv, monkeypatch, tm
     }
     (state_dir / "state.json").write_text(json.dumps(state_json), encoding="utf-8")
 
-    StateData.load("test-gr-id-def456").write_terminal_state(0)
+    StateData("test-gr-id-def456").write_terminal_state(0)
 
     assert removed == [], "worktree must not be removed for local-mode pipelines"
 
@@ -560,7 +560,7 @@ def test_write_terminal_state_preserves_worktree_for_boss(lenv, monkeypatch, tmp
     }
     (state_dir / "state.json").write_text(json.dumps(state_json), encoding="utf-8")
 
-    StateData.load("test-gr-id-ghi789").write_terminal_state(0)
+    StateData("test-gr-id-ghi789").write_terminal_state(0)
 
     assert removed == [], "worktree must not be removed on exit"
 

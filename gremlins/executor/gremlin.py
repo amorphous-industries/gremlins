@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import dataclasses
 import importlib
 import json
 import logging
@@ -22,6 +21,8 @@ from gremlins.executor.state import (
     State,
     StateData,
     build_state,
+    read_state_json,
+    write_state,
 )
 from gremlins.pipeline import Pipeline as _PipelineData
 from gremlins.pipeline.discovery import resolve_pipeline_path
@@ -59,31 +60,36 @@ def write_initial_state(
 ) -> None:
     """Create and persist initial state data for a gremlin."""
     validate_gremlin_id(gremlin_id)
-    state_data = StateData(
-        gremlin_id=gremlin_id,
-        kind=kind,
-        project_root=project_root,
-        workdir="",
-        setup_kind="worktree-detached",
-        worktree_base="",
-        status="running",
-        started_at=started_at,
-        description=description,
-        parent_id=parent_id,
-        pipeline_args=pipeline_args,
-        client=client_label,
-        pipeline_path=pipeline_path,
-        stage="starting",
-        pid=None,
-        stage_inputs=stage_inputs,
-    )
-    state_data.persist(state_dir)
+    state_dict = {
+        "id": gremlin_id,
+        "kind": kind,
+        "project_root": project_root,
+        "workdir": "",
+        "setup_kind": "worktree-detached",
+        "worktree_base": "",
+        "status": "running",
+        "started_at": started_at,
+        "description": description,
+        "parent_id": parent_id,
+        "pipeline_args": pipeline_args,
+        "client": client_label,
+        "pipeline_path": pipeline_path,
+        "stage": "starting",
+        "pid": None,
+        "stage_inputs": stage_inputs,
+        "loop_iteration": 1,
+        "attempt": "",
+        "group_name": "",
+        "child_key": "",
+        "exit_code": None,
+    }
+    write_state(state_dir, state_dict)
 
 
 def write_terminal_state(gremlin_id: str, exit_code: int) -> None:
     """Write terminal state for a completed gremlin."""
     validate_gremlin_id(gremlin_id)
-    StateData.load(gremlin_id).write_terminal_state(exit_code)
+    StateData(gremlin_id).write_terminal_state(exit_code)
 
 
 def _apply_client_override(stages: Sequence[StageProtocol], cli: Client) -> None:
@@ -198,7 +204,7 @@ class Gremlin:
 
     @property
     def state_data(self) -> StateData:
-        return StateData.load(self.gremlin_id)
+        return StateData(self.gremlin_id)
 
     @property
     def _cwd(self) -> str:
@@ -275,14 +281,50 @@ class Gremlin:
             )
             child_pipeline_path = str(branch_yaml_path)
 
-        child_data = dataclasses.replace(
-            state.data,
-            gremlin_id=target_id,
-            parent_id=parent_id or state.data.parent_id,
-            group_name=group_name or state.data.group_name,
-            child_key=child_key or state.data.child_key,
+        # Read parent state from disk, build child dict from known fields only.
+        # Exclude transient runtime keys that should not leak into the child.
+        _fork_transient = frozenset(
+            {
+                "parallel_worktrees",
+                "done_children",
+                "parallel_attempts",
+                "active_children",
+                "token_usage",
+                "subprocess_cost_usd",
+                "total_cost_usd",
+                "stage",
+                "stage_updated_at",
+                "sub_stage",
+                "ended_at",
+                "status",
+                "pid",
+                "exit_code",
+            }
+        )
+        parent_dict = read_state_json(state.data.state_file)
+        child_dict: dict[str, Any] = {}
+        for k, v in StateData.FIELD_DEFAULTS.items():
+            if k in _fork_transient:
+                continue
+            if k in parent_dict:
+                child_dict[k] = parent_dict[k]
+            elif isinstance(v, list):
+                child_dict[k] = list(cast(list[Any], v))
+            elif isinstance(v, dict):
+                child_dict[k] = dict(cast(dict[str, Any], v))
+            else:
+                child_dict[k] = v
+        child_dict["id"] = target_id
+        child_dict.update(
+            parent_id=parent_id or parent_dict.get("parent_id", ""),
+            group_name=group_name or parent_dict.get("group_name", ""),
+            child_key=child_key or parent_dict.get("child_key", ""),
             pipeline_path=child_pipeline_path,
         )
+        write_state(child_state_dir, child_dict)
+        (child_state_dir / "log").touch()
+        child_data = StateData(gremlin_id=target_id)
+
         child_cwd = state.cwd
         if child_worktree is not None and state.worktree is not None:
             child_cwd = str(child_worktree)
@@ -300,10 +342,6 @@ class Gremlin:
             parent_stage=state.parent_stage,
             base_ref=state.base_ref,
         )
-
-        # Persist state.json with child identity fields
-        child_data.persist(child_state_dir)
-        (child_state_dir / "log").touch()
 
         return child_state
 
@@ -476,7 +514,7 @@ class Gremlin:
         Used when the landing cwd differs from the default (e.g., when walking
         up a chain of parent gremlins to find the topmost repository).
         """
-        data = StateData.load(self.gremlin_id)
+        data = StateData(self.gremlin_id)
         default_client = self.pipeline_data.default_client
         assert default_client is not None, "pipeline has no default_client"
         kwargs = self._make_build_state_kwargs(data, default_client)
@@ -556,7 +594,7 @@ class Gremlin:
                 )
                 worktree_created = workdir
                 self.worktree_dir = pathlib.Path(workdir)
-                st = StateData.load(self.gremlin_id)
+                st = StateData(self.gremlin_id)
                 st.patch(
                     workdir=workdir,
                     worktree_base=self.base_ref_sha,
@@ -589,7 +627,7 @@ class Gremlin:
                 if sha:
                     self.registry.bind("base_sha", Uri.parse(f"git://commit/{sha}"))
 
-            state_data = StateData.load(self.gremlin_id)
+            state_data = StateData(self.gremlin_id)
             default_client = resolved_client or self.pipeline_data.default_client
             assert default_client is not None, "pipeline has no default_client"
             self.state = build_state(
@@ -609,12 +647,12 @@ class Gremlin:
     @staticmethod
     def bail_info_for(gremlin_id: str) -> dict[str, str] | None:
         validate_gremlin_id(gremlin_id)
-        return StateData.load(gremlin_id).read_bail_info()
+        return StateData(gremlin_id).read_bail_info()
 
     @staticmethod
     def patch_state_for(gremlin_id: str, **fields: Any) -> None:
         validate_gremlin_id(gremlin_id)
-        StateData.load(gremlin_id).patch(**fields)
+        StateData(gremlin_id).patch(**fields)
 
     @classmethod
     def from_subprocess(cls, spec: dict[str, Any]) -> Gremlin:
@@ -631,7 +669,7 @@ class Gremlin:
             artifact_dir = _paths.scratch_root(child_id) / "artifacts"
             artifact_dir.mkdir(parents=True, exist_ok=True)
             gremlin_id = child_id
-            data = StateData.load(child_id)
+            data = StateData(child_id)
         else:
             raw_artifact_dir = spec.get("artifact_dir")
             if not isinstance(raw_artifact_dir, str) or not raw_artifact_dir:
@@ -641,7 +679,7 @@ class Gremlin:
             gremlin_id = spec.get("gremlin_id") or None
             if gremlin_id:
                 validate_gremlin_id(gremlin_id)
-            data = StateData.load(gremlin_id)
+            data = StateData(gremlin_id)
 
         project_root = (
             pathlib.Path(data.project_root)
@@ -652,7 +690,7 @@ class Gremlin:
 
         spec_attempt = spec.get("attempt") or ""
         if spec_attempt:
-            data = dataclasses.replace(data, attempt=spec_attempt)
+            data.patch(attempt=spec_attempt)
 
         worktree: pathlib.Path | None = None
         if spec.get("worktree"):

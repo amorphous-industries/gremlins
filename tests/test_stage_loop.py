@@ -176,11 +176,11 @@ def test_loop_exhausted_emits_bail_to_state(tmp_path, make_state_dir):
     gremlin_id = "loop-test-gr"
     state_dir = make_state_dir(gremlin_id)
     attempt = "loop-test-attempt"
-    state_mod.StateData.load(gremlin_id).patch(attempt=attempt)
+    state_mod.StateData(gremlin_id).patch(attempt=attempt)
 
     (tmp_path / "artifacts").mkdir(exist_ok=True)
     loop_state = build_state(
-        data=StateData(gremlin_id=gremlin_id, attempt=attempt),
+        data=StateData(gremlin_id=gremlin_id),
         client=_fake_client(),
         artifact_dir=tmp_path / "artifacts",
         worktree=tmp_path,

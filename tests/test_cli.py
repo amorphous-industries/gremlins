@@ -63,9 +63,8 @@ def test_write_bail_file_creates_file(sandbox):
     sf = state_dir / "state.json"
     sf.write_text(json.dumps({"id": gremlin_id}))
 
-    state_mod.StateData.load(gremlin_id).write_bail_file(
-        "other", "reason", attempt="test-attempt"
-    )
+    state_mod.StateData(gremlin_id).patch(attempt="test-attempt")
+    state_mod.StateData(gremlin_id).write_bail_file("other", "reason")
 
     bail_path = state_dir / "bail_test-attempt.json"
     assert bail_path.exists()
@@ -81,12 +80,9 @@ def test_write_bail_file_idempotent(sandbox):
     sf = state_dir / "state.json"
     sf.write_text(json.dumps({"id": gremlin_id}))
 
-    state_mod.StateData.load(gremlin_id).write_bail_file(
-        "other", "first", attempt="attempt-1"
-    )
-    state_mod.StateData.load(gremlin_id).write_bail_file(
-        "security", "second", attempt="attempt-1"
-    )
+    state_mod.StateData(gremlin_id).patch(attempt="attempt-1")
+    state_mod.StateData(gremlin_id).write_bail_file("other", "first")
+    state_mod.StateData(gremlin_id).write_bail_file("security", "second")
 
     data = json.loads((state_dir / "bail_attempt-1.json").read_text())
     assert data["class"] == "other"  # not overwritten
@@ -98,14 +94,13 @@ def test_write_bail_file_noop_without_attempt(sandbox):
     state_dir.mkdir(parents=True)
     (state_dir / "state.json").write_text(json.dumps({"id": gremlin_id}))
 
-    state_mod.StateData.load(gremlin_id).write_bail_file("other", "reason", attempt="")
+    state_mod.StateData(gremlin_id).write_bail_file("other", "reason")
     bail_files = list(state_dir.glob("bail_*.json"))
     assert not bail_files
 
 
-def test_write_bail_file_fallback_to_disk_attempt(sandbox):
-    """When attempt arg is empty but state.json on disk has an attempt
-    field, write_bail_file should read it from disk instead of no-oping."""
+def test_write_bail_file_reads_attempt_from_disk(sandbox):
+    """write_bail_file reads attempt from state.json on disk."""
     gremlin_id = "gr-bail-disk-fallback"
     state_dir = sandbox.state / gremlin_id
     state_dir.mkdir(parents=True)
@@ -113,7 +108,7 @@ def test_write_bail_file_fallback_to_disk_attempt(sandbox):
         json.dumps({"id": gremlin_id, "attempt": "disk-attempt-abc"})
     )
 
-    state_mod.StateData.load(gremlin_id).write_bail_file("other", "reason", attempt="")
+    state_mod.StateData(gremlin_id).write_bail_file("other", "reason")
 
     bail_path = state_dir / "bail_disk-attempt-abc.json"
     assert bail_path.exists()
@@ -165,7 +160,7 @@ def test_run_pipeline_forwards_gremlin_id_to_orchestrator(
     from gremlins.executor.state import StateData
 
     async def fake_run_pipeline(pipeline_path, *, argv, gremlin_id=None, client=None):
-        StateData.load(gremlin_id).set_stage("implement")
+        StateData(gremlin_id).set_stage("implement")
         return 0
 
     monkeypatch.setattr("gremlins.executor.run.run_pipeline", fake_run_pipeline)

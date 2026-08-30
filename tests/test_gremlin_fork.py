@@ -277,10 +277,10 @@ def test_fork_with_branch_pipeline_scopes_child(tmp_path, tmp_repo, monkeypatch)
         state_dir = tmp_path / "state" / "gr-parent"
         artifact_dir = tmp_path / "scratch" / "gr-parent" / "artifacts"
         artifact_dir.mkdir(parents=True, exist_ok=True)
+        state_dir.mkdir(parents=True, exist_ok=True)
 
-        state_data = StateData(
-            gremlin_id="gr-parent", pipeline_path=str(parent_pipeline_path)
-        )
+        state_data = StateData(gremlin_id="gr-parent")
+        state_data.persist(state_dir, {"pipeline_path": str(parent_pipeline_path)})
         state = build_state(
             data=state_data,
             client=FakeClient(),

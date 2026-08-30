@@ -94,11 +94,9 @@ def test_write_bail_file_no_child_key_writes_bail_file(sandbox):
     gremlin_id = "gr-bail-file-a"
     sf = _make_state(sandbox.state, gremlin_id)
     state_dir = sf.parent
-    StateData.load(gremlin_id).patch(attempt="stage-abc")
+    StateData(gremlin_id).patch(attempt="stage-abc")
 
-    StateData.load(gremlin_id).write_bail_file(
-        "other", "child A bailed", attempt="stage-abc"
-    )
+    StateData(gremlin_id).write_bail_file("other", "child A bailed")
 
     bail_path = state_dir / "bail_stage-abc.json"
     assert bail_path.exists()
@@ -180,7 +178,7 @@ def _build_fanin_test(
             (state_dir / f"bail_{attempt}.json").write_text(
                 json.dumps({"class": bc, "detail": ""})
             )
-    StateData.load(gremlin_id).patch(
+    StateData(gremlin_id).patch(
         parallel_attempts=parallel_attempts, attempt=parent_attempt
     )
 
@@ -198,7 +196,7 @@ def _build_fanin_test(
         set_stage_fn=lambda _n: None,
         cancel_on_bail=False,
         bail_policy=bail_policy,
-        parent_state=make_parent_state(StateData.load(gremlin_id)),
+        parent_state=make_parent_state(StateData(gremlin_id)),
         project_root=project_root,
     )
     return sf, stages
@@ -334,7 +332,7 @@ def test_run_stages_resume_from_fanin_name(tmp_path, sandbox):
     sf = _make_state(sandbox.state, gremlin_id)
     state_dir = sf.parent
     # Pre-populate parallel_attempts and bail file as children would have written.
-    state_mod.StateData.load(gremlin_id).patch(
+    state_mod.StateData(gremlin_id).patch(
         parallel_attempts={"c": "attempt-c"}, attempt="fanin-resume-parent"
     )
     (state_dir / "bail_attempt-c.json").write_text(
@@ -352,7 +350,7 @@ def test_run_stages_resume_from_fanin_name(tmp_path, sandbox):
         set_stage_fn=lambda _n: None,
         cancel_on_bail=False,
         bail_policy="any",
-        parent_state=make_parent_state(StateData.load(gremlin_id)),
+        parent_state=make_parent_state(StateData(gremlin_id)),
         project_root=project_root,
     )
 
@@ -507,7 +505,7 @@ def test_fanout_persists_worktrees_and_fresh_fanin_can_clean_up(tmp_path, sandbo
         set_stage_fn=lambda _n: None,
         cancel_on_bail=False,
         bail_policy="any",
-        parent_state=make_parent_state(StateData.load(gremlin_id)),
+        parent_state=make_parent_state(StateData(gremlin_id)),
         project_root=repo,
     )
     asyncio.run(stages_run1[0][1]())  # fan-out only
@@ -531,7 +529,7 @@ def test_fanout_persists_worktrees_and_fresh_fanin_can_clean_up(tmp_path, sandbo
         set_stage_fn=lambda _n: None,
         cancel_on_bail=False,
         bail_policy="any",
-        parent_state=make_parent_state(StateData.load(gremlin_id)),
+        parent_state=make_parent_state(StateData(gremlin_id)),
         project_root=repo,
     )
     asyncio.run(stages_run2[2][1]())  # fan-in
@@ -570,7 +568,7 @@ def test_fanout_resume_tears_down_prior_worktrees(tmp_path, sandbox):
         set_stage_fn=lambda _n: None,
         cancel_on_bail=False,
         bail_policy="any",
-        parent_state=make_parent_state(StateData.load(gremlin_id)),
+        parent_state=make_parent_state(StateData(gremlin_id)),
         project_root=repo,
     )
     asyncio.run(stages_run1[0][1]())  # fan-out
@@ -590,7 +588,7 @@ def test_fanout_resume_tears_down_prior_worktrees(tmp_path, sandbox):
         set_stage_fn=lambda _n: None,
         cancel_on_bail=False,
         bail_policy="any",
-        parent_state=make_parent_state(StateData.load(gremlin_id)),
+        parent_state=make_parent_state(StateData(gremlin_id)),
         project_root=repo,
     )
     asyncio.run(stages_run2[0][1]())  # fan-out again
@@ -808,7 +806,7 @@ def test_fanin_allows_child_worktree_mutations(tmp_path, sandbox, caplog):
         set_stage_fn=lambda _n: None,
         cancel_on_bail=False,
         bail_policy="any",
-        parent_state=make_parent_state(StateData.load(gremlin_id)),
+        parent_state=make_parent_state(StateData(gremlin_id)),
         project_root=repo,
     )
     asyncio.run(stages_run1[0][1]())  # fan-out
@@ -854,7 +852,7 @@ def test_fanin_allows_child_worktree_mutations(tmp_path, sandbox, caplog):
         set_stage_fn=lambda _n: None,
         cancel_on_bail=False,
         bail_policy="any",
-        parent_state=make_parent_state(StateData.load(gremlin_id)),
+        parent_state=make_parent_state(StateData(gremlin_id)),
         project_root=repo,
     )
     caplog.clear()

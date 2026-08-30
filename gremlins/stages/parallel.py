@@ -549,7 +549,6 @@ class _ParallelExecutor:
             self._parent_data.write_bail_file(
                 decision.first_bail.get("class") or "other",
                 decision.first_bail.get("detail") or "",
-                attempt=self._parent_data.attempt,
             )
         self._group_state.clear_attempts()
         if not decision.should_bail:

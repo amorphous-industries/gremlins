@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import dataclasses
+import datetime as _dt
 import json
 import logging
 import pathlib
+import secrets as _secrets
 from typing import Any
 
 from gremlins.executor.state import StateData
@@ -70,15 +72,31 @@ class ParallelGroupState:
         if sf is None or not sf.exists():
             return
         try:
-            pa: dict[str, Any] = (
-                json.loads(sf.read_text(encoding="utf-8")).get("parallel_attempts")
-                or {}
-            )
-            self.parent_data.write_bail_file(
-                "other", reason, attempt=pa.get(child_key) or ""
-            )
+            data = json.loads(sf.read_text(encoding="utf-8"))
         except Exception:
-            pass
+            return
+        pa: dict[str, Any] = dict(data.get("parallel_attempts") or {})
+        attempt = pa.get(child_key) or ""
+        if not attempt:
+            attempt = data.get("attempt") or ""
+            if not attempt:
+                return
+        state_dir = sf.parent
+        bail_path = state_dir / f"bail_{attempt}.json"
+        if bail_path.exists():
+            return
+
+        payload = json.dumps(
+            {
+                "class": "other",
+                "detail": reason,
+                "ts": _dt.datetime.now(_dt.UTC).isoformat(),
+            },
+            ensure_ascii=False,
+        )
+        tmp = state_dir / f".bail_{attempt}_{_secrets.token_hex(4)}.tmp"
+        tmp.write_text(payload, encoding="utf-8")
+        tmp.rename(bail_path)
 
     def read_bail_scan_inputs(self) -> tuple[pathlib.Path | None, dict[str, str]]:
         sf = self.parent_data.state_file

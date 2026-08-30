@@ -30,7 +30,7 @@ def test_persist_and_hydrate_round_trip(tmp_path, sandbox):
     gid = "gs-roundtrip"
     sf = _make_state(sandbox.state, gid)
 
-    data = StateData.load(gid)
+    data = StateData(gid)
     gs = ParallelGroupState("reviews", data)
     gs.worktree_paths = {"a": tmp_path / "wt-a", "b": tmp_path / "wt-b"}
     gs.base_head = "abc123"
@@ -42,7 +42,7 @@ def test_persist_and_hydrate_round_trip(tmp_path, sandbox):
     assert entry["paths"]["a"] == str(tmp_path / "wt-a")
     assert entry["paths"]["b"] == str(tmp_path / "wt-b")
 
-    gs2 = ParallelGroupState("reviews", StateData.load(gid))
+    gs2 = ParallelGroupState("reviews", StateData(gid))
     gs2.hydrate()
     assert gs2.base_head == "abc123"
     assert gs2.worktree_paths["a"] == tmp_path / "wt-a"
@@ -53,7 +53,7 @@ def test_hydrate_skips_when_paths_already_populated(tmp_path, sandbox):
     gid = "gs-skip-hydrate"
     _make_state(sandbox.state, gid)
 
-    data = StateData.load(gid)
+    data = StateData(gid)
     gs = ParallelGroupState("reviews", data)
     gs.worktree_paths["pre"] = tmp_path / "pre"
     gs.base_head = "original"
@@ -73,7 +73,7 @@ def test_clear_removes_group_entry(sandbox):
     gid = "gs-clear"
     sf = _make_state(sandbox.state, gid)
 
-    data = StateData.load(gid)
+    data = StateData(gid)
     gs = ParallelGroupState("reviews", data)
     gs.worktree_paths = {"a": pathlib.Path("/tmp/a")}
     gs.base_head = "sha1"
@@ -102,7 +102,7 @@ def test_record_attempt_writes_parallel_attempts(sandbox):
     gid = "gs-attempt"
     sf = _make_state(sandbox.state, gid)
 
-    data = StateData.load(gid)
+    data = StateData(gid)
     gs = ParallelGroupState("reviews", data)
     gs.record_attempt("child-a", "attempt-abc")
 
@@ -114,7 +114,7 @@ def test_clear_attempts_removes_parallel_attempts(sandbox):
     gid = "gs-clear-attempts"
     sf = _make_state(sandbox.state, gid)
 
-    data = StateData.load(gid)
+    data = StateData(gid)
     gs = ParallelGroupState("reviews", data)
     gs.record_attempt("child-a", "attempt-xyz")
     assert "parallel_attempts" in _read(sf)
@@ -133,7 +133,7 @@ def test_write_bail_creates_bail_file_for_child(sandbox):
     sf = _make_state(sandbox.state, gid)
     state_dir = sf.parent
 
-    data = StateData.load(gid)
+    data = StateData(gid)
     gs = ParallelGroupState("reviews", data)
     gs.record_attempt("child-a", "attempt-bail")
 
@@ -151,7 +151,7 @@ def test_write_bail_no_attempt_is_noop(sandbox):
     sf = _make_state(sandbox.state, gid)
     state_dir = sf.parent
 
-    data = StateData.load(gid)
+    data = StateData(gid)
     gs = ParallelGroupState("reviews", data)
     # no attempt recorded for child-a
     gs.write_bail("child-a", "irrelevant")
@@ -169,7 +169,7 @@ def test_read_bail_scan_inputs_returns_dir_and_attempts(sandbox):
     gid = "gs-scan-inputs"
     sf = _make_state(sandbox.state, gid)
 
-    data = StateData.load(gid)
+    data = StateData(gid)
     gs = ParallelGroupState("reviews", data)
     gs.record_attempt("child-a", "attempt-a")
     gs.record_attempt("child-b", "attempt-b")
