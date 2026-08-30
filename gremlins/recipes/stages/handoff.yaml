@@ -46,8 +46,8 @@ stages:
       - name: translate-signal
         type: exec
         out:
-          bail: bail
           optional:
+            bail: bail
             done: done
         options:
           cmds:

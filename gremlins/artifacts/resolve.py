@@ -7,7 +7,7 @@ import re
 from gremlins.artifacts.registry import ArtifactRegistry, MissingArtifact
 from gremlins.utils.text import to_str
 
-_READ_SUB = re.compile(r"\{read:([-\w]+)\}")
+_READ_SUB = re.compile(r"\{read:([^}]+)\}")
 
 
 def _sub_reads(s: str, artifacts: ArtifactRegistry) -> str:

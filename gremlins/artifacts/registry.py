@@ -7,7 +7,6 @@ import logging
 import os
 import pathlib
 import secrets
-import shutil
 from collections.abc import Iterable, Mapping
 from typing import Any
 
@@ -124,14 +123,20 @@ class ArtifactRegistry:
     def path_for(self, key: str) -> pathlib.Path | None:
         """Return the absolute filesystem path for a file://session/ artifact.
 
-        Returns None if the key is not bound or is not a file:// URI.
+        Resolves short keys through the registry first. Returns None if the
+        key is not bound or does not resolve to a file path.
         """
-        if not key.startswith("file://"):
-            return None
         value = self.data.get(key)
-        if not isinstance(value, str):
+        if value is None:
             return None
-        return pathlib.Path(value)
+        if isinstance(value, str) and value.startswith("file://"):
+            return pathlib.Path(value)
+        # Short key — the stored value might be a materialized file path.
+        if isinstance(value, str):
+            p = pathlib.Path(value)
+            if p.exists():
+                return p
+        return None
 
     def keys(self) -> Iterable[str]:
         return self.data.keys()
@@ -158,13 +163,7 @@ class ArtifactRegistry:
         sha = git_utils.head_sha(cwd=self._cwd)
         if not sha:
             raise RuntimeError("could not resolve HEAD")
-        value = f"{base_sha}..{sha}"
-        if key in self.data:
-            if self.data[key] == value:
-                return
-            raise DuplicateArtifact(key, self.data[key], value)
-        self.data[key] = value
-        self._persist()
+        self.bind(key, f"{base_sha}..{sha}")
 
     # ------------------------------------------------------------------
     # accessor methods
@@ -189,54 +188,6 @@ class ArtifactRegistry:
             return self.read(key)
         except (MissingArtifact, Exception):
             return default
-
-    def merge_from(
-        self,
-        other: ArtifactRegistry,
-        *,
-        key_prefix: str = "",
-        copy_files: bool = False,
-        dest_artifact_dir: pathlib.Path | None = None,
-        keys: set[str] | None = None,
-    ) -> None:
-        """Copy file artifacts and rebind non-file URIs from *other* into self.
-
-        Keys already present in self are skipped. When *key_prefix* is set,
-        each incoming key is suffixed with ``"/" + key_prefix``.
-        """
-        for key in keys if keys is not None else other.keys():
-            value = other.raw_entry(key)
-            if value is None:
-                continue
-            bound_key = f"{key}/{key_prefix}" if key_prefix else key
-            if bound_key in self.data:
-                continue
-            if (
-                key.startswith("file://session/")
-                and copy_files
-                and isinstance(value, str)
-            ):
-                src = pathlib.Path(value)
-                if not src.exists():
-                    logger.warning("child artifact missing: %s", src)
-                    continue
-                dest_dir = dest_artifact_dir or self.file_resolver.artifact_dir
-                name = key[len("file://session/") :]
-                dest_name = f"{key_prefix}/{name}" if key_prefix else name
-                dest = dest_dir / dest_name
-                dest.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(src, dest)
-                self.bind(bound_key, str(dest))
-            else:
-                try:
-                    self.bind(bound_key, value)
-                except Exception:
-                    logger.warning(
-                        "failed to bind %s -> %s into parent registry",
-                        bound_key,
-                        value,
-                        exc_info=True,
-                    )
 
     @classmethod
     def from_registry_file(

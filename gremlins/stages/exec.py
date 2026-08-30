@@ -10,7 +10,7 @@ from gremlins.artifacts.registry import (
     DuplicateArtifact,
     MissingArtifact,
 )
-from gremlins.artifacts.resolve import resolve_in_map
+from gremlins.artifacts.resolve import _sub_reads, resolve_in_map
 from gremlins.artifacts.schemes import snapshot_head_before
 from gremlins.artifacts.uri import Uri
 from gremlins.stages.base import Stage
@@ -21,22 +21,8 @@ from gremlins.utils import proc as _proc
 if TYPE_CHECKING:
     from gremlins.executor.gremlin import Gremlin
 
-_READ_SUB = re.compile(r"\{read:([-\w]+)\}")
-_ARTIFACT_SUB = re.compile(r"\{artifact:([-\w]+)\}")
+_ARTIFACT_SUB = re.compile(r"\{artifact:([^}]+)\}")
 _BAIL_KEY = "bail"
-
-
-def _sub_reads(s: str, artifacts: ArtifactRegistry) -> str:
-    def _r(m: re.Match[str]) -> str:
-        key = m.group(1)
-        raw = artifacts.read(key)
-        if not isinstance(raw, str):
-            raise TypeError(
-                f"{{read:{key}}}: expected string artifact, got {type(raw).__name__}"
-            )
-        return raw.strip()
-
-    return _READ_SUB.sub(_r, s)
 
 
 def _sub_artifact_paths(s: str, artifacts: ArtifactRegistry) -> str:
@@ -95,25 +81,18 @@ class Exec(Stage):
                     f"stage {name!r}: option key {k!r} collides with framework substitution variable"
                 )
         in_dict = cast(dict[str, str], raw_in)
-        in_optional = {
-            str(k): str(v)
-            for k, v in cast(
-                dict[str, Any], in_dict.pop("optional", cast(dict[str, Any], {}))
-            ).items()
-        }
+        in_optional_raw = cast(dict[str, Any], in_dict.get("optional", {}))
+        in_optional = {str(k): str(v) for k, v in in_optional_raw.items()}
+        in_dict = {str(k): str(v) for k, v in in_dict.items() if k != "optional"}
         if isinstance(raw_out, list):
             out_list = [str(v) for v in cast(list[Any], raw_out)]
             out_map = {v: v for v in out_list}
             out_optional: dict[str, str] = {}
         else:
             out_dict = cast(dict[str, str], raw_out)
-            out_optional = {
-                str(k): str(v)
-                for k, v in cast(
-                    dict[str, Any], out_dict.pop("optional", cast(dict[str, Any], {}))
-                ).items()
-            }
-            out_map = {str(k): str(v) for k, v in out_dict.items()}
+            out_optional_raw = cast(dict[str, Any], out_dict.get("optional", {}))
+            out_optional = {str(k): str(v) for k, v in out_optional_raw.items()}
+            out_map = {str(k): str(v) for k, v in out_dict.items() if k != "optional"}
         return cls(
             name,
             d.get("options") or {},
@@ -196,16 +175,22 @@ class Exec(Stage):
             elif "://" not in uri_str:
                 # Bare key (e.g. "bail", "done", "status") — store the file
                 # contents if the corresponding artifact file exists.
-                value: Any = uri_str
                 file_path = state.artifact_dir / key
                 if file_path.exists():
-                    value = file_path.read_text(encoding="utf-8").strip()
-                try:
-                    state.artifacts.bind(key, value)
-                except DuplicateArtifact:
-                    if optional:
-                        continue
-                    raise
+                    value: Any = file_path.read_text(encoding="utf-8").strip()
+                    try:
+                        state.artifacts.bind(key, value)
+                    except DuplicateArtifact:
+                        if optional:
+                            continue
+                        raise
+                elif optional:
+                    continue
+                else:
+                    raise FileNotFoundError(
+                        f"exec {self.name}: required output {key!r} not produced "
+                        f"(file {file_path} does not exist)"
+                    )
             else:
                 uri = Uri.parse(uri_str)
                 materialized = state.artifacts.resolver(uri.scheme).materialize(uri_str)

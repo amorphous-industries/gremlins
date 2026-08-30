@@ -17,8 +17,9 @@ stages:
         in:
           pr_url: "file://session/pr-url.txt"
         out:
-          status: status
-          bail: bail
+          optional:
+            status: status
+            bail: bail
           ci_log: "file://session/exec-poll.log"
         options:
           poll_timeout: "1200"

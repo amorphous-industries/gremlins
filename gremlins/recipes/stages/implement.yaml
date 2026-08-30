@@ -5,7 +5,7 @@ stages:
     type: agent
     in:
       spec: "file://session/spec.md"
-      plan: "file://session/plan.md"
+      plan: plan
     prompt:
       - "{{prompt}}"
     options:

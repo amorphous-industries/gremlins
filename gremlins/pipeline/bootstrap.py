@@ -129,13 +129,9 @@ class Bootstrap:
             raise ValueError("'bootstrap.cli_out' must be a mapping")
         else:
             cli_out_dict = cast(dict[str, Any], cli_out_raw)
-            cli_out_optional = {
-                str(k): str(v)
-                for k, v in cast(
-                    dict[str, Any], cli_out_dict.pop("optional", {})
-                ).items()
-            }
-            cli_out = {str(k): str(v) for k, v in cli_out_dict.items()}
+            cli_out_optional_raw = cast(dict[str, Any], cli_out_dict.get("optional", {}))
+            cli_out_optional = {str(k): str(v) for k, v in cli_out_optional_raw.items()}
+            cli_out = {str(k): str(v) for k, v in cli_out_dict.items() if k != "optional"}
 
         return cls(
             source=source,

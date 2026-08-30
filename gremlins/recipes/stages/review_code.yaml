@@ -2,7 +2,7 @@ stages:
   - name: review-code
     type: agent
     in:
-      plan: "file://session/plan.md"
+      plan: plan
     out:
       - "file://session/review-code.md"
     prompt:

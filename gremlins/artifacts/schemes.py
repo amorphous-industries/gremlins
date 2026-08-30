@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pathlib
+import re
 from typing import Any
 
 from gremlins.artifacts.uri import Uri
@@ -68,6 +69,9 @@ class FileArtifactResolver:
             raise FileNotFoundError(f"artifact file missing or empty: {p}")
 
 
+_RANGE_RE = re.compile(r"^[0-9a-f]{7,}\.\.[0-9a-f]{7,}$")
+
+
 class GitResolver:
     """Resolves git://range/<base>..<head>, git://ref/<name>, git://commit/<sha>."""
 
@@ -90,7 +94,7 @@ class GitResolver:
     def read(self, value: Any) -> Any:
         if not isinstance(value, str):
             return value
-        if ".." in value:
+        if _RANGE_RE.match(value):
             # git://range/<base>..<head> — materialized range string
             out = proc.run_or_raise(
                 ["git", "log", "--format=%H %s", value], cwd=self._cwd

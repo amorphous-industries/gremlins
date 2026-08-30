@@ -523,7 +523,7 @@ class _ParallelExecutor:
                 value = child.raw_entry(key)
                 if value is None:
                     continue
-                if bound_key in parent_state.artifacts.data:
+                if parent_state.artifacts.produced(bound_key):
                     continue
                 if key.startswith("file://session/") and isinstance(value, str):
                     src = pathlib.Path(value)

@@ -80,25 +80,18 @@ class Agent(Stage):
                     f"stage {name!r}: option key {k!r} collides with framework substitution variable"
                 )
         in_dict = cast(dict[str, str], raw_in)
-        in_optional = {
-            str(k): str(v)
-            for k, v in cast(
-                dict[str, Any], in_dict.pop("optional", cast(dict[str, Any], {}))
-            ).items()
-        }
+        in_optional_raw = cast(dict[str, Any], in_dict.get("optional", {}))
+        in_optional = {str(k): str(v) for k, v in in_optional_raw.items()}
+        in_dict = {str(k): str(v) for k, v in in_dict.items() if k != "optional"}
         if isinstance(raw_out, list):
             out_list = [str(v) for v in cast(list[Any], raw_out)]
             out_map = {v: v for v in out_list}
             out_optional: dict[str, str] = {}
         else:
             out_dict = cast(dict[str, str], raw_out)
-            out_optional = {
-                str(k): str(v)
-                for k, v in cast(
-                    dict[str, Any], out_dict.pop("optional", cast(dict[str, Any], {}))
-                ).items()
-            }
-            out_map = {str(k): str(v) for k, v in out_dict.items()}
+            out_optional_raw = cast(dict[str, Any], out_dict.get("optional", {}))
+            out_optional = {str(k): str(v) for k, v in out_optional_raw.items()}
+            out_map = {str(k): str(v) for k, v in out_dict.items() if k != "optional"}
         stage = cls(
             name,
             d.get("prompt") or [],
