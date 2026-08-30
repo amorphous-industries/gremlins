@@ -1,5 +1,7 @@
 """Stage framework constants."""
 
+from collections.abc import Mapping
+
 ARTIFACT_PREFIX = "artifact."
 
 FRAMEWORK_KEYS = frozenset(
@@ -14,7 +16,7 @@ FRAMEWORK_KEYS = frozenset(
 )
 
 
-def strip_artifact_prefix(raw: dict[str, str], name: str) -> dict[str, str]:
+def strip_artifact_prefix(raw: Mapping[str, object], name: str) -> dict[str, str]:
     result: dict[str, str] = {}
     for k, v in raw.items():
         if not isinstance(v, str):
@@ -30,12 +32,12 @@ def strip_artifact_prefix(raw: dict[str, str], name: str) -> dict[str, str]:
     return result
 
 
-def strip_artifact_prefix_keys(raw: dict[str, str], name: str) -> dict[str, str]:
+def strip_artifact_prefix_keys(raw: Mapping[str, object], name: str) -> dict[str, str]:
     result: dict[str, str] = {}
     for k, v in raw.items():
-        if not isinstance(k, str):
+        if not isinstance(v, str):
             raise ValueError(
-                f"stage {name!r}: bind key {k!r} must be a string, got {type(k).__name__}"
+                f"stage {name!r}: bind value {v!r} must be a string, got {type(v).__name__}"
             )
         if k.startswith(ARTIFACT_PREFIX):
             result[k[len(ARTIFACT_PREFIX) :]] = v
