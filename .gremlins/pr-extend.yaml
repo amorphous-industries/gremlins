@@ -34,22 +34,12 @@ prompts:
 
 stage-definitions:
   check-and-fix:
-    stages:
-      - type: verify
-        options:
-          cmds:
-            - |
-              output=$(make -j8 test 2>&1)
-              rc=$?
-              printf '%s' "$output" | grep -E 'FAILED|ERROR|panicked|Traceback'
-              exit $rc
-          max_iterations: 7
-        prompt: verify
-      - type: verify
-        options:
-          cmds: ["make check"]
-          max_iterations: 7
-        prompt: verify
+    type: verify
+    options:
+      cmds:
+        - "make -j8 check test"
+      max_iterations: 7
+    prompt: verify
 
 # Usage:
 #   gremlins launch pr-extend --pr <num|url> --plan '#<issue>'
