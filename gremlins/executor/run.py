@@ -308,7 +308,6 @@ async def run_pipeline(
                 gremlin.state.data.write_bail_file(
                     "other",
                     f"bootstrap failed: {exc}"[:200],
-                    attempt=gremlin.state.data.attempt,
                 )
             return 1
 
@@ -341,7 +340,7 @@ async def run_pipeline(
     except Bail as b:
         assert gremlin.state is not None
         gremlin.state.data.write_bail_file(
-            "other", b.reason, attempt=gremlin.state.data.attempt
+            "other", b.reason
         )
         return 1
     except Exception as exc:
@@ -349,7 +348,6 @@ async def run_pipeline(
         gremlin.state.data.write_bail_file(
             "other",
             f"unexpected error: {exc}"[:200],
-            attempt=gremlin.state.data.attempt,
         )
         raise
 

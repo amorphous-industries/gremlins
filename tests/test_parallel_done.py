@@ -28,8 +28,10 @@ def _read_state(sf: pathlib.Path) -> dict:
 
 
 def _ctx(gremlin_id: str, sf: pathlib.Path, child_key: str) -> State:
+    data = StateData(gremlin_id=gremlin_id)
+    data.state_file = sf
     return build_state(
-        data=StateData(gremlin_id=gremlin_id, state_file=sf),
+        data=data,
         client=FakeClient(),
         artifact_dir=sf.parent,
         child_key=child_key,
@@ -39,7 +41,7 @@ def _ctx(gremlin_id: str, sf: pathlib.Path, child_key: str) -> State:
 def _build_stages(group: str, runners: list, gremlin_id: str) -> list:
     return ParallelStage(group, []).build_runtime_stages(
         runners,
-        parent_state=make_parent_state(StateData.load(gremlin_id)),
+        parent_state=make_parent_state(StateData(gremlin_id)),
         project_root=pathlib.Path.cwd(),
     )
 
@@ -177,7 +179,7 @@ def test_bail_aggregation_unaffected_by_done_tracking(sandbox):
     sf = _make_state(sandbox.state, gremlin_id)
 
     async def child_bail() -> None:
-        StateData.load(gremlin_id).patch_parallel_attempt("bail-child", "attempt-bail")
+        StateData(gremlin_id).patch_parallel_attempt("bail-child", "attempt-bail")
         bail_path = sf.parent / "bail_attempt-bail.json"
         bail_path.write_text(json.dumps({"class": "other", "detail": "nope"}))
 

@@ -89,7 +89,7 @@ def test_gremlin_run_in_process(project_dir, pipeline_yaml, sandbox):
         rc = 0
     finally:
         os.chdir(saved_cwd)
-        StateData.load(gremlin_id).write_terminal_state(rc)
+        StateData(gremlin_id).write_terminal_state(rc)
         if worktree and worktree.is_dir():
             shutil.rmtree(worktree, ignore_errors=True)
 

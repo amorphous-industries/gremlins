@@ -26,13 +26,16 @@ def _make_state(
         fixtures = {"test-label": MINIMAL_EVENTS}
     client = FakeClient(fixtures=fixtures)
     state_file: pathlib.Path | None = None
+    data = StateData(gremlin_id=None)
     if attempt:
         state_dir = tmp_path / "state"
         state_dir.mkdir(parents=True, exist_ok=True)
         state_file = state_dir / "state.json"
         state_file.write_text(json.dumps({"id": "gr-test", "stage": ""}))
+        data.state_file = state_file
+        data.patch(attempt=attempt)
     return build_state(
-        data=StateData(attempt=attempt, state_file=state_file),
+        data=data,
         client=client,
         artifact_dir=tmp_path,
         worktree=tmp_path,

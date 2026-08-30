@@ -13,7 +13,7 @@ import os
 import pathlib
 import secrets
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Any, ClassVar, cast
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from gremlins import paths as _paths
 from gremlins.artifacts.registry import ArtifactRegistry
@@ -68,13 +68,6 @@ def _stage_list() -> list[StageProtocol]:
     return []
 
 
-def _int_or(value: Any, default: int) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return default
-
-
 def _read_state_json(sf: pathlib.Path | None) -> dict[str, Any]:
     if sf is None or not sf.exists():
         return {}
@@ -84,86 +77,60 @@ def _read_state_json(sf: pathlib.Path | None) -> dict[str, Any]:
         return {}
 
 
-@dataclasses.dataclass
 class StateData:
-    gremlin_id: str | None = None
-    state_file: pathlib.Path | None = None
-    loop_iteration: int = 1
-    attempt: str = ""
-    kind: str = ""
-    project_root: str = ""
-    workdir: str = ""
-    setup_kind: str = ""
-    worktree_base: str = ""
-    status: str = ""
-    started_at: str = ""
-    description: str = ""
-    parent_id: str = ""
-    pipeline_args: list[str] = dataclasses.field(default_factory=list[str])
-    client: str = ""
-    pipeline_path: str = ""
-    stage: str = ""
-    pid: int | None = None
-    stage_inputs: dict[str, Any] = dataclasses.field(default_factory=dict[str, Any])
-    group_name: str = ""
-    child_key: str = ""
-    exit_code: int | None = None
+    """Handle for reading/writing state.json. All field reads go to disk."""
 
-    @classmethod
-    def load(cls, gremlin_id: str | None) -> StateData:
-        sf = resolve_state_file(gremlin_id)
-        sd = _read_state_json(sf)
-        return cls(
-            gremlin_id=gremlin_id,
-            state_file=sf,
-            loop_iteration=_int_or(sd.get("loop_iteration"), 1),
-            attempt=sd.get("attempt") or "",
-            kind=sd.get("kind") or "",
-            project_root=sd.get("project_root") or "",
-            workdir=sd.get("workdir") or "",
-            setup_kind=sd.get("setup_kind") or "",
-            worktree_base=sd.get("worktree_base") or "",
-            status=sd.get("status") or "",
-            started_at=sd.get("started_at") or "",
-            description=sd.get("description") or "",
-            parent_id=sd.get("parent_id") or "",
-            pipeline_args=list(cast(list[str], sd.get("pipeline_args") or [])),
-            client=sd.get("client") or "",
-            pipeline_path=sd.get("pipeline_path") or "",
-            stage=sd.get("stage") or "",
-            pid=sd.get("pid"),
-            stage_inputs=dict(cast(dict[str, Any], sd.get("stage_inputs") or {})),
-            group_name=sd.get("group_name") or "",
-            child_key=sd.get("child_key") or "",
-            exit_code=int(sd["exit_code"]) if sd.get("exit_code") is not None else None,
-        )
+    FIELD_DEFAULTS: ClassVar[dict[str, Any]] = {
+        "loop_iteration": 1,
+        "attempt": "",
+        "kind": "",
+        "project_root": "",
+        "workdir": "",
+        "setup_kind": "",
+        "worktree_base": "",
+        "status": "",
+        "started_at": "",
+        "description": "",
+        "parent_id": "",
+        "pipeline_args": [],
+        "client": "",
+        "pipeline_path": "",
+        "stage": "",
+        "pid": None,
+        "stage_inputs": {},
+        "group_name": "",
+        "child_key": "",
+        "exit_code": None,
+    }
 
-    def persist(self, state_dir: pathlib.Path) -> None:
+    def __init__(self, gremlin_id: str | None = None) -> None:
+        self.gremlin_id = gremlin_id
+        self.state_file = resolve_state_file(gremlin_id)
+
+    def __getattr__(self, name: str) -> Any:
+        if name not in self.FIELD_DEFAULTS:
+            raise AttributeError(
+                f"{type(self).__name__!r} has no field {name!r}"
+            )
+        data = _read_state_json(self.state_file)
+        val = data.get(name)
+        if val is None:
+            return copy.deepcopy(self.FIELD_DEFAULTS[name])
+        return val
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name in ("gremlin_id", "state_file"):
+            super().__setattr__(name, value)
+        else:
+            raise TypeError(
+                f"StateData fields must be modified via patch(), "
+                f"not direct assignment (attempted setattr {name!r})"
+            )
+
+    def persist(self, state_dir: pathlib.Path, data: dict[str, Any]) -> None:
         if not self.gremlin_id:
             raise ValueError("cannot persist StateData with no gremlin_id")
-        data: dict[str, Any] = {
-            "id": self.gremlin_id,
-            "loop_iteration": self.loop_iteration,
-            "attempt": self.attempt,
-            "kind": self.kind,
-            "project_root": self.project_root,
-            "workdir": self.workdir,
-            "setup_kind": self.setup_kind,
-            "worktree_base": self.worktree_base,
-            "status": self.status,
-            "started_at": self.started_at,
-            "description": self.description,
-            "parent_id": self.parent_id,
-            "pipeline_args": self.pipeline_args,
-            "client": self.client,
-            "pipeline_path": self.pipeline_path,
-            "stage": self.stage,
-            "pid": self.pid,
-            "stage_inputs": self.stage_inputs,
-            "group_name": self.group_name,
-            "child_key": self.child_key,
-            "exit_code": self.exit_code,
-        }
+        data["id"] = self.gremlin_id
         write_state(state_dir, data)
         self.state_file = state_dir / "state.json"
 
@@ -212,20 +179,12 @@ class StateData:
             pass
 
     def write_bail_file(
-        self, bail_class: str, bail_detail: str = "", *, attempt: str = ""
+        self, bail_class: str, bail_detail: str = ""
     ) -> None:
         sf = self.state_file or resolve_state_file(self.gremlin_id)
         if sf is None or not sf.exists() or not bail_class:
             return
-        if not attempt:
-            # If the caller passed an empty attempt (e.g. from a stale
-            # in-memory StateData that wasn't refreshed after a child
-            # runner patched state.json on disk), try to read it now.
-            try:
-                data = json.loads(sf.read_text(encoding="utf-8"))
-                attempt = data.get("attempt") or ""
-            except Exception:
-                pass
+        attempt = self.attempt  # reads from disk via __getattr__
         if not attempt:
             return
         try:
@@ -484,7 +443,7 @@ class State:
         self.data.clear_done(path)
 
     def record_bail(self, reason: str, *, kind: str = "other") -> None:
-        self.data.write_bail_file(kind, reason, attempt=self.data.attempt)
+        self.data.write_bail_file(kind, reason)
 
     def record_stage_progress(
         self, name: str, sub_stage: object = None, *, parent_stage: str = ""
@@ -508,20 +467,14 @@ class State:
         scope_list = list(scope) if scope is not None else []
 
         def _prepare() -> State:
-            loaded = StateData.load(gremlin_id)
             if record_stage:
                 base_state.data.set_stage(
                     entry.name, parent_stage=base_state.parent_stage
                 )
             # Sync the per-stage client to state.json so fleet listings
             # reflect the actual model in use for the current stage.
-            # Compare against the loaded on-disk value rather than the
-            # in-memory base_state.data.client (which defaults to "" in
-            # many code paths), so we only patch when the disk value
-            # actually differs.
-            if str(base_state.client) != loaded.client:
+            if str(base_state.client) != base_state.data.client:
                 base_state.data.patch(client=str(base_state.client))
-                loaded = dataclasses.replace(loaded, client=str(base_state.client))
             if attempt:
                 if base_state.child_key:
                     base_state.data.patch_parallel_attempt(
@@ -529,9 +482,9 @@ class State:
                     )
                 else:
                     base_state.data.patch(attempt=attempt)
-                loaded = dataclasses.replace(loaded, attempt=attempt)
+            fresh_handle = StateData(gremlin_id)
             return dataclasses.replace(
-                base_state, data=loaded, current_scope=scope_list
+                base_state, data=fresh_handle, current_scope=scope_list
             )
 
         async def _run_async() -> Any:

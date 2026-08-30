@@ -373,9 +373,8 @@ def test_subprocess_cost_accumulated_in_state(
     write_state(state_dir, {"id": "test-gremlin"})
     sf = state_dir / "state.json"
 
-    parent_data = dataclasses.replace(
-        StateData(gremlin_id="test-gremlin"), state_file=sf
-    )
+    parent_data = StateData(gremlin_id="test-gremlin")
+    parent_data.state_file = sf
     parent_state = build_state(
         data=parent_data,
         client=FakeClient(),
@@ -390,10 +389,10 @@ def test_subprocess_cost_accumulated_in_state(
     session_b.mkdir(parents=True)
 
     def _make_child_state(session: pathlib.Path) -> State:
+        child_data = StateData(gremlin_id="test-gremlin")
+        child_data.state_file = sf
         return build_state(
-            data=dataclasses.replace(
-                StateData(gremlin_id="test-gremlin"), state_file=sf
-            ),
+            data=child_data,
             client=FakeClient(),
             artifact_dir=session,
         )

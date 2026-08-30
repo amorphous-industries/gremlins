@@ -113,8 +113,10 @@ def _stateful(state_root: pathlib.Path, gremlin_id: str) -> RuntimeState:
     state_dir.mkdir(parents=True)
     sf = state_dir / "state.json"
     sf.write_text(json.dumps({"id": gremlin_id}), encoding="utf-8")
+    data = StateData(gremlin_id=gremlin_id)
+    data.state_file = sf
     return build_state(
-        data=StateData(gremlin_id=gremlin_id, state_file=sf),
+        data=data,
         client=FakeClient(),
         artifact_dir=state_dir,
     )

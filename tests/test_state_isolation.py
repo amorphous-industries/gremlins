@@ -178,7 +178,7 @@ def test_set_stage_noop_when_gremlin_id_unset(sandbox):
     sf = _make_state_dir(sandbox.state, "gr-noop-test")
     # GREMLINS_GREMLIN_ID is already unset via autouse fixture
     mtime_before = sf.stat().st_mtime_ns
-    StateData.load(None).set_stage("running")
+    StateData(None).set_stage("running")
     assert sf.stat().st_mtime_ns == mtime_before
 
 
@@ -187,7 +187,7 @@ def test_set_stage_writes_stage_and_timestamp(sandbox):
     gremlin_id = "gr-stage-write-test"
     sf = _make_state_dir(sandbox.state, gremlin_id)
 
-    StateData.load(gremlin_id).set_stage("review-code")
+    StateData(gremlin_id).set_stage("review-code")
 
     data = json.loads(sf.read_text())
     assert data["stage"] == "review-code"
@@ -203,7 +203,7 @@ def test_set_stage_with_sub_stage(sandbox):
     gremlin_id = "gr-substage-test"
     sf = _make_state_dir(sandbox.state, gremlin_id)
 
-    StateData.load(gremlin_id).set_stage("implement", sub_stage={"attempt": 2})
+    StateData(gremlin_id).set_stage("implement", sub_stage={"attempt": 2})
 
     data = json.loads(sf.read_text())
     assert data["stage"] == "implement"
@@ -215,10 +215,10 @@ def test_set_stage_removes_sub_stage_when_none(sandbox):
     gremlin_id = "gr-substage-del-test"
     sf = _make_state_dir(sandbox.state, gremlin_id)
 
-    StateData.load(gremlin_id).set_stage("implement", sub_stage={"k": 1})
+    StateData(gremlin_id).set_stage("implement", sub_stage={"k": 1})
     assert "sub_stage" in json.loads(sf.read_text())
 
-    StateData.load(gremlin_id).set_stage("review-code")
+    StateData(gremlin_id).set_stage("review-code")
     data = json.loads(sf.read_text())
     assert data["stage"] == "review-code"
     assert "sub_stage" not in data
@@ -230,7 +230,7 @@ def test_set_stage_noop_when_state_json_missing(sandbox):
     state_dir = sandbox.state / gremlin_id
     state_dir.mkdir(parents=True)
     # No state.json written
-    StateData.load(gremlin_id).set_stage("running")  # must not raise
+    StateData(gremlin_id).set_stage("running")  # must not raise
 
 
 # ---------------------------------------------------------------------------
@@ -242,8 +242,9 @@ def test_write_bail_file_creates_bail_file(sandbox):
     gremlin_id = "gr-wbf-write"
     _make_state_dir(sandbox.state, gremlin_id)
 
-    StateData.load(gremlin_id).write_bail_file(
-        "other", "something went wrong", attempt="stage-abc123"
+    StateData(gremlin_id).patch(attempt="stage-abc123")
+    StateData(gremlin_id).write_bail_file(
+        "other", "something went wrong"
     )
 
     bail_file = sandbox.state / gremlin_id / "bail_stage-abc123.json"
@@ -257,13 +258,13 @@ def test_write_bail_file_noop_when_gremlin_id_none(sandbox):
     gremlin_id = "gr-wbf-noop"
     sf = _make_state_dir(sandbox.state, gremlin_id)
     mtime_before = sf.stat().st_mtime_ns
-    StateData.load(None).write_bail_file("other", attempt="some-attempt")
+    StateData(None).write_bail_file("other")
     assert sf.stat().st_mtime_ns == mtime_before
 
 
 def test_write_bail_file_noop_when_attempt_empty(sandbox):
     gremlin_id = "gr-wbf-empty-attempt"
     _make_state_dir(sandbox.state, gremlin_id)
-    StateData.load(gremlin_id).write_bail_file("other", attempt="")
+    StateData(gremlin_id).write_bail_file("other")
     bail_files = list((sandbox.state / gremlin_id).glob("bail_*.json"))
     assert not bail_files

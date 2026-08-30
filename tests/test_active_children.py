@@ -24,8 +24,10 @@ from tests.fake_client import FakeClient
 def _stateful(tmp_path: pathlib.Path, gid: str = "test-id") -> MockGremlin:
     sf = tmp_path / "state.json"
     sf.write_text(json.dumps({"id": gid}), encoding="utf-8")
+    data = StateData(gremlin_id=gid)
+    data.state_file = sf
     state = build_state(
-        data=StateData(gremlin_id=gid, state_file=sf),
+        data=data,
         client=FakeClient(),
         artifact_dir=tmp_path,
     )
@@ -210,7 +212,8 @@ def _parallel_execute_stage(
 def test_parallel_active_children_set_and_cleared(tmp_path: pathlib.Path) -> None:
     sf = tmp_path / "state.json"
     sf.write_text(json.dumps({"id": "test-id"}), encoding="utf-8")
-    parent_data = StateData(gremlin_id="test-id", state_file=sf)
+    parent_data = StateData(gremlin_id="test-id")
+    parent_data.state_file = sf
     parent_state = build_state(
         data=parent_data,
         client=FakeClient(),
@@ -231,7 +234,8 @@ def test_parallel_active_children_set_and_cleared(tmp_path: pathlib.Path) -> Non
 def test_parallel_active_children_cleared_on_exception(tmp_path: pathlib.Path) -> None:
     sf = tmp_path / "state.json"
     sf.write_text(json.dumps({"id": "test-id"}), encoding="utf-8")
-    parent_data = StateData(gremlin_id="test-id", state_file=sf)
+    parent_data = StateData(gremlin_id="test-id")
+    parent_data.state_file = sf
     parent_state = build_state(
         data=parent_data,
         client=FakeClient(),

@@ -95,7 +95,8 @@ def _make_parent_state(sandbox, gremlin_id: str) -> State:
     state_file = state_dir / "state.json"
     state_file.write_text(json.dumps({"id": gremlin_id}), encoding="utf-8")
 
-    data = StateData(gremlin_id=gremlin_id, state_file=state_file)
+    data = StateData(gremlin_id=gremlin_id)
+    data.state_file = state_file
     return build_state(data=data, client=FakeClient(), artifact_dir=artifact_dir)
 
 
@@ -223,7 +224,8 @@ def test_parallel_child_artifact_dir_is_full_copy(sandbox) -> None:
 
     state_file = parent_state_dir / "state.json"
     state_file.write_text(json.dumps({"id": gremlin_id}), encoding="utf-8")
-    data = StateData(gremlin_id=gremlin_id, state_file=state_file)
+    data = StateData(gremlin_id=gremlin_id)
+    data.state_file = state_file
     parent_artifacts = ArtifactRegistry(artifact_dir=parent_artifact_dir)
     parent_artifacts.bind("artifact1", Uri.parse("file://session/file1.txt"))
     parent_artifacts.bind("artifact2", Uri.parse("file://session/file2.txt"))
@@ -350,7 +352,8 @@ def test_fork_uses_parent_not_child_state_as_source(sandbox) -> None:
         ),
         encoding="utf-8",
     )
-    data = StateData(gremlin_id=gremlin_id, state_file=state_file)
+    data = StateData(gremlin_id=gremlin_id)
+    data.state_file = state_file
     parent_artifacts = ArtifactRegistry(artifact_dir=parent_artifact_dir)
     parent_artifacts.bind("plan", Uri.parse("file://session/plan.md"))
     parent_artifacts.bind("spec", Uri.parse("file://session/spec.md"))

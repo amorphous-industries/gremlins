@@ -28,7 +28,6 @@ def child_state(
         artifact_dir.mkdir(parents=True, exist_ok=True)
     return dataclasses.replace(
         parent,
-        data=dataclasses.replace(parent.data, client=str(client)),
         client=client,
         artifact_dir=artifact_dir,
         child_key=child.name,
