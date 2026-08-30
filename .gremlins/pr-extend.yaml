@@ -32,6 +32,25 @@ prompts:
   verify: [dev-env-howto.md, gremlins:verify_fix.md, gremlins:bail_section_fix.md]
   dev-env: dev-env-howto.md
 
+stage-definitions:
+  check-and-fix:
+    stages:
+      - type: verify
+        options:
+          cmds:
+            - |
+              output=$(make -j8 test 2>&1)
+              rc=$?
+              printf '%s' "$output" | grep -E 'FAILED|ERROR|panicked|Traceback'
+              exit $rc
+          max_iterations: 7
+        prompt: verify
+      - type: verify
+        options:
+          cmds: ["make check"]
+          max_iterations: 7
+        prompt: verify
+
 # Usage:
 #   gremlins launch pr-extend --pr <num|url> --plan '#<issue>'
 #
@@ -60,18 +79,7 @@ stages:
           printf "%s" "$(printf '%s' "$PR_JSON" | jq -r '.number')" > "{artifact_dir}/pr-number.txt"
   - { type: gremlins:plan-gh, prompt: [code-style, terse, gremlins:plan_gh.md] }
   - { type: gremlins:implement, prompt: [code-style, terse, dev-env, no_lint_in_implement.md, implement_pr_extension.md] }
-  - name: verify-check
-    type: verify
-    options:
-      cmds: ["make check"]
-      max_iterations: 7
-    prompt: verify
-  - name: verify-test
-    type: verify
-    options:
-      cmds: ["make test"]
-      max_iterations: 7
-    prompt: verify
+  - { type: check-and-fix }
   - { name: push, type: gremlins:github-push-to-pr-branch }
 
   - { type: gremlins:github-request-copilot-review,  interpolation: {pr: artifact.pr} }
