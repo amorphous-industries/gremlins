@@ -2,7 +2,7 @@
 
 Review the changes on the current branch against `{base_ref}` and output findings as text.
 
-**Do not run any tests, checks, linters, or build commands.** This is a code review only — read-only analysis of the diff. Do not compile, format-check, lint, type-check, or execute anything.
+**Do not run any tests, checks, linters, or build commands.** This is a code review only — read-only analysis of the diff. Do not compile, format-check, lint, type-check, or run project code. Read-only git inspection commands like `git diff` are fine.
 
 ## Step 1: Gather the diff
 

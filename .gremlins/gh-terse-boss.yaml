@@ -4,7 +4,6 @@ prompt_dir: prompts
 
 prompts:
   code-style: gremlins:code_style.md
-  small-diffs: small_diffs.md
   dev-env: dev-env-howto.md
 
 bootstrap:
