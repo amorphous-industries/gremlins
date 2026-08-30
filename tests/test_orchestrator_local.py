@@ -4,7 +4,7 @@ import json
 import shutil
 
 import pytest
-from conftest import MINIMAL_EVENTS
+from conftest import MINIMAL_EVENTS, write_done_from_shell_cmd
 from conftest import REVIEW_LABELS as _REVIEW_LABELS
 from conftest import ReviewCreatingClient as _ReviewCreatingClient
 from conftest import common_local_patches as _common_patches
@@ -149,11 +149,12 @@ def test_local_main_resume_from_review_code_allows_existing_git_changes(
     )
 
     assert result == 0
+    # verify-check and verify-test each run cmd (mocked to succeed), which
+    # writes the done file and satisfies the loop's stop_when_exists: done.
+    # The fix stage is never invoked because done is already bound.
     assert [call.label for call in client.calls] == [
         "review-code",
         "address-code",
-        "fix",
-        "fix",
     ]
 
 
@@ -280,6 +281,7 @@ def test_local_main_env_file_vars_reach_verify(tmp_path, monkeypatch):
     async def _capturing_shell(cmd, env=None, **kwargs):
         if env is not None:
             captured_envs.append(dict(env))
+        write_done_from_shell_cmd(cmd)
         return _subprocess.CompletedProcess(cmd, 0, "(noop)\n", "")
 
     monkeypatch.setattr("gremlins.stages.exec._proc.run_shell_async", _capturing_shell)
@@ -349,6 +351,7 @@ def test_local_main_env_file_sourced_with_overlay_dir_set(tmp_path, monkeypatch)
     async def _capturing_shell(cmd, env=None, **kwargs):
         if env is not None:
             captured_envs.append(dict(env))
+        write_done_from_shell_cmd(cmd)
         return _subprocess.CompletedProcess(cmd, 0, "(noop)\n", "")
 
     monkeypatch.setattr("gremlins.stages.exec._proc.run_shell_async", _capturing_shell)

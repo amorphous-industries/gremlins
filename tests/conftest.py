@@ -401,16 +401,37 @@ class ReviewCreatingClient(FakeClient):
             if label not in self._fixtures:
                 self._fixtures[label] = MINIMAL_EVENTS
         if label == "fix":
-            # Write the done file so verify_produced passes for the verify recipe's fix agent.
-            # Prompt after substitution: ...write "done" to /path/<slug>_done
-            m = re.search(r"to\s+(/\S+_done)\b", prompt)
-            if m:
-                done_path = pathlib.Path(m.group(1))
-                done_path.parent.mkdir(parents=True, exist_ok=True)
-                done_path.write_text("done", encoding="utf-8")
             if label not in self._fixtures:
                 self._fixtures[label] = MINIMAL_EVENTS
         return await super().run(prompt, label=label, cwd=cwd, **kwargs)
+
+
+def write_done_from_shell_cmd(cmd: str) -> None:
+    """Create the `done` file that the verify recipe's cmd shell wrapper writes on success.
+
+    The cmd shell script includes::
+
+        (cmds); rc=$?; if [ "$rc" -eq 0 ]; then printf 'done' > "{artifact_dir}/done"; fi; true
+
+    Shell mocks that don't actually execute the script should call this so the
+    verify loop's stop_when_exists: done is satisfied.
+
+    Note: This parses a quoted path ending in ``/done`` from the shell command
+    string. It is coupled to the convention that the verify recipe's shell wrapper
+    writes ``done`` to ``{artifact_dir}/done``. If the wrapper format or path
+    naming changes, this function silently returns without creating the file,
+    causing the verify loop to time out in tests.
+    """
+    import re as _re
+
+    # Match any quoted path ending in /done — this avoids coupling to the exact
+    # printf/redirect syntax while still extracting the done-file path from the
+    # shell wrapper command in verify.yaml.
+    _m = _re.search(r"[\"\']([^\"\']+/done)[\"\']", cmd)
+    if _m:
+        _p = pathlib.Path(_m.group(1))
+        _p.parent.mkdir(parents=True, exist_ok=True)
+        _p.write_text("done")
 
 
 def common_local_patches(monkeypatch):
@@ -434,6 +455,7 @@ def common_local_patches(monkeypatch):
     )
 
     async def _noop_shell(cmd, **kwargs):
+        write_done_from_shell_cmd(cmd)
         return _subprocess.CompletedProcess(cmd, 0, "(noop)\n", "")
 
     monkeypatch.setattr("gremlins.stages.exec._proc.run_shell_async", _noop_shell)
