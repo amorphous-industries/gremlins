@@ -20,7 +20,7 @@ from gremlins.clients.client import Client
 from gremlins.executor.state import (
     State,
     StateData,
-    _read_state_json,
+    read_state_json,
     build_state,
     write_state,
 )
@@ -277,7 +277,7 @@ class Gremlin:
             child_pipeline_path = str(branch_yaml_path)
 
         # Read parent state from disk, build child dict
-        parent_dict = _read_state_json(state.data.state_file)
+        parent_dict = read_state_json(state.data.state_file)
         child_dict = dict(parent_dict)
         child_dict.update(
             id=target_id,

@@ -68,7 +68,7 @@ def _stage_list() -> list[StageProtocol]:
     return []
 
 
-def _read_state_json(sf: pathlib.Path | None) -> dict[str, Any]:
+def read_state_json(sf: pathlib.Path | None) -> dict[str, Any]:
     if sf is None or not sf.exists():
         return {}
     try:
@@ -110,7 +110,7 @@ class StateData:
     def __getattr__(self, name: str) -> Any:
         if name not in self.FIELD_DEFAULTS:
             raise AttributeError(f"{type(self).__name__!r} has no field {name!r}")
-        data = _read_state_json(self.state_file)
+        data = read_state_json(self.state_file)
         val = data.get(name)
         if val is None:
             return copy.deepcopy(self.FIELD_DEFAULTS[name])
