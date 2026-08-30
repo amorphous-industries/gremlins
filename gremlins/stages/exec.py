@@ -15,7 +15,6 @@ from gremlins.artifacts.schemes import snapshot_head_before
 from gremlins.artifacts.uri import Uri
 from gremlins.stages.base import Stage
 from gremlins.stages.constants import (
-    ARTIFACT_PREFIX,
     FRAMEWORK_KEYS,
     strip_artifact_prefix,
     strip_artifact_prefix_keys,
