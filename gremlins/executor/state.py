@@ -511,14 +511,20 @@ class State:
         scope_list = list(scope) if scope is not None else []
 
         def _prepare() -> State:
+            loaded = StateData.load(gremlin_id)
             if record_stage:
                 base_state.data.set_stage(
                     entry.name, parent_stage=base_state.parent_stage
                 )
             # Sync the per-stage client to state.json so fleet listings
             # reflect the actual model in use for the current stage.
-            if str(base_state.client) != base_state.data.client:
+            # Compare against the loaded on-disk value rather than the
+            # in-memory base_state.data.client (which defaults to "" in
+            # many code paths), so we only patch when the disk value
+            # actually differs.
+            if str(base_state.client) != loaded.client:
                 base_state.data.patch(client=str(base_state.client))
+                loaded = dataclasses.replace(loaded, client=str(base_state.client))
             if attempt:
                 if base_state.child_key:
                     base_state.data.patch_parallel_attempt(
@@ -526,8 +532,6 @@ class State:
                     )
                 else:
                     base_state.data.patch(attempt=attempt)
-            loaded = StateData.load(gremlin_id)
-            if attempt:
                 loaded = dataclasses.replace(loaded, attempt=attempt)
             return dataclasses.replace(
                 base_state, data=loaded, current_scope=scope_list
