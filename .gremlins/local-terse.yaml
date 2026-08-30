@@ -44,7 +44,7 @@ stages:
     prompt: verify
 
   - { type: gremlins:review-code,  prompt: [code-style, terse, dev-env, local_review.md] }
-  - { name: address-code, type: agent, in: {text: review-code}, prompt: [code-style, terse, dev-env, gremlins:address.md, gremlins:bail_section.md] }
+  - { name: address-code, type: agent, in: {text: "file://session/review-code.md"}, prompt: [code-style, terse, dev-env, gremlins:address.md, gremlins:bail_section.md] }
 
   - { type: normalize }
   - name: verify-check-final

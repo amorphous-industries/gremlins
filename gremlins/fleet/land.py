@@ -402,8 +402,8 @@ def _gather_commit_inputs(
 
     _CONTENT_CAP = 4000  # chars; enough context without blowing up the prompt
 
-    inputs["plan"] = registry.get_file_contents("plan")[:_CONTENT_CAP]
-    inputs["spec"] = registry.get_file_contents("spec")[:_CONTENT_CAP]
+    inputs["plan"] = registry.get_file_contents("file://session/plan.md")[:_CONTENT_CAP]
+    inputs["spec"] = registry.get_file_contents("file://session/spec.md")[:_CONTENT_CAP]
 
     inputs["git_log"] = "\n".join(
         _git.log_oneline(f"{merge_base}..{branch}", cwd=cwd).splitlines()[:100]
@@ -774,11 +774,6 @@ def _land_gh(
         if isinstance(value, str):
             pr_url = value
             break
-        if isinstance(value, dict):
-            uri: str | None = value.get("uri") or value.get("url")  # type: ignore[reportUnknownMemberType]
-            if isinstance(uri, str):
-                pr_url = uri
-                break
     if not pr_url:
         print(f"error: no PR URL recorded for {gremlin_id}")
         return False

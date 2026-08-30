@@ -362,6 +362,9 @@ class Gremlin:
                 for key in stage.out_map:
                     if self.registry.produced(key):
                         self.registry.unbind(key)
+                for key in stage.out_optional_map:
+                    if self.registry.produced(key):
+                        self.registry.unbind(key)
 
     async def run(self) -> None:
         if not hasattr(self, "registry"):
@@ -582,12 +585,22 @@ class Gremlin:
                     continue
                 if value is not None and not self.registry.produced(key):
                     self.registry.write(key, value)
-            if not self.registry.produced("spec"):
-                self.registry.bind("spec", Uri.parse("file://session/spec.md"))
+            if not self.registry.produced("file://session/spec.md"):
+                self.registry.bind(
+                    "file://session/spec.md",
+                    self.registry.resolver("file").materialize(
+                        "file://session/spec.md"
+                    ),
+                )
             if not self.registry.produced("base_sha"):
                 sha = _git_mod.head_sha(cwd=self.worktree_dir)
                 if sha:
-                    self.registry.bind("base_sha", Uri.parse(f"git://commit/{sha}"))
+                    self.registry.bind(
+                        "base_sha",
+                        self.registry.resolver("git").materialize(
+                            f"git://commit/{sha}"
+                        ),
+                    )
 
             state_data = StateData.load(self.gremlin_id)
             default_client = resolved_client or self.pipeline_data.default_client

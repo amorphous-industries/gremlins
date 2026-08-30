@@ -91,7 +91,9 @@ class Pipeline:
                 raise ValueError("'land' must be a mapping")
             land_stage = Exec.with_dict({"name": "land", **land_raw})
 
-        check_duplicate_producers(stages, extra_out=bootstrap.cli_out)
+        check_duplicate_producers(
+            stages, extra_out={**bootstrap.cli_out, **bootstrap.cli_out_optional}
+        )
 
         if default_client is None and default_client_override is not None:
             default_client = Client.parse(default_client_override)

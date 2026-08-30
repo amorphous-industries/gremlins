@@ -39,6 +39,7 @@ class Stage:
     skip_if_exists: str = ""
     options: dict[str, Any]
     out_map: dict[str, str]
+    out_optional_map: dict[str, str]
     gremlin: GremlinProtocol | None
 
     def __init__(self, name: str) -> None:
@@ -49,6 +50,7 @@ class Stage:
         self.raw_dict: dict[str, Any] | None = None
         self.options: dict[str, Any] = {}
         self.out_map = {}
+        self.out_optional_map = {}
         self.gremlin = None
 
     def substitute_vars(

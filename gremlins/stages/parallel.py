@@ -516,13 +516,37 @@ class _ParallelExecutor:
         for key, producers in per_key.items():
             multi = len(producers) > 1
             for child_key, _, child in producers:
-                parent_state.artifacts.merge_from(
-                    child,
-                    key_prefix=child_key if multi else "",
-                    copy_files=True,
-                    dest_artifact_dir=parent_state.artifact_dir,
-                    keys={key},
-                )
+                if multi:
+                    bound_key = f"{key}?child={child_key}"
+                else:
+                    bound_key = key
+                value = child.raw_entry(key)
+                if value is None:
+                    continue
+                if bound_key in parent_state.artifacts.data:
+                    continue
+                if key.startswith("file://session/") and isinstance(value, str):
+                    src = pathlib.Path(value)
+                    if not src.exists():
+                        logger.warning("child artifact missing: %s", src)
+                        continue
+                    dest_dir = parent_state.artifact_dir
+                    name = key[len("file://session/"):]
+                    dest_name = f"{child_key}/{name}" if multi else name
+                    dest = dest_dir / dest_name
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(src, dest)
+                    parent_state.artifacts.bind(bound_key, str(dest))
+                else:
+                    try:
+                        parent_state.artifacts.bind(bound_key, value)
+                    except Exception:
+                        logger.warning(
+                            "failed to bind %s -> %s into parent registry",
+                            bound_key,
+                            value,
+                            exc_info=True,
+                        )
 
     async def _fan_in(self) -> None:
         self._set_stage(f"{self._group_name}-fanin")

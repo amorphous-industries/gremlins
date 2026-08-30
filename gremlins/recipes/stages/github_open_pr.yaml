@@ -2,7 +2,8 @@ stages:
   - name: resolve-pr-base
     type: exec
     in:
-      prev_branch: pr-branch?
+      optional:
+        prev_branch: "file://session/pr-branch.txt"
     out:
       base_ref_to_open_pr: "file://session/pr-base-ref.txt"
     options:
@@ -13,7 +14,8 @@ stages:
     type: agent
     in:
       base_ref_to_open_pr: base_ref_to_open_pr
-      plan_source_issue_number: plan-source-issue-number?
+      optional:
+        plan_source_issue_number: "file://session/plan-source-issue-number.txt"
     prompt:
       - gremlins:github_open_pull_request.md
     out:
@@ -28,10 +30,10 @@ stages:
       pr_branch: pr_branch
       pr_title: pr_title
     out:
-      pr-number: "file://session/pr-number.txt"
-      pr-url:    "file://session/pr-url.txt"
-      pr-branch: "file://session/pr-branch.txt"
-      pr: "gh://pr/{read:pr-number}"
+      file://session/pr-number.txt: "file://session/pr-number.txt"
+      file://session/pr-url.txt:    "file://session/pr-url.txt"
+      file://session/pr-branch.txt: "file://session/pr-branch.txt"
+      gh://pr: "gh://pr/{read:file://session/pr-number.txt}"
     options:
       cmds:
         - |

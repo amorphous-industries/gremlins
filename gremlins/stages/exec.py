@@ -50,15 +50,10 @@ def _sub_artifact_paths(s: str, artifacts: ArtifactRegistry) -> str:
 
     def _r(m: re.Match[str]) -> str:
         key = m.group(1)
-        try:
-            uri = artifacts.resolve(key)
-        except MissingArtifact:
-            raise MissingArtifact(key) from None
         p = artifacts.path_for(key)
         if p is None:
             raise ValueError(
-                f"{{artifact:{key}}}: artifact is bound to {uri} "
-                f"which is not a file://session/ path"
+                f"{{artifact:{key}}}: artifact is not a file://session/ path"
             )
         return str(p)
 
@@ -74,12 +69,16 @@ class Exec(Stage):
         options: dict[str, Any],
         *,
         in_map: dict[str, str] | None = None,
+        in_optional_map: dict[str, str] | None = None,
         out_map: dict[str, str] | None = None,
+        out_optional_map: dict[str, str] | None = None,
     ) -> None:
         super().__init__(name)
         self.options = options
         self.in_map = in_map or {}
+        self.in_optional_map = in_optional_map or {}
         self.out_map = out_map or {}
+        self.out_optional_map = out_optional_map or {}
 
     @classmethod
     def with_dict(cls, d: dict[str, Any], depth: int = 0) -> Exec:
@@ -88,18 +87,36 @@ class Exec(Stage):
         raw_out: object = d.get("out") or {}
         if not isinstance(raw_in, dict):
             raise ValueError(f"stage {name!r}: 'in' must be a mapping")
-        if not isinstance(raw_out, dict):
-            raise ValueError(f"stage {name!r}: 'out' must be a mapping")
+        if not isinstance(raw_out, (dict, list)):
+            raise ValueError(f"stage {name!r}: 'out' must be a mapping or list")
         for k in cast(dict[str, Any], d.get("options") or {}):
             if k in FRAMEWORK_KEYS:
                 raise ValueError(
                     f"stage {name!r}: option key {k!r} collides with framework substitution variable"
                 )
+        in_dict = cast(dict[str, str], raw_in)
+        in_optional = {
+            str(k): str(v)
+            for k, v in cast(dict[str, Any], in_dict.pop("optional", {})).items()
+        }
+        if isinstance(raw_out, list):
+            out_list = [str(v) for v in cast(list[Any], raw_out)]
+            out_map = {v: v for v in out_list}
+            out_optional: dict[str, str] = {}
+        else:
+            out_dict = cast(dict[str, str], raw_out)
+            out_optional = {
+                str(k): str(v)
+                for k, v in cast(dict[str, Any], out_dict.pop("optional", {})).items()
+            }
+            out_map = {str(k): str(v) for k, v in out_dict.items()}
         return cls(
             name,
             d.get("options") or {},
-            in_map=dict(cast(dict[str, str], raw_in)),
-            out_map=dict(cast(dict[str, str], raw_out)),
+            in_map=in_dict,
+            in_optional_map=in_optional,
+            out_map=out_map,
+            out_optional_map=out_optional,
         )
 
     async def run(self, gremlin: Gremlin) -> Outcome:
@@ -107,12 +124,15 @@ class Exec(Stage):
         if state is None:
             raise RuntimeError("exec stage requires gremlin.state to be initialized")
         try:
-            extra_env = resolve_in_map(state.artifacts, self.in_map)
+            extra_env = resolve_in_map(
+                state.artifacts, self.in_map, self.in_optional_map
+            )
         except ValueError as exc:
             raise Bail(f"exec {self.name}: {exc}") from exc
 
         pre_sha: str | None = None
-        if any(Uri.is_range(v) for v in self.out_map.values()):
+        all_out = {**self.out_map, **self.out_optional_map}
+        if any(Uri.is_range(v) for v in all_out.values()):
             pre_sha = snapshot_head_before(cwd=pathlib.Path(state.cwd))
 
         cmds = [
@@ -142,16 +162,18 @@ class Exec(Stage):
             shell_output = (result.stdout + result.stderr).strip()
             shell_rc = result.returncode
             if result.returncode != 0:
-                if result.returncode == 2 and _BAIL_KEY in self.out_map:
+                if result.returncode == 2 and (
+                    _BAIL_KEY in self.out_map
+                    or _BAIL_KEY in self.out_optional_map
+                ):
                     bail_triggered = True
                 else:
                     raise Bail(f"exec {self.name}: exited {result.returncode}")
 
-        for raw_key, raw_uri_str in self.out_map.items():
+        for raw_key, raw_uri_str in all_out.items():
             key = self.substitute_vars(raw_key, state, extra_env)
-            optional = key.endswith("?")
-            if optional:
-                key = key[:-1]
+            key = _sub_reads(key, state.artifacts)
+            optional = raw_key in self.out_optional_map
             if key == _BAIL_KEY and not bail_triggered:
                 continue
             try:
@@ -168,10 +190,26 @@ class Exec(Stage):
                         f"exec {self.name}: git://range requires pre-snapshot"
                     )
                 state.artifacts.bind_git_commit_range(key, pre_sha)
+            elif "://" not in uri_str:
+                # Bare key (e.g. "bail", "done", "status") — store the file
+                # contents if the corresponding artifact file exists.
+                value: Any = uri_str
+                file_path = state.artifact_dir / key
+                if file_path.exists():
+                    value = file_path.read_text(encoding="utf-8").strip()
+                try:
+                    state.artifacts.bind(key, value)
+                except DuplicateArtifact:
+                    if optional:
+                        continue
+                    raise
             else:
                 uri = Uri.parse(uri_str)
+                materialized = state.artifacts.resolver(uri.scheme).materialize(
+                    uri_str
+                )
                 try:
-                    state.artifacts.resolver(uri.scheme).verify_produced(uri)
+                    state.artifacts.resolver(uri.scheme).verify_produced(materialized)
                 except FileNotFoundError:
                     if optional:
                         continue
@@ -182,7 +220,7 @@ class Exec(Stage):
                         raise Bail(msg) from None
                     raise
                 try:
-                    state.artifacts.bind(key, uri)
+                    state.artifacts.bind(key, materialized)
                 except DuplicateArtifact:
                     if optional:
                         continue

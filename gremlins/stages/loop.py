@@ -140,8 +140,9 @@ class LoopStage(Stage):
             gremlin.state.artifacts.unbind(_BAIL_KEY)
             for child in self.body:
                 for raw_key in getattr(child, "out_map", {}):
-                    key = raw_key.removesuffix("?")
-                    gremlin.state.artifacts.unbind(key)
+                    gremlin.state.artifacts.unbind(raw_key)
+                for raw_key in getattr(child, "out_optional_map", {}):
+                    gremlin.state.artifacts.unbind(raw_key)
             runners = (
                 self._body_runners
                 if self._body_runners is not None

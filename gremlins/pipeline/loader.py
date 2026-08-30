@@ -20,13 +20,21 @@ def check_duplicate_producers(
 def _check_scope(stages: list[Stage], extra_out: dict[str, str] | None = None) -> None:
     seen: dict[str, tuple[str, str]] = {}  # key -> (stage_name, uri_str)
     if extra_out:
-        for raw_key, uri_str in extra_out.items():
-            key = raw_key[:-1] if raw_key.endswith("?") else raw_key
+        for key, uri_str in extra_out.items():
             seen[key] = ("bootstrap", uri_str)
     for stage in stages:
         for raw_key, uri_str in getattr(stage, "out_map", {}).items():
-            if raw_key.endswith("?"):
-                continue
+            existing = seen.get(raw_key)
+            if existing is not None:
+                prev_name, prev_uri = existing
+                if prev_uri != uri_str and not getattr(stage, "skip_if_exists", None):
+                    raise ValueError(
+                        f"duplicate out: key {raw_key!r}: declared by both "
+                        f"{prev_name!r} and {stage.name!r}"
+                    )
+            else:
+                seen[raw_key] = (stage.name, uri_str)
+        for raw_key, uri_str in getattr(stage, "out_optional_map", {}).items():
             existing = seen.get(raw_key)
             if existing is not None:
                 prev_name, prev_uri = existing

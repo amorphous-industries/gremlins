@@ -12,7 +12,8 @@ stages:
         type: exec
         out:
           verify_log: "file://session/exec-{name}.log"
-          done?: "file://session/done"
+          optional:
+            done: "file://session/done"
         options:
           cmds:
             - ({{options.cmds}}); rc=$?; printf '%d' "$rc" > "{artifact_dir}/exec_exit_code"; if [ "$rc" -eq 0 ]; then printf 'done' > "{artifact_dir}/done"; fi; true

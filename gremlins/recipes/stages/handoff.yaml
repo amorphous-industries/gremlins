@@ -34,7 +34,8 @@ stages:
           - "gremlins:code_style.md"
         in:
           plan_text: rolling-plan
-          spec_section: "boss-spec?"
+          optional:
+            spec_section: "file://session/boss-spec.md"
         out:
           rolling-plan: "file://session/rolling-plan.md"
           child-plan:   "file://session/child-plan.md"
@@ -45,8 +46,9 @@ stages:
       - name: translate-signal
         type: exec
         out:
-          bail: "file://session/bail-reason.txt"
-          done?: "file://session/done"
+          bail: bail
+          optional:
+            done: done
         options:
           cmds:
             - |
@@ -56,11 +58,11 @@ stages:
               cp "$ROLLING" "{artifact_dir}/rolling-plan-pre-sanitize.md"
 
               if [ ! -f "$SIGNAL" ]; then
-                printf 'signal.json not written by agent' > "{artifact_dir}/bail-reason.txt"
+                printf 'signal.json not written by agent' > "{artifact_dir}/bail"
                 exit 2
               fi
               exit_state=$(jq -r '.exit_state // empty' "$SIGNAL") || {
-                printf 'failed to parse exit_state from signal.json' > "{artifact_dir}/bail-reason.txt"
+                printf 'failed to parse exit_state from signal.json' > "{artifact_dir}/bail"
                 exit 2
               }
               case "$exit_state" in
@@ -68,7 +70,7 @@ stages:
                   CHILD="{artifact:child-plan}"
                   if [ ! -f "$CHILD" ]; then
                     printf 'next-plan: child_plan not found: %s' "$CHILD" \
-                      > "{artifact_dir}/bail-reason.txt"
+                      > "{artifact_dir}/bail"
                     exit 2
                   fi
                   cp "$CHILD" "{artifact_dir}/plan.md"
@@ -79,13 +81,13 @@ stages:
                   ;;
                 bail)
                   jq -r '.reason // "(no reason given)"' "$SIGNAL" \
-                    > "{artifact_dir}/bail-reason.txt" || \
-                    printf '(jq failed reading bail reason)' > "{artifact_dir}/bail-reason.txt"
+                    > "{artifact_dir}/bail" || \
+                    printf '(jq failed reading bail reason)' > "{artifact_dir}/bail"
                   exit 2
                   ;;
                 *)
                   printf 'unrecognized exit_state: %s' "$exit_state" \
-                    > "{artifact_dir}/bail-reason.txt"
+                    > "{artifact_dir}/bail"
                   exit 2
                   ;;
               esac

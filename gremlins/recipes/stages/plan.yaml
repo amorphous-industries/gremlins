@@ -7,7 +7,8 @@ stages:
     prompt:
       - "{{prompt}}"
     in:
-      instructions: "instructions?"
+      optional:
+        instructions: "file://session/instructions.txt"
     out:
       plan: "file://session/plan.md"
     options:
@@ -16,7 +17,8 @@ stages:
   - name: set-description
     type: exec
     out:
-      description?: "file://session/description.txt"
+      optional:
+        description: "file://session/description.txt"
     options:
       cmds:
         - "head -1 \"{artifact:plan}\" | sed 's/^#\\+ *//' > \"{artifact_dir}/description.txt\""

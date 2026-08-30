@@ -46,7 +46,10 @@ def _print_static(pipe: Pipeline) -> None:
         sch = d["scheme"]
         ps = ",".join(d["producers"]) or "-"
         cs = ",".join(d["consumers"]) or "-"
-        print(f"  {k} {uri}({sch}) p={ps} c={cs}")
+        if k == uri:
+            print(f"  {k} ({sch}) p={ps} c={cs}")
+        else:
+            print(f"  {k} {uri}({sch}) p={ps} c={cs}")
 
 
 def _walk(stages: list[Any], info: dict[str, dict[str, Any]]) -> None:
@@ -60,7 +63,22 @@ def _walk(stages: list[Any], info: dict[str, dict[str, Any]]) -> None:
 def _collect(st: Any, info: dict[str, dict[str, Any]]) -> None:
     nm = getattr(st, "name", "?")
     for k, u in getattr(st, "out_map", {}).items():
-        k = k[:-1] if k.endswith("?") else k
+        uri = Uri.parse_or_none(u)
+        sch = uri.scheme if uri else "?"
+        if k not in info:
+            info[k] = {
+                "uri": u,
+                "scheme": sch,
+                "producers": [],
+                "consumers": [],
+            }
+        d = info[k]
+        if d.get("uri") == "?":
+            d["uri"] = u
+            d["scheme"] = sch
+        if nm not in d["producers"]:
+            d["producers"].append(nm)
+    for k, u in getattr(st, "out_optional_map", {}).items():
         uri = Uri.parse_or_none(u)
         sch = uri.scheme if uri else "?"
         if k not in info:
@@ -77,12 +95,19 @@ def _collect(st: Any, info: dict[str, dict[str, Any]]) -> None:
         if nm not in d["producers"]:
             d["producers"].append(nm)
     for ref in getattr(st, "in_map", {}).values():
-        k = ref.split("?", 1)[0].split(".", 1)[0]
-        if not k:
+        if not ref:
             continue
-        if k not in info:
-            info[k] = {"uri": "?", "scheme": "?", "producers": [], "consumers": []}
-        d = info[k]
+        if ref not in info:
+            info[ref] = {"uri": "?", "scheme": "?", "producers": [], "consumers": []}
+        d = info[ref]
+        if nm not in d["consumers"]:
+            d["consumers"].append(nm)
+    for ref in getattr(st, "in_optional_map", {}).values():
+        if not ref:
+            continue
+        if ref not in info:
+            info[ref] = {"uri": "?", "scheme": "?", "producers": [], "consumers": []}
+        d = info[ref]
         if nm not in d["consumers"]:
             d["consumers"].append(nm)
 
@@ -92,6 +117,5 @@ def _print_live(reg: ArtifactRegistry) -> None:
     print(f"live:{rpath}")
     for k in sorted(reg.keys()):
         v = reg.raw_entry(k)
-        uri = Uri.parse_or_none(v) if isinstance(v, str) else None
-        sch = uri.scheme if uri else "?"
+        sch = k.split("://", 1)[0] if "://" in k else "?"
         print(f"  {k} {v}({sch})")

@@ -40,7 +40,7 @@ stages:
   - name: normalize
     type: normalize
     out:
-      normalize-commits: git://range
+      git://range/normalize-commits: git://range/normalize-commits
   - { name: verify-check, type: verify, options: { cmds: ["make check"] }, prompt: verify }
   - { name: verify-test,  type: verify, options: { cmds: ["make test"] },  prompt: verify }
   - { name: open-pr,   type: gremlins:github-open-pr }

@@ -12,9 +12,10 @@ stages:
       - name: poll
         type: exec
         in:
-          pr_number: pr-number
+          pr_number: "file://session/pr-number.txt"
         out:
-          status?: "file://session/status"
+          optional:
+            status: status
         options:
           timeout: 30
           cmds:

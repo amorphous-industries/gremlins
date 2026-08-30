@@ -7,7 +7,8 @@ stages:
     prompt:
       - "{{prompt}}"
     in:
-      instructions: "instructions?"
+      optional:
+        instructions: "file://session/instructions.txt"
     out:
       plan: "file://session/plan.md"
     options:
@@ -39,7 +40,8 @@ stages:
           esac
           printf '%s' "$number" > "{artifact_dir}/plan-source-issue-number.txt"
     out:
-      plan-source-issue-number?: "file://session/plan-source-issue-number.txt"
+      optional:
+        plan-source-issue-number: "file://session/plan-source-issue-number.txt"
 
   - name: publish-as-issue
     type: exec
@@ -64,7 +66,8 @@ stages:
   - name: set-description
     type: exec
     out:
-      description?: "file://session/description.txt"
+      optional:
+        description: "file://session/description.txt"
     options:
       cmds:
         - "head -1 \"{artifact:plan}\" | sed 's/^#\\+ *//' > \"{artifact_dir}/description.txt\""

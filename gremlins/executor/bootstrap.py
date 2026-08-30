@@ -171,7 +171,8 @@ async def _execute_bind_artifact(
         else:
             dest_path.write_text(value_str, encoding="utf-8")
 
-    gremlin.registry.bind(artifact_key, uri)
+    materialized = resolver.materialize(uri_template)
+    gremlin.registry.bind(artifact_key, materialized)
 
 
 _DSL_DISPATCH: dict[str, object] = {
@@ -244,8 +245,13 @@ async def run_pipeline_bootstrap(
                 )
         if shell_cmds:
             await run_bootstrap(shell_cmds, cwd, extra_env=env)
-    if bootstrap.cli_out:
+    if bootstrap.cli_out or bootstrap.cli_out_optional:
         from gremlins.stages.exec import Exec
 
-        binder = Exec("bootstrap", {}, out_map=dict(bootstrap.cli_out))
+        binder = Exec(
+            "bootstrap",
+            {},
+            out_map=dict(bootstrap.cli_out),
+            out_optional_map=dict(bootstrap.cli_out_optional),
+        )
         await binder.run(gremlin)

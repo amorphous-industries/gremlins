@@ -98,6 +98,7 @@ class Bootstrap:
     launch_cmds: list[str] = dataclasses.field(default_factory=list[str])
     cmds: list[str] = dataclasses.field(default_factory=list[str])
     cli_out: dict[str, str] = dataclasses.field(default_factory=dict[str, str])
+    cli_out_optional: dict[str, str] = dataclasses.field(default_factory=dict[str, str])
 
     @classmethod
     def from_yaml(cls, raw: object) -> Bootstrap:
@@ -123,18 +124,23 @@ class Bootstrap:
         cli_out_raw = raw.get("cli_out")
         if cli_out_raw is None:
             cli_out: dict[str, str] = {}
+            cli_out_optional: dict[str, str] = {}
         elif not isinstance(cli_out_raw, dict):
             raise ValueError("'bootstrap.cli_out' must be a mapping")
         else:
-            cli_out = {
-                str(k): str(v) for k, v in cast(dict[str, Any], cli_out_raw).items()
+            cli_out_dict = cast(dict[str, Any], cli_out_raw)
+            cli_out_optional = {
+                str(k): str(v)
+                for k, v in cast(dict[str, Any], cli_out_dict.pop("optional", {})).items()
             }
+            cli_out = {str(k): str(v) for k, v in cli_out_dict.items()}
 
         return cls(
             source=source,
             launch_cmds=_string_list(raw.get("launch_cmds"), "bootstrap.launch_cmds"),
             cmds=_string_list(raw.get("cmds"), "bootstrap.cmds"),
             cli_out=cli_out,
+            cli_out_optional=cli_out_optional,
         )
 
 

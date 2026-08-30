@@ -1,8 +1,9 @@
 stages:
   - name: review-code
     type: agent
-    in: { plan: plan }
+    in:
+      plan: "file://session/plan.md"
     out:
-      "{name}": "file://session/{name}-{model}.md"
+      - "file://session/review-code.md"
     prompt:
       - gremlins:review/recipe.md

@@ -37,6 +37,12 @@ class DuplicateArtifact(ValueError):
         self.key = key
 
 
+def _extract_scheme(key: str) -> str | None:
+    if "://" not in key:
+        return None
+    return key.split("://", 1)[0]
+
+
 class ArtifactRegistry:
     def __init__(
         self,
@@ -69,8 +75,13 @@ class ArtifactRegistry:
         self.data[key] = value
         self._persist()
 
-    def bind(self, key: str, uri: Uri) -> None:
-        value = str(uri)
+    def bind(self, key: str, value: Any) -> None:
+        """Bind a materialized value to *key*.
+
+        *value* must already be materialized by the appropriate resolver's
+        ``materialize()`` — this method stores it directly without further
+        transformation.
+        """
         if key in self.data:
             if self.data[key] == value:
                 return
@@ -78,34 +89,20 @@ class ArtifactRegistry:
         self.data[key] = value
         self._persist()
 
-    def mount(self, key: str, uri: Uri) -> None:
-        """Register a URI binding in-memory only; not persisted to disk."""
-        self.data[key] = str(uri)
-
-    def resolve(self, key: str) -> Uri:
-        if key not in self.data:
-            raise MissingArtifact(key)
-        value = self.data[key]
-        if not isinstance(value, str):
-            raise ValueError(f"artifact {key!r} is not a URI (stored value: {value!r})")
-        return Uri.parse(value)
-
-    def _resolve_value(self, value: Any) -> Any:
-        if not isinstance(value, str):
-            return value
-        try:
-            uri = Uri.parse(value)
-        except ValueError:
-            return value
-        if uri.scheme not in self._resolvers:
-            self._resolvers[uri.scheme] = OpaqueResolver()
-        resolved = self._resolvers[uri.scheme].read(uri)
-        return self._resolve_value(resolved)
+    def mount(self, key: str, value: Any) -> None:
+        """Register a binding in-memory only; not persisted to disk."""
+        self.data[key] = value
 
     def read(self, key: str) -> Any:
         if key not in self.data:
             raise MissingArtifact(key)
-        return self._resolve_value(self.data[key])
+        value = self.data[key]
+        scheme = _extract_scheme(key)
+        if scheme is None:
+            return value
+        if scheme not in self._resolvers:
+            self._resolvers[scheme] = OpaqueResolver()
+        return self._resolvers[scheme].read(value)
 
     def produced(self, key: str) -> bool:
         return key in self.data
@@ -114,16 +111,13 @@ class ArtifactRegistry:
         if key not in self.data:
             return False
         value = self.data[key]
-        if not isinstance(value, str):
+        scheme = _extract_scheme(key)
+        if scheme is None:
+            return True
+        if scheme not in self._resolvers:
             return True
         try:
-            uri = Uri.parse(value)
-        except ValueError:
-            return True
-        if uri.scheme not in self._resolvers:
-            return True
-        try:
-            self._resolvers[uri.scheme].verify_produced(uri)
+            self._resolvers[scheme].verify_produced(value)
             return True
         except Exception:
             return False
@@ -131,16 +125,14 @@ class ArtifactRegistry:
     def path_for(self, key: str) -> pathlib.Path | None:
         """Return the absolute filesystem path for a file://session/ artifact.
 
-        Returns None if the key is not bound or does not resolve to a
-        file://session/ URI.
+        Returns None if the key is not bound or is not a file:// URI.
         """
-        try:
-            uri = self.resolve(key)
-        except MissingArtifact:
+        if not key.startswith("file://"):
             return None
-        if uri.scheme != "file" or not uri.path.startswith("session/"):
+        value = self.data.get(key)
+        if not isinstance(value, str):
             return None
-        return self.file_resolver.path_for(uri)
+        return pathlib.Path(value)
 
     def keys(self) -> Iterable[str]:
         return self.data.keys()
@@ -167,7 +159,13 @@ class ArtifactRegistry:
         sha = git_utils.head_sha(cwd=self._cwd)
         if not sha:
             raise RuntimeError("could not resolve HEAD")
-        self.bind(key, Uri.parse(f"git://range/{base_sha}..{sha}"))
+        value = f"{base_sha}..{sha}"
+        if key in self.data:
+            if self.data[key] == value:
+                return
+            raise DuplicateArtifact(key, self.data[key], value)
+        self.data[key] = value
+        self._persist()
 
     # ------------------------------------------------------------------
     # accessor methods
@@ -178,31 +176,19 @@ class ArtifactRegistry:
         return self.data.get(key)
 
     def get_base_sha(self) -> str:
-        uri_str = self.data.get("base_sha")
-        if not uri_str or not isinstance(uri_str, str):
-            return ""
-        if uri_str.startswith("git://commit/"):
-            return uri_str.removeprefix("git://commit/")
-        return ""
+        value = self.data.get("base_sha")
+        return str(value) if value else ""
 
     def get_base_ref(self) -> str:
-        uri_str = self.data.get("base_ref")
-        if not uri_str or not isinstance(uri_str, str):
-            return ""
-        if uri_str.startswith("git://ref/"):
-            return uri_str.removeprefix("git://ref/")
-        return ""
+        value = self.data.get("base_ref")
+        return str(value) if value else ""
 
     def get_file_contents(self, key: str, *, default: str = "") -> str:
-        try:
-            uri = self.resolve(key)
-        except MissingArtifact:
-            return default
-        if uri.scheme != "file":
+        if not key.startswith("file://"):
             return default
         try:
-            return self._resolvers["file"].read(uri)
-        except Exception:
+            return self.read(key)
+        except (MissingArtifact, Exception):
             return default
 
     def merge_from(
@@ -220,34 +206,32 @@ class ArtifactRegistry:
         each incoming key is suffixed with ``"/" + key_prefix``.
         """
         for key in keys if keys is not None else other.keys():
-            uri_str = other.raw_entry(key)
-            if not isinstance(uri_str, str):
+            value = other.raw_entry(key)
+            if value is None:
                 continue
             bound_key = f"{key}/{key_prefix}" if key_prefix else key
             if bound_key in self.data:
                 continue
-            if uri_str.startswith("file://session/") and copy_files:
-                name = uri_str[len("file://session/") :]
-                src = other.file_resolver.path_for(Uri.parse(uri_str))
+            if key.startswith("file://session/") and copy_files and isinstance(value, str):
+                src = pathlib.Path(value)
                 if not src.exists():
                     logger.warning("child artifact missing: %s", src)
                     continue
-                dest_dir = dest_artifact_dir or self.file_resolver.path_for(
-                    Uri.parse("file://session/")
-                )
+                dest_dir = dest_artifact_dir or self.file_resolver._artifact_dir
+                name = key[len("file://session/"):]
                 dest_name = f"{key_prefix}/{name}" if key_prefix else name
                 dest = dest_dir / dest_name
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(src, dest)
-                self.bind(bound_key, Uri.parse(f"file://session/{dest_name}"))
+                self.bind(bound_key, str(dest))
             else:
                 try:
-                    self.bind(bound_key, Uri.parse(uri_str))
+                    self.bind(bound_key, value)
                 except Exception:
                     logger.warning(
                         "failed to bind %s -> %s into parent registry",
                         bound_key,
-                        uri_str,
+                        value,
                         exc_info=True,
                     )
 

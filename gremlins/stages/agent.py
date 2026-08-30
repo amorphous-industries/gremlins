@@ -53,13 +53,17 @@ class Agent(Stage):
         options: dict[str, Any],
         *,
         in_map: dict[str, str] | None = None,
+        in_optional_map: dict[str, str] | None = None,
         out_map: dict[str, str] | None = None,
+        out_optional_map: dict[str, str] | None = None,
     ) -> None:
         super().__init__(name)
         self.prompts = prompts
         self.options = options
         self.in_map = in_map or {}
+        self.in_optional_map = in_optional_map or {}
         self.out_map = out_map or {}
+        self.out_optional_map = out_optional_map or {}
 
     @classmethod
     def with_dict(cls, d: dict[str, Any], depth: int = 0) -> Agent:
@@ -68,19 +72,37 @@ class Agent(Stage):
         raw_out: object = d.get("out") or {}
         if not isinstance(raw_in, dict):
             raise ValueError(f"stage {name!r}: 'in' must be a mapping")
-        if not isinstance(raw_out, dict):
-            raise ValueError(f"stage {name!r}: 'out' must be a mapping")
+        if not isinstance(raw_out, (dict, list)):
+            raise ValueError(f"stage {name!r}: 'out' must be a mapping or list")
         for k in cast(dict[str, Any], d.get("options") or {}):
             if k in FRAMEWORK_KEYS - {"model"}:
                 raise ValueError(
                     f"stage {name!r}: option key {k!r} collides with framework substitution variable"
                 )
+        in_dict = cast(dict[str, str], raw_in)
+        in_optional = {
+            str(k): str(v)
+            for k, v in cast(dict[str, Any], in_dict.pop("optional", {})).items()
+        }
+        if isinstance(raw_out, list):
+            out_list = [str(v) for v in cast(list[Any], raw_out)]
+            out_map = {v: v for v in out_list}
+            out_optional: dict[str, str] = {}
+        else:
+            out_dict = cast(dict[str, str], raw_out)
+            out_optional = {
+                str(k): str(v)
+                for k, v in cast(dict[str, Any], out_dict.pop("optional", {})).items()
+            }
+            out_map = {str(k): str(v) for k, v in out_dict.items()}
         stage = cls(
             name,
             d.get("prompt") or [],
             d.get("options") or {},
-            in_map=dict(cast(dict[str, str], raw_in)),
-            out_map=dict(cast(dict[str, str], raw_out)),
+            in_map=in_dict,
+            in_optional_map=in_optional,
+            out_map=out_map,
+            out_optional_map=out_optional,
         )
         stage.client = get_client_from_dict(d)
         return stage
@@ -93,15 +115,18 @@ class Agent(Stage):
         raw_model = cast(str | None, opts.pop("model", None))
 
         try:
-            resolved = resolve_in_map(state.artifacts, self.in_map)
+            resolved = resolve_in_map(
+                state.artifacts, self.in_map, self.in_optional_map
+            )
         except ValueError as exc:
             raise Bail(f"agent {self.name}: {exc}") from exc
 
+        all_out = {**self.out_map, **self.out_optional_map}
         out_map = {
             self.substitute_vars(k, state, resolved): self.substitute_vars(
                 v, state, resolved
             )
-            for k, v in self.out_map.items()
+            for k, v in all_out.items()
         }
         file_names = self._file_outputs(out_map)
         slug = secrets.token_hex(4)
@@ -125,7 +150,9 @@ class Agent(Stage):
             # (e.g. boss) this accumulates files; intentional for now.
             if state.artifacts.produced(key):
                 state.artifacts.unbind(key)
-            state.artifacts.bind(key, Uri.parse(uri_str))
+            uri = Uri.parse(uri_str)
+            materialized = state.artifacts.resolver(uri.scheme).materialize(uri_str)
+            state.artifacts.bind(key, materialized)
 
         ad = state.artifact_dir
         if len(file_names) == 1:
@@ -153,7 +180,9 @@ class Agent(Stage):
                 # file is not an error here. It stays bound and reads back
                 # empty downstream.
                 continue
-            state.artifacts.resolver(uri.scheme).verify_produced(uri)
+            state.artifacts.resolver(uri.scheme).verify_produced(
+                state.artifacts.raw_entry(key)
+            )
 
         return Done()
 

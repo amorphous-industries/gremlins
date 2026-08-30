@@ -28,7 +28,7 @@ class Uri:
 
     @staticmethod
     def is_range(value: str) -> bool:
-        return value == "git://range"
+        return value.startswith("git://range/")
 
     @staticmethod
     def parse_or_none(s: str) -> Uri | None:

@@ -25,8 +25,9 @@ bootstrap:
         printf '%s' "${pr##*/}" > "{artifact_dir}/pr-num.txt"
       fi
   cli_out:
-    pr-num?: file://session/pr-num.txt
-    pr: "gh://pr/{read:pr-num}"
+    gh://pr/{read:file://session/pr-num.txt}: "gh://pr/{read:file://session/pr-num.txt}"
+    optional:
+      file://session/pr-num.txt: "file://session/pr-num.txt"
 
 prompts:
   code-style: gremlins:code_style.md
@@ -36,7 +37,7 @@ stages:
   - name: fetch-pr-info
     type: exec
     in:
-      pr_uri: pr.uri
+      pr_uri: pr
     out:
       pr-url:    "file://session/pr-url.txt"
       pr-branch: "file://session/pr-branch.txt"
@@ -57,7 +58,7 @@ stages:
       cmds:
         - "ruff format . && ruff check --fix . && git add -A && (git diff --cached --quiet || git commit -m 'normalize')"
     out:
-      normalize-commits: git://range
+      git://range/normalize-commits: git://range/normalize-commits
   - { name: verify-check, type: verify, options: { cmds: ["make check"] }, prompt: verify }
   - { name: verify-test,  type: verify, options: { cmds: ["make test"] },  prompt: verify }
   - { name: push,      type: gremlins:github-push-to-pr-branch }
