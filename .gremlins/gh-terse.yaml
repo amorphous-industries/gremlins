@@ -32,22 +32,12 @@ prompts:
 
 stage-definitions:
   check-and-fix:
-    stages:
-      - type: verify
-        options:
-          cmds:
-            - |
-              output=$(make -j8 test 2>&1)
-              rc=$?
-              printf '%s' "$output" | grep -E 'FAILED|ERROR|panicked|Traceback'
-              exit $rc
-          max_iterations: 7
-        prompt: [dev-env-howto.md, gremlins:verify_fix.md, gremlins:bail_section_fix.md]
-      - type: verify
-        options:
-          cmds: ["make check"]
-          max_iterations: 7
-        prompt: [dev-env-howto.md, gremlins:verify_fix.md, gremlins:bail_section_fix.md]
+    type: verify
+    options:
+      cmds:
+        - "make -j8 check && make -j8 test"
+      max_iterations: 7
+    prompt: [dev-env-howto.md, gremlins:verify_fix.md, gremlins:bail_section_fix.md]
 
 stages:
   - { type: gremlins:plan-gh, prompt: [code-style, terse, gremlins:plan_gh.md] }

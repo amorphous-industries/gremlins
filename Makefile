@@ -1,4 +1,4 @@
-MAKEFLAGS += -j$(shell sysctl -n hw.ncpu 2>/dev/null || nproc)
+MAKEFLAGS += -j$(shell sysctl -n hw.ncpu 2>/dev/null || nproc) --output-sync=line
 
 TEST_FILES := $(wildcard tests/test_*.py)
 
@@ -21,12 +21,12 @@ typecheck:
 test: rust-test $(TEST_FILES)
 
 $(TEST_FILES):
-	python -m pytest $@ || { code=$$?; [ $$code -eq 5 ] && exit 0 || exit $$code; }
+	python -m pytest -q --tb=short $@ || { code=$$?; [ $$code -eq 5 ] && exit 0 || exit $$code; }
 
 # --- Rust ---
 
 rust-test:
-	cargo test -p gremlins --lib && cargo test -p gremlins-pyext --lib
+	cargo test -q -p gremlins --lib && cargo test -q -p gremlins-pyext --lib
 
 rust-fmt:
 	cargo fmt --all

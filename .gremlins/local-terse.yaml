@@ -33,22 +33,12 @@ stage-definitions:
         - "git diff --cached --quiet || git commit -m 'normalize'"
 
   check-and-fix:
-    stages:
-      - type: verify
-        options:
-          cmds:
-            - |
-              output=$(make -j8 test 2>&1)
-              rc=$?
-              printf '%s' "$output" | grep -E 'FAILED|ERROR|panicked|Traceback'
-              exit $rc
-          max_iterations: 7
-        prompt: verify
-      - type: verify
-        options:
-          cmds: ["make check"]
-          max_iterations: 7
-        prompt: verify
+    type: verify
+    options:
+      cmds:
+        - "make -j8 check && make -j8 test"
+      max_iterations: 7
+    prompt: verify
 
 stages:
   - { type: gremlins:plan,      prompt: [code-style, terse, gremlins:plan.md] }
