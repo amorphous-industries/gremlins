@@ -95,7 +95,6 @@ def test_fork_without_worktree(tmp_path, tmp_repo, monkeypatch):
         assert forked.artifact_dir == tmp_path / "scratch" / "gr-2" / "artifacts"
         assert (forked.artifact_dir / "spec.md").read_text() == "# Spec\n"
         assert forked.worktree is None
-        assert forked.repo == state.repo
         assert forked.base_ref == state.base_ref
 
         # Verify source is not mutated
@@ -166,7 +165,6 @@ def test_fork_with_worktree(tmp_path, tmp_repo, monkeypatch):
             assert forked.worktree != worktree_path
             assert forked.worktree.exists()
             assert forked.cwd == str(forked.worktree)
-            assert forked.repo == state.repo
             assert forked.base_ref == state.base_ref
 
             # Verify worktree is at the same commit

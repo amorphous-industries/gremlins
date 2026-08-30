@@ -1015,18 +1015,4 @@ def test_launch_explicit_gremlin_id_stale_dir_refused(lenv, monkeypatch):
         )
 
 
-def test_launch_pr_kwarg_sets_state_fields(lenv, monkeypatch):
-    """stage_inputs['pr'] sets fetch_worktree=True and persists the PR artifact."""
-    launcher = _launcher()
-    monkeypatch.setattr(launcher, "_spawn_logged_process", lambda *a, **kw: _FakeProc())
-    gremlin_id, _ = launcher.launch(
-        "local",
-        stage_inputs={"instructions": "pr kwarg test", "pr": "697"},
-        project_root=str(lenv.repo),
-    )
-    state = _read_state(_gremlins_state_root(lenv) / gremlin_id)
-    assert state["setup_kind"] == "worktree-detached"
-    registry_path = _gremlins_registry_path(lenv, gremlin_id)
-    assert registry_path.exists(), "registry.json should have been written"
-    registry_data = json.loads(registry_path.read_text())
-    assert registry_data.get("base_sha") == "git://commit/pull/697/head"
+

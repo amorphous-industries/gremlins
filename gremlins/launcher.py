@@ -145,15 +145,6 @@ def _resolve_base_ref(
     )
     effective_base_ref = base_ref if base_ref is not None else _pipeline_base_ref
     if _git_mod.in_git_repo(cwd=project_root):
-        if loaded_pipeline is not None and loaded_pipeline.github_integration:
-            _branch = effective_base_ref.removeprefix("origin/")
-            if _branch and _branch not in ("current", "HEAD"):
-                try:
-                    _git_mod.fetch_origin(_branch, cwd=project_root)
-                except _git_mod.GitError as exc:
-                    raise RuntimeError(
-                        f"git fetch origin {_branch} failed: {exc}"
-                    ) from exc
         try:
             return _git_mod.resolve_base_ref(effective_base_ref, cwd=project_root)
         except _git_mod.GitError as exc:
@@ -199,27 +190,11 @@ def _resolve_inputs(
 
     if loaded_pipeline is not None:
         validate_source_values(loaded_pipeline.bootstrap.source, stage_inputs)
-    pr = stage_inputs.get("pr", None) or None
 
-    if (
-        loaded_pipeline is not None
-        and loaded_pipeline.github_integration
-        and shutil.which("gh") is None
-    ):
-        raise RuntimeError("gh CLI not found on PATH (required for gh pipeline)")
-
-    if pr is not None:
-        from gremlins.utils.pr import pr_arg_to_ref
-
-        pr_ref = pr_arg_to_ref(pr.strip().lstrip("#"))
-        base_ref_name = ""
-        base_ref_sha = pr_ref
-        fetch_worktree = True
-    else:
-        base_ref_name, base_ref_sha = _resolve_base_ref(
-            base_ref, project_root, loaded_pipeline
-        )
-        fetch_worktree = False
+    base_ref_name, base_ref_sha = _resolve_base_ref(
+        base_ref, project_root, loaded_pipeline
+    )
+    fetch_worktree = False
 
     stored_args = list(resolved_pipeline_args)
 
@@ -596,8 +571,6 @@ def resume(gremlin_id: str, *, graft: str | None = None) -> None:
     gremlin = Gremlin.open(gremlin_id)
     _check_resume_preconditions(gremlin, graft)
     project_root = gremlin.project_root or str(_paths.project_root())
-    if gremlin.pipeline_data.github_integration and shutil.which("gh") is None:
-        raise RuntimeError("gh CLI not found on PATH (required for gh pipeline)")
 
     stage = gremlin.state_data.stage
     if not stage or stage == "starting":

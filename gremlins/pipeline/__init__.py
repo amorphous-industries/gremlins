@@ -32,8 +32,6 @@ class Pipeline:
     base_ref: str = "current"
     bootstrap: Bootstrap = dataclasses.field(default_factory=Bootstrap)
     land: Exec | None = None
-    github_integration: bool = False
-
     def uses_loop_handoff(self) -> bool:
         first = self.stages[0] if self.stages else None
         return (
@@ -75,8 +73,6 @@ class Pipeline:
         else:
             pipeline_base_ref = "current"
 
-        github_integration = bool(raw.get("github_integration", False))
-
         from gremlins.stages.exec import Exec
 
         if "inputs" in raw:
@@ -114,5 +110,4 @@ class Pipeline:
             base_ref=pipeline_base_ref,
             bootstrap=bootstrap,
             land=land_stage,
-            github_integration=github_integration,
         )

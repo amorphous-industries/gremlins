@@ -626,7 +626,6 @@ def _build_child_spec_dict(
         "child_key": child_key,
         "attempt": attempt,
         "parent_stage": child_st.parent_stage,
-        "repo": child_st.repo,
         "base_ref": child_st.base_ref,
         "bootstrap": bootstrap_cmds,
     }

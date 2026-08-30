@@ -59,8 +59,6 @@ def test_pipeline_constructs_from_gh_yaml(tmp_path: pathlib.Path) -> None:
         state_dir=tmp_path,
         gremlin_id=None,
         pipeline_data=pipeline_data,
-        repo="",
-        state_file=None,
     )
 
     assert len(gremlin.stages) > 0

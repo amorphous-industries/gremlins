@@ -12,7 +12,7 @@ from typing import Any, cast
 
 import gremlins.utils.git as _git
 from gremlins import paths
-from gremlins.artifacts.registry import ArtifactRegistry
+from gremlins.artifacts.registry import ArtifactRegistry, MissingArtifact
 from gremlins.clients.client import Client
 from gremlins.env_file import load_env_file
 from gremlins.fleet.resolve import resolve_gremlin
@@ -765,7 +765,20 @@ def _land_gh(
         artifact_dir=artifact_dir,
         cwd=pathlib.Path(cwd) if cwd else None,
     )
-    pr_url = registry.get_pr_url()
+    pr_url = None
+    for key in ("pr-url", "pr"):
+        try:
+            value = registry.read(key)
+        except (KeyError, MissingArtifact):
+            continue
+        if isinstance(value, str):
+            pr_url = value
+            break
+        if isinstance(value, dict):
+            uri = value.get("uri") or value.get("url")
+            if isinstance(uri, str):
+                pr_url = uri
+                break
     if not pr_url:
         print(f"error: no PR URL recorded for {gremlin_id}")
         return False

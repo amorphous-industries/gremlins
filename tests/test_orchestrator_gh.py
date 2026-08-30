@@ -153,7 +153,6 @@ def _patch_common(
     monkeypatch.setattr(
         "gremlins.executor.run._install_signal_handlers", lambda c, g: None
     )
-    monkeypatch.setattr("gremlins.executor.run._get_repo", lambda: "owner/repo")
     monkeypatch.setenv("GREMLINS_SANDBOX_ROOT", str(tmp_path))
     monkeypatch.setattr(
         "gremlins.paths.state_root",
@@ -1150,7 +1149,6 @@ def test_github_wait_copilot_stage_argument_wiring(tmp_path, monkeypatch):
 
     assert "github-wait-copilot" in captured_stages
     _, copilot_state = captured_stages["github-wait-copilot"]
-    assert copilot_state.repo == "owner/repo"
     assert copilot_state.artifact_dir == artifact_dir
     # pr is written to registry.json by push-and-open
     registry_path = tmp_path / "scratch" / "gr-test" / "registry.json"

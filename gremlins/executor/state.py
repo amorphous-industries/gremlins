@@ -448,7 +448,6 @@ class State:
             "name": stage.name,
             "model": self.client.model,
             "artifact_dir": str(self.artifact_dir),
-            "repo": self.repo,
             "cwd": self.cwd,
             "base_ref": self.base_ref,
             "loop_iteration": str(self.data.loop_iteration),
@@ -472,7 +471,6 @@ class State:
             n=self.data.loop_iteration,
             attempt=self.data.attempt,
             scope=scope,
-            repo=self.repo,
             cwd=self.cwd,
             base_ref=self.base_ref,
         )

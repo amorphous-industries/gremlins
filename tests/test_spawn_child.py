@@ -103,33 +103,6 @@ def test_load_spec_invalid_json(tmp_path: pathlib.Path) -> None:
         _rc._load_spec(p)
 
 
-def test_build_state_propagates_repo(
-    tmp_path: pathlib.Path,
-) -> None:
-    from gremlins.executor.gremlin import Gremlin
-
-    gremlin = Gremlin.from_subprocess(
-        {
-            "client": "fake:fake",
-            "artifact_dir": str(tmp_path / "artifacts"),
-            "repo": "owner/myrepo",
-        }
-    )
-    assert gremlin.state.repo == "owner/myrepo"
-
-
-def test_build_state_repo_defaults_to_empty(tmp_path: pathlib.Path) -> None:
-    from gremlins.executor.gremlin import Gremlin
-
-    gremlin = Gremlin.from_subprocess(
-        {
-            "client": "fake:fake",
-            "artifact_dir": str(tmp_path / "artifacts"),
-        }
-    )
-    assert gremlin.state.repo == ""
-
-
 def test_build_state_missing_client() -> None:
     from gremlins.executor.gremlin import Gremlin
 

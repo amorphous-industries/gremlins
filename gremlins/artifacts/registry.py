@@ -14,8 +14,8 @@ from typing import Any, cast
 from gremlins.artifacts._protocol import SchemeResolver
 from gremlins.artifacts.schemes import (
     FileArtifactResolver,
-    GhOpaqueResolver,
     GitResolver,
+    OpaqueResolver,
 )
 from gremlins.artifacts.uri import Uri
 from gremlins.utils import git as git_utils
@@ -50,7 +50,6 @@ class ArtifactRegistry:
         self._resolvers: dict[str, SchemeResolver] = {
             "file": FileArtifactResolver(artifact_dir),
             "git": GitResolver(cwd),
-            "gh": GhOpaqueResolver(),
             **(resolvers or {}),
         }
         if self.registry_path.exists():
@@ -99,7 +98,7 @@ class ArtifactRegistry:
         except ValueError:
             return value
         if uri.scheme not in self._resolvers:
-            return value
+            self._resolvers[uri.scheme] = OpaqueResolver()
         resolved = self._resolvers[uri.scheme].read(uri)
         return self._resolve_value(resolved)
 
@@ -147,6 +146,8 @@ class ArtifactRegistry:
         return self.data.keys()
 
     def resolver(self, scheme: str) -> SchemeResolver:
+        if scheme not in self._resolvers:
+            self._resolvers[scheme] = OpaqueResolver()
         return self._resolvers[scheme]
 
     @property
@@ -191,24 +192,6 @@ class ArtifactRegistry:
         if uri_str.startswith("git://ref/"):
             return uri_str.removeprefix("git://ref/")
         return ""
-
-    def get_pr_url(self) -> str | None:
-        for key in ("pr-url", "pr"):
-            try:
-                value = self.read(key)
-            except MissingArtifact:
-                continue
-            if isinstance(value, str):
-                return value
-            if isinstance(value, dict):
-                val = cast(dict[str, Any], value)
-                uri = val.get("uri")
-                if isinstance(uri, str):
-                    return uri
-                url = val.get("url")
-                if isinstance(url, str):
-                    return url
-        return None
 
     def get_file_contents(self, key: str, *, default: str = "") -> str:
         try:
