@@ -6,4 +6,4 @@ stages:
       repo: "file://session/repo.txt"
     options:
       cmds:
-        - 'gh repo view --json nameWithOwner -q ".nameWithOwner" > "{artifact_dir}/repo.txt"'
+        - 'gh repo view --json nameWithOwner -q ".nameWithOwner" | tr -d "\n" > "{artifact_dir}/repo.txt"'

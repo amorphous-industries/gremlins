@@ -213,11 +213,12 @@ def _patch_common(
         if isinstance(cmd, str):
             if cmd.lstrip().startswith("gh "):
                 # If gh repo view, write repo.txt so discover stage passes
-                m_repo = re.search(r'"([^"]+/repo\.txt)"', cmd)
-                if m_repo:
-                    p = pathlib.Path(m_repo.group(1))
-                    p.parent.mkdir(parents=True, exist_ok=True)
-                    p.write_text("owner/repo\n")
+                if "gh repo view" in cmd:
+                    m_repo = re.search(r'"([^"]+/repo\.txt)"', cmd)
+                    if m_repo:
+                        p = pathlib.Path(m_repo.group(1))
+                        p.parent.mkdir(parents=True, exist_ok=True)
+                        p.write_text("owner/repo\n")
                 return _subprocess_mod.CompletedProcess(cmd, 0, "", "")
             m = re.search(r'"([^"]+/pr-number\.txt)"', cmd)
             if m:
