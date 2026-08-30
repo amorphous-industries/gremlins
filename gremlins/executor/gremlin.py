@@ -283,12 +283,24 @@ class Gremlin:
 
         # Read parent state from disk, build child dict from known fields only.
         # Exclude transient runtime keys that should not leak into the child.
-        _fork_transient = frozenset({
-            "parallel_worktrees", "done_children", "parallel_attempts",
-            "active_children", "token_usage", "subprocess_cost_usd",
-            "total_cost_usd", "stage", "stage_updated_at", "sub_stage",
-            "ended_at", "status", "pid", "exit_code",
-        })
+        _fork_transient = frozenset(
+            {
+                "parallel_worktrees",
+                "done_children",
+                "parallel_attempts",
+                "active_children",
+                "token_usage",
+                "subprocess_cost_usd",
+                "total_cost_usd",
+                "stage",
+                "stage_updated_at",
+                "sub_stage",
+                "ended_at",
+                "status",
+                "pid",
+                "exit_code",
+            }
+        )
         parent_dict = read_state_json(state.data.state_file)
         child_dict = {
             k: parent_dict[k] if k in parent_dict else v
