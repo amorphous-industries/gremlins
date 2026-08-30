@@ -273,15 +273,15 @@ def test_stage_definition_with_out_rejected(tmp_path: pathlib.Path) -> None:
         stage-definitions:
           bad:
             type: exec
-            out:
-              key: git://range
+            bind:
+              artifact.key: git://range
             options:
               cmds: ["echo hi"]
         stages:
           - { type: bad }
         """,
     )
-    with pytest.raises(ValueError, match="must not declare 'out:'"):
+    with pytest.raises(ValueError, match="must not declare 'bind:'"):
         expand_pipeline(p)
 
 
