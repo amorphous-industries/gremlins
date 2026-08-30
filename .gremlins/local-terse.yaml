@@ -32,6 +32,24 @@ stage-definitions:
         - "git add -A"
         - "git diff --cached --quiet || git commit -m 'normalize'"
 
+  check-and-fix:
+    stages:
+      - type: verify
+        options:
+          cmds:
+            - |
+              output=$(make -j8 test 2>&1)
+              rc=$?
+              printf '%s' "$output" | grep -E 'FAILED|ERROR|panicked|Traceback'
+              exit $rc
+          max_iterations: 7
+        prompt: verify
+      - type: verify
+        options:
+          cmds: ["make check"]
+          max_iterations: 7
+        prompt: verify
+
 stages:
   - { type: gremlins:plan,      prompt: [code-style, terse, gremlins:plan.md] }
   - { type: gremlins:implement,  prompt: [code-style, terse, dev-env, no_lint_in_implement.md, gremlins:implement_local.md] }
@@ -46,16 +64,4 @@ stages:
   - { type: gremlins:review-code,  prompt: [code-style, terse, dev-env, local_review.md] }
   - { name: address-code, type: agent, interpolation: {text: artifact.review-code}, prompt: [code-style, terse, dev-env, gremlins:address.md, gremlins:bail_section.md] }
 
-  - { type: normalize }
-  - name: verify-check-final
-    type: verify
-    options:
-      cmds: ["make check"]
-      max_iterations: 7
-    prompt: verify
-  - name: verify-test
-    type: verify
-    options:
-      cmds: ["PYTEST_ADDOPTS='-q --tb=short --no-header' make test"]
-      max_iterations: 7
-    prompt: verify
+  - { type: check-and-fix }
