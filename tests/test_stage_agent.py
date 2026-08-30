@@ -68,7 +68,9 @@ def test_in_content_substituted_into_prompt(tmp_path):
 
     client = FakeClient(fixtures={"my-agent": MINIMAL_EVENTS})
     state = _make_state(tmp_path, client, registry=registry)
-    agent = _make_agent(prompts=["Process: {plan_text}"], interpolation_map={"plan_text": "plan"})
+    agent = _make_agent(
+        prompts=["Process: {plan_text}"], interpolation_map={"plan_text": "plan"}
+    )
 
     asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
 

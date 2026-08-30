@@ -33,7 +33,9 @@ def resolve_interpolation_map(
                 value = value[attr]
             except (KeyError, TypeError):
                 if not sep:
-                    raise ValueError(f"interpolation: path {path!r}: value has no key {attr!r}")
+                    raise ValueError(
+                        f"interpolation: path {path!r}: value has no key {attr!r}"
+                    )
                 result[var] = default
                 missing = True
                 break

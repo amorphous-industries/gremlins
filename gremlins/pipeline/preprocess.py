@@ -359,7 +359,9 @@ def _expand_stage_def(
                 if "client" in call_site:
                     inner["client"] = call_site["client"]
                 if "interpolation" in call_site:
-                    merged_in = dict(cast(dict[str, Any], inner.get("interpolation") or {}))
+                    merged_in = dict(
+                        cast(dict[str, Any], inner.get("interpolation") or {})
+                    )
                     merged_in.update(cast(dict[str, Any], call_site["interpolation"]))
                     inner["interpolation"] = merged_in
             if i == last_idx and "bind" in call_site:

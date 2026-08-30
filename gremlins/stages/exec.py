@@ -14,7 +14,7 @@ from gremlins.artifacts.resolve import resolve_interpolation_map
 from gremlins.artifacts.schemes import snapshot_head_before
 from gremlins.artifacts.uri import Uri
 from gremlins.stages.base import Stage
-from gremlins.stages.constants import FRAMEWORK_KEYS, _ARTIFACT_PREFIX
+from gremlins.stages.constants import _ARTIFACT_PREFIX, FRAMEWORK_KEYS
 from gremlins.stages.outcome import Bail, Done, Outcome
 from gremlins.utils import proc as _proc
 
@@ -30,7 +30,7 @@ def _strip_artifact_prefix(raw: dict[str, str], name: str) -> dict[str, str]:
     result: dict[str, str] = {}
     for k, v in raw.items():
         if v.startswith(_ARTIFACT_PREFIX):
-            result[k] = v[len(_ARTIFACT_PREFIX):]
+            result[k] = v[len(_ARTIFACT_PREFIX) :]
         else:
             raise ValueError(
                 f"stage {name!r}: interpolation value {v!r} must start with 'artifact.'"
@@ -42,7 +42,7 @@ def _strip_artifact_prefix_keys(raw: dict[str, str], name: str) -> dict[str, str
     result: dict[str, str] = {}
     for k, v in raw.items():
         if k.startswith(_ARTIFACT_PREFIX):
-            result[k[len(_ARTIFACT_PREFIX):]] = v
+            result[k[len(_ARTIFACT_PREFIX) :]] = v
         else:
             raise ValueError(
                 f"stage {name!r}: bind key {k!r} must start with 'artifact.'"
@@ -127,7 +127,9 @@ class Exec(Stage):
         return cls(
             name,
             d.get("options") or {},
-            interpolation_map=_strip_artifact_prefix(cast(dict[str, str], raw_interpolation), name),
+            interpolation_map=_strip_artifact_prefix(
+                cast(dict[str, str], raw_interpolation), name
+            ),
             bind_map=_strip_artifact_prefix_keys(cast(dict[str, str], raw_bind), name),
         )
 
@@ -136,7 +138,9 @@ class Exec(Stage):
         if state is None:
             raise RuntimeError("exec stage requires gremlin.state to be initialized")
         try:
-            extra_env = resolve_interpolation_map(state.artifacts, self.interpolation_map)
+            extra_env = resolve_interpolation_map(
+                state.artifacts, self.interpolation_map
+            )
         except ValueError as exc:
             raise Bail(f"exec {self.name}: {exc}") from exc
 

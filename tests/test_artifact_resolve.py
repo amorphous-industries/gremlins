@@ -39,7 +39,9 @@ def test_unbound_key_literal_default():
 
 def test_attr_typo_with_default_returns_default():
     reg = _registry({"pr": {"branch": "feat"}})
-    assert resolve_interpolation_map(reg, {"v": "pr.brnch?fallback"}) == {"v": "fallback"}
+    assert resolve_interpolation_map(reg, {"v": "pr.brnch?fallback"}) == {
+        "v": "fallback"
+    }
 
 
 def test_no_default_missing_artifact_raises():

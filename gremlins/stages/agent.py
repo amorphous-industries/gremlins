@@ -10,7 +10,7 @@ from gremlins.artifacts.resolve import resolve_interpolation_map
 from gremlins.artifacts.uri import Uri
 from gremlins.stages.agent_runner import run_agent
 from gremlins.stages.base import Stage, get_client_from_dict
-from gremlins.stages.constants import FRAMEWORK_KEYS, _ARTIFACT_PREFIX
+from gremlins.stages.constants import FRAMEWORK_KEYS
 from gremlins.stages.outcome import Bail, Done, Outcome
 
 if TYPE_CHECKING:
@@ -63,7 +63,10 @@ class Agent(Stage):
 
     @classmethod
     def with_dict(cls, d: dict[str, Any], depth: int = 0) -> Agent:
-        from gremlins.stages.exec import _strip_artifact_prefix, _strip_artifact_prefix_keys
+        from gremlins.stages.exec import (
+            _strip_artifact_prefix,
+            _strip_artifact_prefix_keys,
+        )
 
         name = d.get("name") or ""
         raw_interpolation: object = d.get("interpolation") or {}
@@ -86,7 +89,9 @@ class Agent(Stage):
             name,
             d.get("prompt") or [],
             d.get("options") or {},
-            interpolation_map=_strip_artifact_prefix(cast(dict[str, str], raw_interpolation), name),
+            interpolation_map=_strip_artifact_prefix(
+                cast(dict[str, str], raw_interpolation), name
+            ),
             bind_map=_strip_artifact_prefix_keys(cast(dict[str, str], raw_bind), name),
         )
         stage.client = get_client_from_dict(d)
@@ -100,7 +105,9 @@ class Agent(Stage):
         raw_model = cast(str | None, opts.pop("model", None))
 
         try:
-            resolved = resolve_interpolation_map(state.artifacts, self.interpolation_map)
+            resolved = resolve_interpolation_map(
+                state.artifacts, self.interpolation_map
+            )
         except ValueError as exc:
             raise Bail(f"agent {self.name}: {exc}") from exc
 

@@ -28,7 +28,14 @@ def _make_state(tmp_path: pathlib.Path, **kw):
     )
 
 
-def _exec(name: str = "test", cmds=None, *, interpolation_map=None, bind_map=None, timeout=None):
+def _exec(
+    name: str = "test",
+    cmds=None,
+    *,
+    interpolation_map=None,
+    bind_map=None,
+    timeout=None,
+):
     options = {}
     if cmds is not None:
         options["cmds"] = cmds
