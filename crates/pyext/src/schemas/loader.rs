@@ -200,11 +200,11 @@ fn _check_scope(stages: &Bound<'_, PyList>) -> PyResult<()> {
 
     for i in 0..len {
         let stage = stages.get_item(i)?;
-        let out_map_attr = stage.getattr("out_map").ok();
-        let out_map: Option<&Bound<'_, PyDict>> = out_map_attr.as_ref().and_then(|v| v.cast().ok());
+        let bind_map_attr = stage.getattr("bind_map").ok();
+        let bind_map: Option<&Bound<'_, PyDict>> = bind_map_attr.as_ref().and_then(|v| v.cast().ok());
 
-        if let Some(out_map) = out_map {
-            for (raw_key, uri_str) in out_map.iter() {
+        if let Some(bind_map) = bind_map {
+            for (raw_key, uri_str) in bind_map.iter() {
                 let raw_key: String = raw_key.extract()?;
                 if raw_key.ends_with('?') {
                     continue;
@@ -221,7 +221,7 @@ fn _check_scope(stages: &Bound<'_, PyList>) -> PyResult<()> {
                             .unwrap_or_default();
                         if skip_if_exists.is_empty() {
                             return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                                "duplicate out: key {raw_key:?}: declared by both {prev_name:?} and {name:?}"
+                                "duplicate bind: key {raw_key:?}: declared by both {prev_name:?} and {name:?}"
                             )));
                         }
                     }

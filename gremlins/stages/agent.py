@@ -1,4 +1,4 @@
-"""Agent primitive stage: resolves in: artifacts, renders prompt, invokes agent, verifies out:."""
+"""Agent primitive stage: resolves interpolation artifacts, renders prompt, invokes agent, verifies bind outputs."""
 
 from __future__ import annotations
 
@@ -63,7 +63,7 @@ class Agent(Stage):
 
     @classmethod
     def with_dict(cls, d: dict[str, Any], depth: int = 0) -> Agent:
-        from gremlins.stages.exec import (
+        from gremlins.stages.constants import (
             strip_artifact_prefix,
             strip_artifact_prefix_keys,
         )
@@ -111,20 +111,20 @@ class Agent(Stage):
         except ValueError as exc:
             raise Bail(f"agent {self.name}: {exc}") from exc
 
-        out_map = {
+        resolved_bindings = {
             self.substitute_vars(k, state, resolved): self.substitute_vars(
                 v, state, resolved
             )
             for k, v in self.bind_map.items()
         }
-        file_names = self._file_outputs(out_map)
+        file_names = self._file_outputs(resolved_bindings)
         slug = secrets.token_hex(4)
         slugged = {name: f"{slug}_{name}" for name in file_names}
 
-        # Rewrite out_map URIs to include the slug so the registry binds
+        # Rewrite bind_map URIs to include the slug so the registry binds
         # the actual on-disk filename.
         slugged_out: dict[str, str] = {}
-        for k, v in out_map.items():
+        for k, v in resolved_bindings.items():
             uri = Uri.parse(v)
             if uri.scheme == "file" and uri.path.startswith("session/"):
                 name = uri.path[len("session/") :]
@@ -173,7 +173,7 @@ class Agent(Stage):
 
     @staticmethod
     def _file_outputs(out_map: dict[str, str]) -> list[str]:
-        """Return the file://session/<name> filenames declared in out:, in order.
+        """Return the file://session/<name> filenames declared in bind:, in order.
 
         Rejects names containing '/' or '..' to prevent path-traversal escapes.
         """

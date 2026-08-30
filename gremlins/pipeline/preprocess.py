@@ -318,7 +318,7 @@ def _expand_stage_def(
             raise ValueError(
                 f"stage-definition {def_name!r}: 'stages' must be a non-empty list"
             )
-        if "out" in definition:
+        if "bind" in definition:
             raise ValueError(
                 f"stage-definition {def_name!r} must not declare 'bind:' keys; "
                 "declare them at each call site instead"

@@ -14,7 +14,12 @@ from gremlins.artifacts.resolve import resolve_interpolation_map
 from gremlins.artifacts.schemes import snapshot_head_before
 from gremlins.artifacts.uri import Uri
 from gremlins.stages.base import Stage
-from gremlins.stages.constants import ARTIFACT_PREFIX, FRAMEWORK_KEYS
+from gremlins.stages.constants import (
+    ARTIFACT_PREFIX,
+    FRAMEWORK_KEYS,
+    strip_artifact_prefix,
+    strip_artifact_prefix_keys,
+)
 from gremlins.stages.outcome import Bail, Done, Outcome
 from gremlins.utils import proc as _proc
 
@@ -24,30 +29,6 @@ if TYPE_CHECKING:
 _READ_SUB = re.compile(r"\{read:([-\w]+)\}")
 _ARTIFACT_SUB = re.compile(r"\{artifact:([-\w]+)\}")
 _BAIL_KEY = "bail"
-
-
-def strip_artifact_prefix(raw: dict[str, str], name: str) -> dict[str, str]:
-    result: dict[str, str] = {}
-    for k, v in raw.items():
-        if v.startswith(ARTIFACT_PREFIX):
-            result[k] = v[len(ARTIFACT_PREFIX) :]
-        else:
-            raise ValueError(
-                f"stage {name!r}: interpolation value {v!r} must start with 'artifact.'"
-            )
-    return result
-
-
-def strip_artifact_prefix_keys(raw: dict[str, str], name: str) -> dict[str, str]:
-    result: dict[str, str] = {}
-    for k, v in raw.items():
-        if k.startswith(ARTIFACT_PREFIX):
-            result[k[len(ARTIFACT_PREFIX) :]] = v
-        else:
-            raise ValueError(
-                f"stage {name!r}: bind key {k!r} must start with 'artifact.'"
-            )
-    return result
 
 
 def _sub_reads(s: str, artifacts: ArtifactRegistry) -> str:
