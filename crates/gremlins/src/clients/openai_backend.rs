@@ -1013,6 +1013,16 @@ mod tests {
             map_stream_error("Invalid API key".into()),
             ClientError::Runtime { .. }
         ));
+        assert!(config::is_transient_stream_error(
+            "Http client error: error sending request for url (https://openrouter.ai/v1/chat/completions)"
+        ));
+        assert!(config::is_transient_stream_error(
+            "Http client error: error decoding response body"
+        ));
+        assert!(matches!(
+            map_stream_error("Http client error: connection reset".into()),
+            ClientError::ApiServerError { .. }
+        ));
     }
 
     #[tokio::test]
