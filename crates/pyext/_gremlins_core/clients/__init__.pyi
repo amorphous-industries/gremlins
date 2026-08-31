@@ -22,6 +22,7 @@ class RustClient:
         on_timeout_prompt: str | None = None,
         max_retries: int = 0,
         cwd: str | None = None,
+        artifact_dir: str | None = None,
         idle_timeout: float | None = None,
         extra_env: dict[str, str] | None = None,
         expected_artifact_paths: list[str] | None = None,
