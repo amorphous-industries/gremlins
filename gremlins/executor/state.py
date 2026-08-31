@@ -18,7 +18,6 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from gremlins import paths as _paths
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.clients.client import Client
-from gremlins.executor.env_provider import EnvironmentProvider, RealEnvironmentProvider
 from gremlins.stages.constants import FRAMEWORK_KEYS
 from gremlins.utils.state_file import locked_update
 
@@ -409,9 +408,6 @@ class State:
     worktree: pathlib.Path | None = None
     worktree_parent: pathlib.Path | None = None
     base_ref: str = ""
-    env_provider: EnvironmentProvider = dataclasses.field(
-        default_factory=RealEnvironmentProvider
-    )
 
     FRAMEWORK_KEYS: ClassVar[frozenset[str]] = FRAMEWORK_KEYS
 
@@ -530,7 +526,6 @@ def build_state(
     child_key: str | None = None,
     parent_stage: str = "",
     base_ref: str = "",
-    env_provider: EnvironmentProvider | None = None,
 ) -> State:
     reg = ArtifactRegistry(artifact_dir=artifact_dir, cwd=worktree)
     return State(
@@ -547,5 +542,4 @@ def build_state(
         child_key=child_key,
         parent_stage=parent_stage,
         base_ref=base_ref,
-        env_provider=env_provider or RealEnvironmentProvider(),
     )

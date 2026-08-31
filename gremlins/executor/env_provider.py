@@ -54,12 +54,7 @@ class RealEnvironmentProvider:
         return ShellResult(result.stdout, result.stderr, result.returncode)
 
     def write_text(self, path: str, content: str) -> None:
-        p = pathlib.Path(path)
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(content, encoding="utf-8")
+        pathlib.Path(path).write_text(content, encoding="utf-8")
 
     def read_text(self, path: str) -> str:
-        p = pathlib.Path(path)
-        if not p.exists():
-            return ""
-        return p.read_text(encoding="utf-8")
+        return pathlib.Path(path).read_text(encoding="utf-8")

@@ -17,7 +17,6 @@ from gremlins import paths as _paths
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.artifacts.uri import Uri
 from gremlins.clients.client import Client
-from gremlins.executor.env_provider import EnvironmentProvider, RealEnvironmentProvider
 from gremlins.executor.state import (
     State,
     StateData,
@@ -168,7 +167,6 @@ class Gremlin:
         fetch_worktree: bool = False,
         pipeline_path: str = "",
         pipeline_args: list[str] | None = None,
-        env_provider: EnvironmentProvider | None = None,
     ) -> None:
         unknown: list[str] = []
         for s in stages:
@@ -197,7 +195,6 @@ class Gremlin:
         self.fetch_worktree = fetch_worktree
         self.pipeline_path = pipeline_path
         self.pipeline_args = pipeline_args or []
-        self.env_provider = env_provider or RealEnvironmentProvider()
         self.bootstrap_cmds: list[str] = []
         self.state = None
 
@@ -377,7 +374,6 @@ class Gremlin:
             "worktree_parent": self.worktree_parent,
             "artifacts": self.registry,
             "base_ref": self.base_ref,
-            "env_provider": self.env_provider,
         }
 
     def _collect_stages(

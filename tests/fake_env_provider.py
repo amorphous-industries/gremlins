@@ -2,16 +2,17 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from gremlins.executor.env_provider import ShellResult
+from gremlins.executor.env_provider import EnvironmentProvider, ShellResult
 
 
-class FakeEnvironmentProvider:
+class FakeEnvironmentProvider(EnvironmentProvider):
     """Records shell/file calls for test assertion."""
 
     def __init__(self) -> None:
         self.shell_calls: list[tuple[str, str, dict[str, str], float | None]] = []
         self.write_calls: list[tuple[str, str]] = []
         self.read_calls: list[str] = []
+        self.files: dict[str, str] = {}
 
     async def run_shell(
         self,
@@ -26,7 +27,8 @@ class FakeEnvironmentProvider:
 
     def write_text(self, path: str, content: str) -> None:
         self.write_calls.append((path, content))
+        self.files[path] = content
 
     def read_text(self, path: str) -> str:
         self.read_calls.append(path)
-        return ""
+        return self.files.get(path, "")
