@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import pathlib
 from collections.abc import Generator
 from typing import Any
@@ -247,6 +248,39 @@ def test_run_bail_preserves_child_stage_in_own_state(
     # sub_stage must not leak into the child's own state.json.
     assert "sub_stage" not in state_json, (
         f"child state should not have sub_stage, got {state_json.get('sub_stage')!r}"
+    )
+
+
+def test_run_patches_child_pid(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """_run() writes os.getpid() to the child's state.json."""
+    import gremlins.paths as _paths
+
+    state_root = tmp_path / "state"
+    monkeypatch.setattr(_paths, "state_root", lambda: state_root)
+
+    child_id = "child-pid-test"
+    child_dir = state_root / child_id
+    child_dir.mkdir(parents=True, exist_ok=True)
+    (child_dir / "state.json").write_text(
+        json.dumps({"id": child_id, "attempt": "a1", "status": "running"}),
+        encoding="utf-8",
+    )
+
+    spec_path = _write_spec(
+        tmp_path,
+        "_test_done",
+        extra={"gremlin_id": child_id, "child_id": child_id},
+    )
+    rc = asyncio.run(_rc._run(spec_path))
+    assert rc == 0
+
+    state_json: dict[str, Any] = json.loads(
+        (child_dir / "state.json").read_text(encoding="utf-8")
+    )
+    assert state_json.get("pid") == os.getpid(), (
+        f"child state should record PID, got {state_json.get('pid')!r}"
     )
 
 
