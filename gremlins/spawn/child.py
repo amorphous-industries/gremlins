@@ -34,6 +34,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import pathlib
 import sys
 import traceback
@@ -90,6 +91,8 @@ async def _run(spec_path: pathlib.Path) -> int:
     try:
         stage = parse_stage(cast(dict[str, Any], stage_dict))
         gremlin = Gremlin.from_subprocess(spec)
+        if gremlin.gremlin_id:
+            gremlin.patch_state_for(gremlin.gremlin_id, pid=os.getpid())
     except Exception as exc:
         _write_result(
             result_path,

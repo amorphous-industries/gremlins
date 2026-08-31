@@ -321,6 +321,9 @@ class Gremlin:
             child_key=child_key or parent_dict.get("child_key", ""),
             pipeline_path=child_pipeline_path,
         )
+        child_dict["status"] = "running"
+        child_dict["pid"] = None
+        child_dict["exit_code"] = None
         write_state(child_state_dir, child_dict)
         (child_state_dir / "log").touch()
         child_data = StateData(gremlin_id=target_id)
