@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::io::Write;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -93,6 +94,8 @@ struct RunContext {
     params: RunParams,
     prefix: String,
     idle_timeout: f64,
+    expected_artifact_paths: Vec<PathBuf>,
+    reminder_budget: usize,
 }
 
 pub struct OpenAiBackend {
@@ -281,6 +284,8 @@ async fn run_agent_loop<M: CompletionModel + Clone + Send + Sync + 'static>(
         &mut raw,
         &mut captured,
         false,
+        &ctx.expected_artifact_paths,
+        ctx.reminder_budget,
     )
     .await
 }
@@ -318,6 +323,8 @@ pub(crate) async fn run_agent_loop_nested<M: CompletionModel + Clone + Send + Sy
         &mut raw,
         &mut captured,
         true,
+        &[],
+        0,
     )
     .await
 }
@@ -336,6 +343,8 @@ async fn run_agent_loop_core<M: CompletionModel>(
     raw: &mut Option<std::fs::File>,
     captured: &mut Option<Vec<serde_json::Value>>,
     nested: bool,
+    expected_artifact_paths: &[PathBuf],
+    mut reminder_budget: usize,
 ) -> Result<CompletedRun, ClientError> {
     let mut history: Vec<Message> = Vec::new();
     let mut next_prompt = Message::user(prompt.to_string());
@@ -489,6 +498,38 @@ async fn run_agent_loop_core<M: CompletionModel>(
         turn_num += 1;
 
         if tool_calls.is_empty() {
+            // Check for missing expected artifacts — inject a reminder if budget remains.
+            if !nested && reminder_budget > 0 {
+                let missing: Vec<&PathBuf> = expected_artifact_paths
+                    .iter()
+                    .filter(|p| {
+                        !p.exists()
+                            || p.metadata().map(|m| m.len()).unwrap_or(0) == 0
+                    })
+                    .collect();
+                if !missing.is_empty() {
+                    reminder_budget -= 1;
+
+                    // Push the assistant's final text into history so the model
+                    // sees what it produced before the reminder.
+                    history.push(next_prompt);
+                    history.push(assistant_tool_message(&final_text, &[]));
+
+                    let paths: Vec<String> = missing
+                        .iter()
+                        .map(|p| format!("  - {}", p.display()))
+                        .collect();
+                    let reminder = format!(
+                        "The following expected output file(s) were not written:\n{}\n\
+                         Please write each file using the Write tool now. Do not explain \
+                         — just write the files.",
+                        paths.join("\n")
+                    );
+                    next_prompt = Message::user(reminder);
+                    continue;
+                }
+            }
+
             if !nested {
                 stream::flush();
                 emit_final(prefix, turns, "");
@@ -794,6 +835,8 @@ impl Backend for OpenAiBackend {
             params: params.clone(),
             prefix: prefix.clone(),
             idle_timeout,
+            expected_artifact_paths: params.expected_artifact_paths.clone(),
+            reminder_budget: params.artifact_reminder_count,
         };
         *self.last_ctx.lock().unwrap() = Some(ctx.clone());
 
@@ -1071,9 +1114,13 @@ mod tests {
                 artifact_dir: None,
                 idle_timeout: Some(0.05),
                 extra_env: None,
+                expected_artifact_paths: vec![],
+                artifact_reminder_count: 0,
             },
             prefix: "[t] ".into(),
             idle_timeout: 0.05,
+            expected_artifact_paths: vec![],
+            reminder_budget: 0,
         }
     }
 
@@ -1559,5 +1606,127 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[tokio::test]
+    async fn reminder_writes_missing_artifact_on_second_turn() {
+        let dir = std::env::temp_dir().join(format!(
+            "gremlins-oa-remind-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let target = dir.join("expected.md");
+
+        // Turn 1: text-only, no tool calls → triggers reminder.
+        // Turn 2: Write tool call → writes the file.
+        let model = rig_core::test_utils::MockCompletionModel::from_stream_turns([
+            vec![
+                rig_core::test_utils::MockStreamEvent::text("here is the content"),
+                rig_core::test_utils::MockStreamEvent::final_response_with_default_usage(),
+            ],
+            vec![
+                rig_core::test_utils::MockStreamEvent::tool_call(
+                    "c1",
+                    "Write",
+                    serde_json::json!({
+                        "file_path": target.to_str().unwrap(),
+                        "content": "written after reminder"
+                    }),
+                ),
+                rig_core::test_utils::MockStreamEvent::final_response_with_default_usage(),
+            ],
+            vec![
+                rig_core::test_utils::MockStreamEvent::text("done"),
+                rig_core::test_utils::MockStreamEvent::final_response_with_default_usage(),
+            ],
+        ]);
+        let mut ctx = test_ctx(Some(dir.clone()), None);
+        ctx.idle_timeout = 5.0;
+        ctx.params.idle_timeout = Some(5.0);
+        ctx.expected_artifact_paths = vec![target.clone()];
+        ctx.reminder_budget = 1;
+        let cancel = CancelToken::new();
+        let result = run_agent_loop(&model, "write", &ctx, cancel, loop_opts(None))
+            .await
+            .unwrap();
+        assert_eq!(result.text_result.as_deref(), Some("done"));
+        assert_eq!(
+            std::fs::read_to_string(&target).unwrap(),
+            "written after reminder"
+        );
+    }
+
+    #[tokio::test]
+    async fn reminder_exhausted_still_returns_when_missing() {
+        let dir = std::env::temp_dir().join(format!(
+            "gremlins-oa-remind-exh-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let target = dir.join("never-written.md");
+
+        // Turn 1: text-only → reminder injected.
+        // Turn 2: text-only again → budget exhausted, returns normally.
+        let model = rig_core::test_utils::MockCompletionModel::from_stream_turns([
+            vec![
+                rig_core::test_utils::MockStreamEvent::text("first try"),
+                rig_core::test_utils::MockStreamEvent::final_response_with_default_usage(),
+            ],
+            vec![
+                rig_core::test_utils::MockStreamEvent::text("still no write"),
+                rig_core::test_utils::MockStreamEvent::final_response_with_default_usage(),
+            ],
+        ]);
+        let mut ctx = test_ctx(Some(dir.clone()), None);
+        ctx.idle_timeout = 5.0;
+        ctx.params.idle_timeout = Some(5.0);
+        ctx.expected_artifact_paths = vec![target.clone()];
+        ctx.reminder_budget = 1;
+        let cancel = CancelToken::new();
+        let result = run_agent_loop(&model, "write", &ctx, cancel, loop_opts(None))
+            .await
+            .unwrap();
+        // Returns normally — file is still missing (Python verify_produced catches it).
+        assert_eq!(result.text_result.as_deref(), Some("still no write"));
+        assert!(!target.exists());
+    }
+
+    #[tokio::test]
+    async fn reminder_not_triggered_when_no_expected_paths() {
+        let dir = std::env::temp_dir().join(format!(
+            "gremlins-oa-remind-none-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let model = rig_core::test_utils::MockCompletionModel::from_stream_turns([[
+            rig_core::test_utils::MockStreamEvent::text("just text"),
+            rig_core::test_utils::MockStreamEvent::final_response_with_default_usage(),
+        ]]);
+        let mut ctx = test_ctx(Some(dir.clone()), None);
+        ctx.idle_timeout = 5.0;
+        ctx.params.idle_timeout = Some(5.0);
+        // No expected paths, no reminder budget — should be a single-turn run.
+        ctx.expected_artifact_paths = vec![];
+        ctx.reminder_budget = 0;
+        let cancel = CancelToken::new();
+        let result = run_agent_loop(&model, "hi", &ctx, cancel, loop_opts(None))
+            .await
+            .unwrap();
+        assert_eq!(result.text_result.as_deref(), Some("just text"));
+        // Only one request — no reminder loop.
+        assert_eq!(model.requests().len(), 1);
     }
 }

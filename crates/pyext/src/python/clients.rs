@@ -88,7 +88,7 @@ impl RustClient {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (prompt, label, model=None, raw_path=None, capture_events=false, on_timeout_prompt=None, max_retries=0, cwd=None, artifact_dir=None, idle_timeout=None, extra_env=None))]
+    #[pyo3(signature = (prompt, label, model=None, raw_path=None, capture_events=false, on_timeout_prompt=None, max_retries=0, cwd=None, artifact_dir=None, idle_timeout=None, extra_env=None, expected_artifact_paths=None, artifact_reminder_count=0))]
     fn run<'py>(
         &self,
         py: Python<'py>,
@@ -103,6 +103,8 @@ impl RustClient {
         artifact_dir: Option<PathBuf>,
         idle_timeout: Option<f64>,
         extra_env: Option<HashMap<String, String>>,
+        expected_artifact_paths: Option<Vec<PathBuf>>,
+        artifact_reminder_count: usize,
     ) -> PyResult<Bound<'py, PyAny>> {
         let backend = self.inner.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
@@ -118,6 +120,8 @@ impl RustClient {
                 artifact_dir,
                 idle_timeout,
                 extra_env,
+                expected_artifact_paths: expected_artifact_paths.unwrap_or_default(),
+                artifact_reminder_count,
             };
             let result = backend.run(params).await.map_err(map_error)?;
             Python::attach(|py| completed_run_to_py(py, &result))
