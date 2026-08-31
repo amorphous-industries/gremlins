@@ -27,4 +27,4 @@ If there are no issues worth raising, write a Findings section that says so expl
 
 Do NOT make any code changes — only write the review file.
 
-`{out_file}` is the canonical and required location for your review output in every case, including any short-circuit one-liner the prompt tells you to emit. Do not emit the verdict only to chat; write it to `{out_file}` and then stop.
+`{review-code}` is the canonical and required location for your review output in every case, including any short-circuit one-liner the prompt tells you to emit. Do not emit the verdict only to chat; write it to `{review-code}` and then stop.
