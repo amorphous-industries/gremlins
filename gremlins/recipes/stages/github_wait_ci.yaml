@@ -8,6 +8,7 @@ stages:
   - name: github-wait-ci
     type: loop
     max-iterations: 3
+    stop_when_exists: status
     interpolation:
       pr_url: artifact.pr-url
       pr_branch: artifact.pr-branch
@@ -65,6 +66,7 @@ stages:
                   done
                   if [ "$rollup_len" -eq 0 ]; then
                       printf 'ci-gate: no check-runs after %ss grace; skipping\n' {startup_grace_secs}
+                      printf 'skipped' > "{artifact_dir}/status"
                       exit 0
                   fi
               else
@@ -121,6 +123,7 @@ stages:
 
               if [ "$failed_count" -eq 0 ]; then
                   printf 'ci-gate: all checks passed\n'
+                  printf 'passed' > "{artifact_dir}/status"
                   exit 0
               fi
 

@@ -34,6 +34,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import pathlib
 import sys
 import traceback
@@ -101,6 +102,12 @@ async def _run(spec_path: pathlib.Path) -> int:
             },
         )
         return 2
+
+    if gremlin.gremlin_id:
+        try:
+            gremlin.patch_state_for(gremlin.gremlin_id, pid=os.getpid())
+        except Exception:
+            logger.warning("Failed to record PID in child state", exc_info=True)
 
     if gremlin.bootstrap_cmds and gremlin.worktree_dir:
         from gremlins.executor.bootstrap import run_bootstrap as _run_bootstrap
