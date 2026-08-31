@@ -47,12 +47,12 @@ stages:
   - parallel:
       - name: local-review-one
         type: agent
-        prompt: [code-style, terse, dev-env, local_review.md]
+        prompt: [code-style, terse, dev-env, local_review_one.md]
         bind:
           artifact.local-review-one: "file://session/local-review-one.md"
       - name: local-review-two
         type: agent
-        prompt: [code-style, terse, dev-env, local_review.md]
+        prompt: [code-style, terse, dev-env, local_review_two.md]
         bind:
           artifact.local-review-two: "file://session/local-review-two.md"
 

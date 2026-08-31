@@ -1,9 +1,9 @@
-<!-- placeholders: out_file, instructions -->
+<!-- placeholders: plan, instructions -->
 Create a detailed implementation plan for the following task.
 
 ## Where to write
 
-Write your final plan to the file at `{out_file}`. This file does not exist yet — you are creating it.
+Write your final plan to the file at `{plan}`. This file does not exist yet — you are creating it.
 
 ## Context
 What problem are we solving and why.

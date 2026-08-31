@@ -28,7 +28,7 @@ def test_agent_stage_e2e_reads_artifact_and_writes_output(tmp_path):
         {
             "name": "summarise",
             "type": "agent",
-            "prompt": ["Summarise the following and write to `{out_file}`:\n\n{src}"],
+            "prompt": ["Summarise the following and write to `{summary}`:\n\n{src}"],
             "interpolation": {"src": "artifact.source-doc"},
             "bind": {"artifact.summary": "file://session/summary.md"},
         }
@@ -46,7 +46,7 @@ def test_agent_stage_e2e_reads_artifact_and_writes_output(tmp_path):
     registry.bind("source-doc", Uri.parse("file://session/source.md"))
 
     # Client writes the expected output file when called — extract the
-    # slugged path from {out_file} in the prompt.
+    # slugged path from {summary} in the prompt.
 
     class WritingClient(FakeClient):
         async def run(self, prompt, *, label, **kwargs):

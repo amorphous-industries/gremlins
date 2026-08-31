@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import pathlib
 import re
 from typing import TYPE_CHECKING, Any, cast
@@ -100,10 +99,10 @@ def test_no_interpolation_map_runs_prompt_unchanged(tmp_path):
 # --- out: verification ---
 
 
-def test_verify_produced_passes_when_out_file_written(tmp_path):
+def test_verify_produced_passes_when_output_written(tmp_path):
     class WritingClient(FakeClient):
         async def run(self, prompt, *, label, **kwargs):
-            # Extract the slugged path from {out_file} in the prompt.
+            # Extract the slugged path from {result} in the prompt.
             m = re.search(r"`([^`]*[0-9a-f]+_output\.md)`", prompt)
             assert m, prompt
             pathlib.Path(m.group(1)).parent.mkdir(parents=True, exist_ok=True)
@@ -113,7 +112,7 @@ def test_verify_produced_passes_when_out_file_written(tmp_path):
     client = WritingClient(fixtures={"my-agent": MINIMAL_EVENTS})
     state = _make_state(tmp_path, client)
     agent = _make_agent(
-        prompts=["Write output to `{out_file}`"],
+        prompts=["Write output to `{result}`"],
         bind_map={"result": "file://session/output.md"},
     )
 
@@ -124,7 +123,7 @@ def test_verify_produced_passes_when_out_file_written(tmp_path):
     assert state.artifacts.produced("result")
 
 
-def test_verify_produced_fails_when_out_file_missing(tmp_path):
+def test_verify_produced_fails_when_output_missing(tmp_path):
     client = FakeClient(fixtures={"my-agent": MINIMAL_EVENTS})
     state = _make_state(tmp_path, client)
     agent = _make_agent(
@@ -145,7 +144,7 @@ def test_bind_uri_bound_in_registry_before_agent_runs(tmp_path):
             seen_bound_before_run.append(
                 registry is not None and registry.produced("result")
             )
-            # Extract slugged path from {out_file} and write so verify passes.
+            # Extract slugged path from {result} and write so verify passes.
             m = re.search(r"`([^`]*[0-9a-f]+_output\.md)`", prompt)
             if m:
                 p = pathlib.Path(m.group(1))
@@ -156,7 +155,7 @@ def test_bind_uri_bound_in_registry_before_agent_runs(tmp_path):
     client = CheckingClient(fixtures={"my-agent": MINIMAL_EVENTS})
     state = _make_state(tmp_path, client)
     agent = _make_agent(
-        prompts=["Write output to `{out_file}`"],
+        prompts=["Write output to `{result}`"],
         bind_map={"result": "file://session/output.md"},
     )
 
@@ -222,7 +221,7 @@ def test_single_file_out_prompt_gets_slug_prefixed_name(tmp_path):
     client = WritingClient(fixtures={"my-agent": MINIMAL_EVENTS})
     state = _make_state(tmp_path, client)
     agent = _make_agent(
-        prompts=["Write to `{out_file}`"],
+        prompts=["Write to `{result}`"],
         bind_map={"result": "file://session/output.md"},
     )
 
@@ -253,7 +252,7 @@ def test_single_file_out_keeps_slug_in_artifact_dir(tmp_path):
     client = WritingClient(fixtures={"my-agent": MINIMAL_EVENTS})
     state = _make_state(tmp_path, client)
     agent = _make_agent(
-        prompts=["Write to `{out_file}`"],
+        prompts=["Write to `{result}`"],
         bind_map={"result": "file://session/output.md"},
     )
 
@@ -280,7 +279,7 @@ def test_single_file_out_uses_substituted_out_map_name(tmp_path):
     state = _make_state(tmp_path, client)
     agent = _make_agent(
         name="review-code",
-        prompts=["Write review to `{out_file}`"],
+        prompts=["Write review to `{review-code}`"],
         bind_map={"{name}": "file://session/{name}.md"},
     )
 
@@ -306,11 +305,11 @@ def test_single_file_out_missing_source_raises(tmp_path):
 # --- multi-file out: auto-management (best-effort) ---
 
 
-def test_multi_file_out_prompt_gets_json_mapping(tmp_path):
+def test_multi_file_out_prompt_gets_per_key_paths(tmp_path):
     client = FakeClient(fixtures={"my-agent": MINIMAL_EVENTS})
     state = _make_state(tmp_path, client)
     agent = _make_agent(
-        prompts=["Write to {out_files}"],
+        prompts=["Write to {blah}, {foo}, {biz}"],
         bind_map={
             "blah": "file://session/blah.md",
             "foo": "file://session/foo.md",
@@ -321,31 +320,34 @@ def test_multi_file_out_prompt_gets_json_mapping(tmp_path):
     asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
 
     assert len(client.calls) == 1
-    m = re.fullmatch(r"Write to (\{.*\})", client.calls[0].prompt)
-    assert m, client.calls[0].prompt
-    mapping = json.loads(m.group(1))
-    assert set(mapping) == {"blah.md", "foo.md", "biz.md"}
+    prompt = client.calls[0].prompt
     ad = str(state.artifact_dir)
-    for name, actual in mapping.items():
-        assert re.fullmatch(rf"{re.escape(ad)}/[0-9a-f]{{8}}_{re.escape(name)}", actual)
+    for key in ("blah", "foo", "biz"):
+        assert re.search(
+            rf"{re.escape(ad)}/[0-9a-f]{{8}}_{re.escape(key)}\.md", prompt
+        ), f"{key} not found in prompt"
 
 
 def test_multi_file_out_renames_only_written_files(tmp_path):
     class WritingClient(FakeClient):
         async def run(self, prompt, *, label, cwd=None, **kwargs):
             # Write two of the three declared files; biz.md is skipped.
-            m = re.search(r"\{.*\}", prompt)
-            mapping = json.loads(m.group(0))
-            for name in ("blah.md", "foo.md"):
-                p = pathlib.Path(mapping[name])
-                p.parent.mkdir(parents=True, exist_ok=True)
-                p.write_text(f"# {name}", encoding="utf-8")
+            for key in ("blah", "foo"):
+                m = re.search(rf"([0-9a-f]{{8}}_{re.escape(key)}\.md)", prompt)
+                if m:
+                    p = pathlib.Path(m.group(1))
+                    # The path in the prompt may have a leading backtick
+                    # or other non-path prefix; extract the slugged filename
+                    # and reconstruct the path from artifact_dir.
+                    p = state.artifact_dir / m.group(1)
+                    p.parent.mkdir(parents=True, exist_ok=True)
+                    p.write_text(f"# {key}.md", encoding="utf-8")
             return await super().run(prompt, label=label, cwd=cwd, **kwargs)
 
     client = WritingClient(fixtures={"my-agent": MINIMAL_EVENTS})
     state = _make_state(tmp_path, client)
     agent = _make_agent(
-        prompts=["Write to {out_files}"],
+        prompts=["Write to {blah} and {foo}"],
         bind_map={
             "blah": "file://session/blah.md",
             "foo": "file://session/foo.md",

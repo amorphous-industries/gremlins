@@ -1,4 +1,4 @@
-You are a format-enforcement agent. Rewrite the rolling plan below to remove every violation of the rules listed here, then write ONLY the rewritten document to: {out_file}
+You are a format-enforcement agent. Rewrite the rolling plan below to remove every violation of the rules listed here, then write ONLY the rewritten document to: {rolling-plan}
 
 ## Rules — these patterns are NEVER allowed anywhere in the document
 
@@ -14,7 +14,7 @@ Keep all remaining task lists (`- [ ] ...`), open questions, context relevant to
 
 ## Output
 
-Write ONLY the rewritten document to: `{out_file}`
+Write ONLY the rewritten document to: `{rolling-plan}`
 Do not print the document to stdout. Do not explain what you changed.
 
 ## Rolling plan to rewrite

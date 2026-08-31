@@ -1,9 +1,9 @@
-<!-- placeholders: base_ref, instructions, out_file -->
+<!-- placeholders: base_ref, instructions, plan -->
 You are creating an implementation plan.
 
 ## Where to write
 
-Write your final plan to the file at `{out_file}`. This file does not exist yet — you are creating it.
+Write your final plan to the file at `{plan}`. This file does not exist yet — you are creating it.
 
 ## Input: pre-existing plan (if any)
 

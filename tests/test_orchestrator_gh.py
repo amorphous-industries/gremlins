@@ -393,7 +393,7 @@ class _CommittingClient(FakeClient):
 
     def run(self, prompt, *, label, **kwargs):
         if label == "plan" and self._artifact_dir is not None:
-            # The prompt contains {out_file} substituted with the absolute
+            # The prompt contains {plan} substituted with the absolute
             # slugged path (e.g. /tmp/.../artifacts/deadbeef_plan.md).
             # Extract it so we write to the path the agent was told to use.
             ad = re.escape(str(self._artifact_dir))
