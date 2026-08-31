@@ -502,10 +502,7 @@ async fn run_agent_loop_core<M: CompletionModel>(
             if !nested && reminder_budget > 0 {
                 let missing: Vec<&PathBuf> = expected_artifact_paths
                     .iter()
-                    .filter(|p| {
-                        !p.exists()
-                            || p.metadata().map(|m| m.len()).unwrap_or(0) == 0
-                    })
+                    .filter(|p| !p.exists() || p.metadata().map(|m| m.len()).unwrap_or(0) == 0)
                     .collect();
                 if !missing.is_empty() {
                     reminder_budget -= 1;

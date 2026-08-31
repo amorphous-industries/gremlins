@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pathlib
 import secrets
 from typing import TYPE_CHECKING, Any, cast
 
@@ -163,11 +164,11 @@ class Agent(Stage):
         # reminder loop so the agent is nudged to call Write if it forgets.
         single = len(file_names) == 1
         if single:
-            expected_paths = []
+            expected_paths: list[pathlib.Path] = []
             for uri_str in slugged_out.values():
                 uri = Uri.parse(uri_str)
                 if uri.scheme == "file" and uri.path.startswith("session/"):
-                    p = state.artifacts.resolver(uri.scheme).path_for(uri)
+                    p = state.artifacts.file_resolver.path_for(uri)
                     expected_paths.append(p)
             if expected_paths:
                 opts["expected_artifact_paths"] = expected_paths
