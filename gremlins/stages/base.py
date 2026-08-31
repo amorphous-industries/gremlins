@@ -3,7 +3,8 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any, NamedTuple
 
-from gremlins.clients.client import Client
+from _gremlins_core.clients import RustClient as Client
+
 from gremlins.protocols import GremlinProtocol
 from gremlins.stages.outcome import Outcome
 

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import importlib
 import sys
 import time
 from typing import Any
@@ -166,7 +165,7 @@ def _self_background_main(
     *,
     telemetry: bool = False,
 ) -> int:
-    importlib.import_module("gremlins.clients")
+    import gremlins._clients_init  # noqa: F401  # pyright: ignore[reportUnusedImport] — registers built-in providers
 
     pipeline_args = ("--client", args.client) if args.client else ()
     try:

@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import dataclasses
 import logging
 import pathlib
 import re
 from typing import Any
 
-from gremlins.clients.protocol import CompletedRun
+from _gremlins_core.clients import PyCompletedRun as CompletedRun
+
 from gremlins.executor.gremlin import State
 from gremlins.stages.outcome import Bail
 
@@ -21,7 +21,14 @@ def _record_token_usage(state: State, completed: CompletedRun) -> None:
     usage = completed.token_usage
     if usage is None:
         return
-    delta = {k: int(v) for k, v in dataclasses.asdict(usage).items()}
+    delta = {
+        "prompt_tokens": int(usage.prompt_tokens),
+        "completion_tokens": int(usage.completion_tokens),
+        "cached_input_tokens": int(usage.cached_input_tokens),
+        "cache_creation_input_tokens": int(usage.cache_creation_input_tokens),
+        "reasoning_tokens": int(usage.reasoning_tokens),
+        "turns": int(usage.turns),
+    }
     state.data.accumulate_token_usage(delta)
     logger.info(
         "token usage: prompt=%d completion=%d cached=%d cache_creation=%d reasoning=%d turns=%d",
@@ -59,9 +66,9 @@ async def run_agent(
         prompt,
         label=label,
         model=resolved_model,
-        raw_path=raw_path,
-        cwd=state.worktree,
-        artifact_dir=state.artifact_dir,
+        raw_path=str(raw_path) if raw_path is not None else None,
+        cwd=str(state.worktree) if state.worktree is not None else None,
+        artifact_dir=str(state.artifact_dir),
         **kw,
     )
     _record_token_usage(state, completed)

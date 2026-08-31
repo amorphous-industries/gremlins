@@ -1535,7 +1535,8 @@ def test_gh_main_pipeline_default_client_model(tmp_path, monkeypatch):
 
     # Override Pipeline.from_yaml to inject default_client: openai:gpt-4o and
     # re-fill stage clients so every stage inherits that model.
-    from gremlins.clients.client import Client
+    from _gremlins_core.clients import RustClient as Client
+
     from gremlins.pipeline import _fill_stage_clients
 
     _real_from_yaml = Pipeline.from_yaml

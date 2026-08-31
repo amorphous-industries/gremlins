@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import pytest
-
-from gremlins.clients import _DEFAULT_ALLOWED_TOOLS
-from gremlins.clients.client import Client
+from _gremlins_core.clients import _DEFAULT_ALLOWED_TOOLS
+from _gremlins_core.clients import RustClient as Client
 
 
 def test_default_allowlist_has_expected_tools():

@@ -10,10 +10,11 @@ import sys
 import time
 from typing import Any, cast
 
+from _gremlins_core.clients import RustClient as Client
+
 import gremlins.utils.git as _git
 from gremlins import paths
 from gremlins.artifacts.registry import ArtifactRegistry, MissingArtifact
-from gremlins.clients.client import Client
 from gremlins.env_file import load_env_file
 from gremlins.fleet.resolve import resolve_gremlin
 from gremlins.fleet.state import (

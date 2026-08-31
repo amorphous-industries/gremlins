@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import importlib
 import json
 import logging
 import os
@@ -13,10 +12,11 @@ import shutil
 from collections.abc import Awaitable, Callable, Sequence
 from typing import Any, cast
 
+from _gremlins_core.clients import RustClient as Client
+
 from gremlins import paths as _paths
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.artifacts.uri import Uri
-from gremlins.clients.client import Client
 from gremlins.executor.state import (
     State,
     StateData,
@@ -660,7 +660,7 @@ class Gremlin:
     @classmethod
     def from_subprocess(cls, spec: dict[str, Any]) -> Gremlin:
         """Create a Gremlin from a subprocess spec (spawn/child schema)."""
-        importlib.import_module("gremlins.clients")
+        import gremlins._clients_init  # noqa: F401  # pyright: ignore[reportUnusedImport] — registers built-in providers
 
         client_label = spec.get("client")
         if not isinstance(client_label, str) or not client_label:

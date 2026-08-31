@@ -1,8 +1,7 @@
 """Tests for Client.parse contract."""
 
 import pytest
-
-from gremlins.clients.client import Client
+from _gremlins_core.clients import RustClient as Client
 
 
 def test_parse_xai():

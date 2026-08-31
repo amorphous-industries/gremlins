@@ -12,9 +12,9 @@ import types
 from typing import Any
 
 import pytest
+from _gremlins_core.clients import CLIENT_FACTORIES
 
 from gremlins import paths
-from gremlins.clients.registry import register_client_factory
 from gremlins.executor.gremlin import Gremlin, State
 from gremlins.executor.state import StateData, build_state
 from tests.fake_client import FakeClient
@@ -78,7 +78,7 @@ def pytest_configure(config: pytest.Config) -> None:
             model=model or "fake",
         )
 
-    register_client_factory("fake", _make_fake_client)
+    CLIENT_FACTORIES["fake"] = _make_fake_client
 
 
 def _setup_claude_home(home: pathlib.Path) -> None:

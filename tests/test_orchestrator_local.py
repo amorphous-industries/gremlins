@@ -4,12 +4,12 @@ import json
 import shutil
 
 import pytest
+from _gremlins_core.clients import RustClient as Client
 from conftest import MINIMAL_EVENTS, write_done_from_shell_cmd
 from conftest import REVIEW_LABELS as _REVIEW_LABELS
 from conftest import ReviewCreatingClient as _ReviewCreatingClient
 from conftest import common_local_patches as _common_patches
 
-from gremlins.clients.client import Client
 from gremlins.executor.run import run_pipeline
 from gremlins.pipeline import Pipeline
 from gremlins.pipeline.discovery import resolve_pipeline_path
