@@ -14,6 +14,7 @@ from gremlins.executor.state import StateData, build_state
 from gremlins.stages.exec import Exec
 from gremlins.stages.outcome import Bail, Done
 from tests.fake_client import FakeClient
+from tests.fake_env_provider import FakeEnvironmentProvider
 
 
 def _make_state(tmp_path: pathlib.Path, **kw):
@@ -35,13 +36,20 @@ def _exec(
     interpolation_map=None,
     bind_map=None,
     timeout=None,
+    env_provider=None,
 ):
     options = {}
     if cmds is not None:
         options["cmds"] = cmds
     if timeout is not None:
         options["timeout"] = timeout
-    return Exec(name, options, interpolation_map=interpolation_map, bind_map=bind_map)
+    return Exec(
+        name,
+        options,
+        interpolation_map=interpolation_map,
+        bind_map=bind_map,
+        env_provider=env_provider,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -282,3 +290,47 @@ def test_bail_artifact_on_exit_2(tmp_path):
     result = asyncio.run(stage.run(MockGremlin(state=state)))
     assert isinstance(result, Done)
     assert state.artifacts.produced("bail")
+
+
+# ---------------------------------------------------------------------------
+# FakeEnvironmentProvider seam
+# ---------------------------------------------------------------------------
+
+
+def test_exec_with_fake_provider(tmp_path):
+    fake = FakeEnvironmentProvider()
+    state = _make_state(tmp_path)
+    stage = _exec("test", cmds=["echo hello"], env_provider=fake)
+    result = asyncio.run(stage.run(MockGremlin(state=state)))
+    assert isinstance(result, Done)
+    assert len(fake.shell_calls) == 1
+    cmd, cwd, env, timeout = fake.shell_calls[0]
+    assert "echo hello" in cmd
+    assert cwd == str(tmp_path)
+
+
+def test_exec_captures_log(tmp_path):
+    fake = FakeEnvironmentProvider()
+    state = _make_state(tmp_path)
+    stage = _exec("myname", cmds=["echo hello"], env_provider=fake)
+    asyncio.run(stage.run(MockGremlin(state=state)))
+    assert len(fake.write_calls) == 1
+    path, content = fake.write_calls[0]
+    assert "exec-myname.log" in path
+    assert content == "(no output)\n"
+
+
+def test_exec_produces_bindings(tmp_path):
+    fake = FakeEnvironmentProvider()
+    state = _make_state(tmp_path)
+    (state.artifact_dir / "out.txt").write_text("data")
+    stage = _exec(
+        "test",
+        cmds=["true"],
+        bind_map={"result": "file://session/out.txt"},
+        env_provider=fake,
+    )
+    result = asyncio.run(stage.run(MockGremlin(state=state)))
+    assert isinstance(result, Done)
+    assert state.artifacts.produced("result")
+    assert state.artifacts.resolve("result") == Uri.parse("file://session/out.txt")

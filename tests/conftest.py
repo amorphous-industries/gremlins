@@ -458,7 +458,7 @@ def common_local_patches(monkeypatch):
         write_done_from_shell_cmd(cmd)
         return _subprocess.CompletedProcess(cmd, 0, "(noop)\n", "")
 
-    monkeypatch.setattr("gremlins.stages.exec._proc.run_shell_async", _noop_shell)
+    monkeypatch.setattr("gremlins.executor.env_provider._proc.run_shell_async", _noop_shell)
 
 
 @pytest.fixture(autouse=True)

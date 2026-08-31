@@ -21,8 +21,11 @@ from gremlins.stages.constants import (
     strip_artifact_prefix,
     strip_artifact_prefix_keys,
 )
+from gremlins.executor.env_provider import (
+    EnvironmentProvider,
+    RealEnvironmentProvider,
+)
 from gremlins.stages.outcome import Bail, Done, Outcome
-from gremlins.utils import proc as _proc
 
 logger = logging.getLogger(__name__)
 
@@ -83,11 +86,15 @@ class Exec(Stage):
         *,
         interpolation_map: dict[str, str] | None = None,
         bind_map: dict[str, str] | None = None,
+        env_provider: EnvironmentProvider | None = None,
     ) -> None:
         super().__init__(name)
         self.options = options
         self.interpolation_map = interpolation_map or {}
         self.bind_map = bind_map or {}
+        self.env_provider: EnvironmentProvider = (
+            env_provider or RealEnvironmentProvider()
+        )
 
     @classmethod
     def with_dict(cls, d: dict[str, Any], depth: int = 0) -> Exec:
@@ -157,16 +164,17 @@ class Exec(Stage):
                     "exec %s:   cmd[%d] %s", self.name, i, c.replace("\n", "\\n")
                 )
             _t0 = time.monotonic()
-            result = await _proc.run_shell_async(
+            result = await self.env_provider.run_shell(
                 joined,
-                cwd=pathlib.Path(state.cwd),
+                cwd=state.cwd,
                 env={**os.environ, **extra_env},
                 timeout=timeout,
             )
             elapsed = time.monotonic() - _t0
             log_path = state.artifact_dir / f"exec-{self.name}.log"
-            log_path.write_text(
-                result.stdout + result.stderr or "(no output)\n", encoding="utf-8"
+            self.env_provider.write_text(
+                str(log_path),
+                result.stdout + result.stderr or "(no output)\n",
             )
             shell_output = (result.stdout + result.stderr).strip()
             shell_rc = result.returncode
