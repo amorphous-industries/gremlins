@@ -51,8 +51,8 @@ const TRANSIENT_SUBSTRINGS: &[&str] = &[
     "error decoding response body",
     "connection reset",
     "connection refused",
-    "dns",
-    "tls",
+    "dns error",
+    "tls handshake",
 ];
 
 pub fn is_transient_stream_error(message: &str) -> bool {
