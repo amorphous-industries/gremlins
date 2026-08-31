@@ -18,6 +18,10 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from gremlins import paths as _paths
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.clients.client import Client
+from gremlins.executor.env_provider import (
+    EnvironmentProvider,
+    RealEnvironmentProvider,
+)
 from gremlins.stages.constants import FRAMEWORK_KEYS
 from gremlins.utils.state_file import locked_update
 
@@ -408,6 +412,9 @@ class State:
     worktree: pathlib.Path | None = None
     worktree_parent: pathlib.Path | None = None
     base_ref: str = ""
+    env_provider: EnvironmentProvider = dataclasses.field(
+        default_factory=RealEnvironmentProvider
+    )
 
     FRAMEWORK_KEYS: ClassVar[frozenset[str]] = FRAMEWORK_KEYS
 

@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-import logging
 import pathlib
 from collections.abc import Mapping
 from typing import NamedTuple, Protocol, runtime_checkable
 
 import gremlins.utils.proc as _proc
-
-logger = logging.getLogger(__name__)
 
 
 class ShellResult(NamedTuple):
@@ -54,7 +51,12 @@ class RealEnvironmentProvider:
         return ShellResult(result.stdout, result.stderr, result.returncode)
 
     def write_text(self, path: str, content: str) -> None:
-        pathlib.Path(path).write_text(content, encoding="utf-8")
+        p = pathlib.Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(content, encoding="utf-8")
 
     def read_text(self, path: str) -> str:
-        return pathlib.Path(path).read_text(encoding="utf-8")
+        p = pathlib.Path(path)
+        if not p.exists():
+            return ""
+        return p.read_text(encoding="utf-8")

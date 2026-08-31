@@ -15,10 +15,7 @@ from gremlins.artifacts.registry import (
 from gremlins.artifacts.resolve import resolve_interpolation_map
 from gremlins.artifacts.schemes import snapshot_head_before
 from gremlins.artifacts.uri import Uri
-from gremlins.executor.env_provider import (
-    EnvironmentProvider,
-    RealEnvironmentProvider,
-)
+from gremlins.executor.env_provider import EnvironmentProvider
 from gremlins.stages.base import Stage
 from gremlins.stages.constants import (
     FRAMEWORK_KEYS,
@@ -92,9 +89,7 @@ class Exec(Stage):
         self.options = options
         self.interpolation_map = interpolation_map or {}
         self.bind_map = bind_map or {}
-        self.env_provider: EnvironmentProvider = (
-            env_provider or RealEnvironmentProvider()
-        )
+        self._env_provider = env_provider
 
     @classmethod
     def with_dict(cls, d: dict[str, Any], depth: int = 0) -> Exec:
@@ -128,6 +123,7 @@ class Exec(Stage):
         state = gremlin.state
         if state is None:
             raise RuntimeError("exec stage requires gremlin.state to be initialized")
+        env_provider = self._env_provider or state.env_provider
         try:
             extra_env = resolve_interpolation_map(
                 state.artifacts, self.interpolation_map
@@ -164,7 +160,7 @@ class Exec(Stage):
                     "exec %s:   cmd[%d] %s", self.name, i, c.replace("\n", "\\n")
                 )
             _t0 = time.monotonic()
-            result = await self.env_provider.run_shell(
+            result = await env_provider.run_shell(
                 joined,
                 cwd=state.cwd,
                 env={**os.environ, **extra_env},
@@ -172,7 +168,7 @@ class Exec(Stage):
             )
             elapsed = time.monotonic() - _t0
             log_path = state.artifact_dir / f"exec-{self.name}.log"
-            self.env_provider.write_text(
+            env_provider.write_text(
                 str(log_path),
                 result.stdout + result.stderr or "(no output)\n",
             )
