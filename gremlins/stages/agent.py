@@ -27,8 +27,11 @@ class Agent(Stage):
         model: override the pipeline-default model for this stage.
 
     When bind: declares file://session/<name> bindings, the agent is instructed
-    via the {out_file} prompt variable (single output) or the {out_files} JSON
-    mapping (multiple outputs) to write each file to
+    via prompt variables:
+    - `{out_file}` for single-output stages (the bind key name also works, e.g. `{plan}`)
+    - `{out_files}` — a JSON mapping from logical name to filepath — for multi-output stages
+    - Per-key bind variables (e.g. `{local-review-two}`, `{pr_title}`) for any stage
+    to write each file to
     {artifact_dir}/<uuid-slug>_<name>. The slug is bound into the artifact
     registry URI (file://session/<slug>_<name>) and never stripped, giving
     each run a unique file footprint that prevents agents from accidentally
@@ -142,6 +145,11 @@ class Agent(Stage):
             state.artifacts.bind(key, Uri.parse(uri_str))
 
         ad = state.artifact_dir
+
+        # Per-key bind variable paths so prompts can use {bind_key_name} directly.
+        for name, fname in slugged.items():
+            resolved[name] = str(ad / fname)
+
         if len(file_names) == 1:
             resolved["out_file"] = str(ad / slugged[file_names[0]])
         elif len(file_names) > 1:
