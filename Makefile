@@ -20,7 +20,7 @@ typecheck:
 
 test: rust-test $(TEST_FILES)
 
-$(TEST_FILES):
+$(TEST_FILES): dev
 	python -m pytest -q --tb=short $@ || { code=$$?; [ $$code -eq 5 ] && exit 0 || exit $$code; }
 
 # --- Rust ---
