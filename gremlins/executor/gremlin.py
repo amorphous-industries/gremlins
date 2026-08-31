@@ -17,6 +17,7 @@ from gremlins import paths as _paths
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.artifacts.uri import Uri
 from gremlins.clients.client import Client
+from gremlins.executor.env_provider import EnvironmentProvider, RealEnvironmentProvider
 from gremlins.executor.state import (
     State,
     StateData,
@@ -24,7 +25,6 @@ from gremlins.executor.state import (
     read_state_json,
     write_state,
 )
-from gremlins.executor.env_provider import EnvironmentProvider, RealEnvironmentProvider
 from gremlins.pipeline import Pipeline as _PipelineData
 from gremlins.pipeline.discovery import resolve_pipeline_path
 from gremlins.pipeline.loader import STAGE_TYPES

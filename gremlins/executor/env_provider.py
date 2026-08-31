@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import pathlib
 from collections.abc import Mapping
 from typing import NamedTuple, Protocol, runtime_checkable
@@ -28,14 +27,11 @@ class EnvironmentProvider(Protocol):
         env: Mapping[str, str],
         *,
         timeout: float | None = None,
-    ) -> ShellResult:
-        ...
+    ) -> ShellResult: ...
 
-    def write_text(self, path: str, content: str) -> None:
-        ...
+    def write_text(self, path: str, content: str) -> None: ...
 
-    def read_text(self, path: str) -> str:
-        ...
+    def read_text(self, path: str) -> str: ...
 
 
 class RealEnvironmentProvider:

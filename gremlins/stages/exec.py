@@ -15,15 +15,15 @@ from gremlins.artifacts.registry import (
 from gremlins.artifacts.resolve import resolve_interpolation_map
 from gremlins.artifacts.schemes import snapshot_head_before
 from gremlins.artifacts.uri import Uri
+from gremlins.executor.env_provider import (
+    EnvironmentProvider,
+    RealEnvironmentProvider,
+)
 from gremlins.stages.base import Stage
 from gremlins.stages.constants import (
     FRAMEWORK_KEYS,
     strip_artifact_prefix,
     strip_artifact_prefix_keys,
-)
-from gremlins.executor.env_provider import (
-    EnvironmentProvider,
-    RealEnvironmentProvider,
 )
 from gremlins.stages.outcome import Bail, Done, Outcome
 
