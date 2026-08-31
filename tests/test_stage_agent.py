@@ -335,10 +335,6 @@ def test_multi_file_out_renames_only_written_files(tmp_path):
             for key in ("blah", "foo"):
                 m = re.search(rf"([0-9a-f]{{8}}_{re.escape(key)}\.md)", prompt)
                 if m:
-                    p = pathlib.Path(m.group(1))
-                    # The path in the prompt may have a leading backtick
-                    # or other non-path prefix; extract the slugged filename
-                    # and reconstruct the path from artifact_dir.
                     p = state.artifact_dir / m.group(1)
                     p.parent.mkdir(parents=True, exist_ok=True)
                     p.write_text(f"# {key}.md", encoding="utf-8")

@@ -143,6 +143,10 @@ class Agent(Stage):
         ad = state.artifact_dir
 
         # Per-key bind variable paths so prompts can use {bind_key_name} directly.
+        # NOTE: if a bind key name collides with an interpolation variable name,
+        # this loop silently overwrites the interpolated content with the output
+        # path. Pipeline authors should avoid naming conflicts between bind keys
+        # and interpolation keys.
         for k, v in resolved_bindings.items():
             uri = Uri.parse(v)
             if uri.scheme == "file" and uri.path.startswith("session/"):
