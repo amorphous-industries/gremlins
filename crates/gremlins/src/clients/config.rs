@@ -45,6 +45,14 @@ const TRANSIENT_SUBSTRINGS: &[&str] = &[
     "overloaded",
     "timed out in queue",
     " 529",
+    // reqwest transport errors (transient)
+    "http client error",
+    "error sending request",
+    "error decoding response body",
+    "connection reset",
+    "connection refused",
+    "dns error",
+    "tls handshake",
 ];
 
 pub fn is_transient_stream_error(message: &str) -> bool {
