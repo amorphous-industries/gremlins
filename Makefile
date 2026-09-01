@@ -2,7 +2,7 @@ MAKEFLAGS += -j$(shell sysctl -n hw.ncpu 2>/dev/null || nproc) --output-sync=lin
 
 TEST_FILES := $(wildcard tests/test_*.py)
 
-.PHONY: lint format format-write typecheck test check \
+.PHONY: lint format format-write format typecheck test check \
         rust-test rust-fmt rust-fmt-check rust-clippy dev install \
         $(TEST_FILES)
 
@@ -14,6 +14,9 @@ format:
 
 format-write:
 	ruff format .
+
+format: format-write rust-fmt
+	ruff check --fix .
 
 typecheck:
 	pyright
