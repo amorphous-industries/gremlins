@@ -4,8 +4,8 @@ import pathlib
 import textwrap
 
 import pytest
+from _gremlins_core.clients import RustClient as Client
 
-from gremlins.clients.client import Client
 from gremlins.pipeline import Pipeline
 from gremlins.pipeline.loader import fill_names as _fill_names
 from gremlins.pipeline.preprocess import expand_pipeline

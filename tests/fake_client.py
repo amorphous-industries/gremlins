@@ -8,8 +8,8 @@ import pathlib
 from dataclasses import dataclass
 from typing import Any, cast
 
-from gremlins.clients.client import Client
-from gremlins.clients.protocol import CompletedRun, UsageStats
+from _gremlins_core.clients import PyCompletedRun as CompletedRun
+from _gremlins_core.clients import PyUsageStats as UsageStats
 
 
 @dataclass
@@ -22,7 +22,7 @@ class RecordedCall:
     cwd: pathlib.Path | None = None
 
 
-class FakeClient(Client):
+class FakeClient:
     """Test double — never spawns subprocesses.
 
     Construct with ``fixtures={label: <path-to-jsonl-or-list-of-events>}``;
@@ -38,21 +38,36 @@ class FakeClient(Client):
         fixtures: dict[str, object] | None = None,
         model: str = "fake",
     ) -> None:
-        super().__init__("fake", model)
+        self.provider = "fake"
+        self.model = model
+        self.extra_params: dict[str, str] = {}
         self.calls: list[RecordedCall] = []
         self._fixtures: dict[str, object] = dict(fixtures or {})
         self._total_cost_usd: float = 0.0
-        # Per-task storage.
         self._ctx: contextvars.ContextVar[dict[str, Any] | None] = (
             contextvars.ContextVar("fake_ctx", default=None)
         )
 
-    @property  # type: ignore[override]
+    def __str__(self) -> str:
+        return f"{self.provider}:{self.model}"
+
+    def __repr__(self) -> str:
+        return f"FakeClient(model={self.model!r})"
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, FakeClient):
+            return NotImplemented
+        return self.provider == other.provider and self.model == other.model
+
+    def __hash__(self) -> int:
+        return hash((self.provider, self.model))
+
+    @property
     def total_cost_usd(self) -> float:
         return self._total_cost_usd
 
     def reap_all(self) -> None:
-        pass  # Fake never spawns; nothing to reap.
+        pass
 
     def _load_events(self, fixture: object) -> list[dict[str, Any]]:
         if isinstance(fixture, (list, tuple)):
@@ -134,12 +149,21 @@ class FakeClient(Client):
                     result_text = raw_result
             raw_usage = evt.get("token_usage")
             if isinstance(raw_usage, dict):
-                token_usage = UsageStats(**raw_usage)
+                token_usage = UsageStats(
+                    prompt_tokens=raw_usage.get("prompt_tokens", 0),
+                    completion_tokens=raw_usage.get("completion_tokens", 0),
+                    cached_input_tokens=raw_usage.get("cached_input_tokens", 0),
+                    cache_creation_input_tokens=raw_usage.get(
+                        "cache_creation_input_tokens", 0
+                    ),
+                    reasoning_tokens=raw_usage.get("reasoning_tokens", 0),
+                    turns=raw_usage.get("turns", 0),
+                )
 
         return CompletedRun(
             exit_code=0,
             text_result=result_text,
-            events=events if capture_events else None,
+            events=[json.dumps(e) for e in events] if capture_events else None,
             cost_usd=cost_usd,
             token_usage=token_usage,
         )

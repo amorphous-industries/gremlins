@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import dataclasses
-import importlib
 import pathlib
 from typing import TYPE_CHECKING, Any, cast
 
-from gremlins.clients.client import Client
+from _gremlins_core.clients import RustClient as Client
+
 from gremlins.pipeline.bootstrap import Bootstrap
 
 if TYPE_CHECKING:
@@ -45,8 +45,7 @@ class Pipeline:
     def from_yaml(
         cls, path: pathlib.Path, *, default_client_override: str | None = None
     ) -> Pipeline:
-        importlib.import_module("gremlins.clients")
-
+        import gremlins._clients_init  # noqa: F401  # pyright: ignore[reportUnusedImport] — registers built-in providers
         from gremlins.pipeline.loader import check_duplicate_producers, parse_stages
         from gremlins.pipeline.preprocess import expand_pipeline
 

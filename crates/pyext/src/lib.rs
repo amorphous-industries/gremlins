@@ -31,7 +31,7 @@ fn _gremlins_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // clients submodule
     let clients = PyModule::new(m.py(), "clients")?;
-    clients.add_class::<python::clients::RustClient>()?;
+    python::clients::init_clients_module(&clients)?;
     m.add_submodule(&clients)?;
 
     // schemas submodule

@@ -7,10 +7,10 @@ import pathlib
 import sys
 
 import pytest
+from _gremlins_core.clients import RustClient as Client
 from conftest import MockGremlin
 
 from gremlins.artifacts.registry import ArtifactRegistry
-from gremlins.clients.client import Client
 from gremlins.executor.bootstrap import run_bootstrap, run_pipeline_bootstrap
 from gremlins.executor.state import StateData, build_state
 from gremlins.pipeline.bootstrap import Bootstrap, InputSource, InputSources

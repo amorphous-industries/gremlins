@@ -17,9 +17,10 @@ import types
 from collections.abc import Callable, Sequence
 from typing import Any
 
+from _gremlins_core.clients import RustClient as Client
+
 from gremlins import paths
 from gremlins.artifacts.registry import ArtifactRegistry
-from gremlins.clients.client import Client
 from gremlins.env_file import load_env_file_isolated
 from gremlins.errors import die
 from gremlins.executor.gremlin import Gremlin
