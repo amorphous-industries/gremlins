@@ -527,7 +527,10 @@ async fn run_agent_loop_core<M: CompletionModel>(
 
                     // Record the reminder in the raw and captured streams so the
                     // transcript accurately reflects the interaction.
-                    write_raw(raw, &serde_json::json!({"type": "reminder", "message": reminder}));
+                    write_raw(
+                        raw,
+                        &serde_json::json!({"type": "reminder", "message": reminder}),
+                    );
                     if let Some(evts) = captured.as_mut() {
                         evts.push(serde_json::json!({"type": "reminder", "message": reminder}));
                     }
