@@ -38,7 +38,7 @@ fn parse_path_overrides(paths: &HashMap<String, Value>) -> PathOverrides {
 // ---------------------------------------------------------------------------
 
 /// Parsed content of config.json.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Config {
     raw: HashMap<String, Value>,
     default_client: Option<String>,
@@ -75,10 +75,8 @@ impl Config {
             .get("paths")
             .and_then(|v| v.as_object())
             .map(|obj| {
-                let m: HashMap<String, Value> = obj
-                    .iter()
-                    .map(|(k, v)| (k.clone(), v.clone()))
-                    .collect();
+                let m: HashMap<String, Value> =
+                    obj.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
                 parse_path_overrides(&m)
             })
             .unwrap_or_default();
@@ -89,17 +87,6 @@ impl Config {
             exact_stage_clients,
             prefix_stage_clients,
             path_overrides,
-        }
-    }
-
-    /// Empty config — no overrides, no client defaults.
-    pub fn default() -> Self {
-        Config {
-            raw: HashMap::new(),
-            default_client: None,
-            exact_stage_clients: HashMap::new(),
-            prefix_stage_clients: HashMap::new(),
-            path_overrides: PathOverrides::default(),
         }
     }
 
@@ -125,8 +112,13 @@ impl Config {
 // Stage client parsing
 // ---------------------------------------------------------------------------
 
-fn parse_stage_clients(raw: &HashMap<String, Value>) -> (HashMap<String, String>, HashMap<String, String>) {
-    let obj = match raw.get("default-client-by-stage").and_then(|v| v.as_object()) {
+fn parse_stage_clients(
+    raw: &HashMap<String, Value>,
+) -> (HashMap<String, String>, HashMap<String, String>) {
+    let obj = match raw
+        .get("default-client-by-stage")
+        .and_then(|v| v.as_object())
+    {
         Some(o) => o,
         None => return (HashMap::new(), HashMap::new()),
     };
@@ -226,11 +218,15 @@ fn sandbox_override(subdir: &str) -> Option<PathBuf> {
 }
 
 fn project_root_env_override() -> Option<PathBuf> {
-    std::env::var("GREMLINS_PROJECT_ROOT").ok().map(PathBuf::from)
+    std::env::var("GREMLINS_PROJECT_ROOT")
+        .ok()
+        .map(PathBuf::from)
 }
 
 fn overlay_dir_env_override() -> Option<PathBuf> {
-    std::env::var("GREMLINS_OVERLAY_DIR").ok().map(PathBuf::from)
+    std::env::var("GREMLINS_OVERLAY_DIR")
+        .ok()
+        .map(PathBuf::from)
 }
 
 // ---------------------------------------------------------------------------
@@ -299,10 +295,7 @@ pub fn resolve_project_root(overrides: Option<&PathOverrides>) -> PathBuf {
     std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
 }
 
-fn resolve_project_overlay_dir(
-    overrides: Option<&PathOverrides>,
-    project_root: &Path,
-) -> PathBuf {
+fn resolve_project_overlay_dir(overrides: Option<&PathOverrides>, project_root: &Path) -> PathBuf {
     if let Some(p) = overlay_dir_env_override() {
         return p;
     }
@@ -314,10 +307,7 @@ fn resolve_project_overlay_dir(
     project_root.join(".gremlins")
 }
 
-fn resolve_scratch_root(
-    overrides: Option<&PathOverrides>,
-    gremlin_id: Option<&str>,
-) -> PathBuf {
+fn resolve_scratch_root(overrides: Option<&PathOverrides>, gremlin_id: Option<&str>) -> PathBuf {
     let sub = gremlin_id.unwrap_or("direct");
     if let Some(sandbox) = sandbox_override("scratch") {
         let p = sandbox.join(sub);
@@ -440,7 +430,10 @@ mod tests {
         let (exact, prefix) = parse_stage_clients(&raw);
         assert!(exact.is_empty());
         assert_eq!(prefix.len(), 2);
-        assert_eq!(prefix.get("local-review-").unwrap(), "openrouter:doomclientv5");
+        assert_eq!(
+            prefix.get("local-review-").unwrap(),
+            "openrouter:doomclientv5"
+        );
         assert_eq!(prefix.get("plan-").unwrap(), "openai:gpt-5");
     }
 
@@ -505,12 +498,14 @@ mod tests {
 
     #[test]
     fn test_paths_section_absent() {
-        let raw: HashMap<String, Value> = serde_json::from_str(r#"{"default-client": "a:b"}"#).unwrap();
+        let raw: HashMap<String, Value> =
+            serde_json::from_str(r#"{"default-client": "a:b"}"#).unwrap();
         let overrides = raw
             .get("paths")
             .and_then(|v| v.as_object())
             .map(|obj| {
-                let m: HashMap<String, Value> = obj.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+                let m: HashMap<String, Value> =
+                    obj.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
                 parse_path_overrides(&m)
             })
             .unwrap_or_default();
