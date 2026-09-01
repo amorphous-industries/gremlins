@@ -193,7 +193,7 @@ class Exec(Stage):
                         shell_rc,
                         tail,
                     )
-                if shell_rc == 2 and _BAIL_KEY in self.bind_map:
+                if _BAIL_KEY in self.bind_map:
                     bail_triggered = True
                 else:
                     raise Bail(f"exec {self.name}: exited {shell_rc}")
@@ -233,6 +233,8 @@ class Exec(Stage):
                     if optional:
                         continue
                     if key == _BAIL_KEY:
+                        if bail_triggered:
+                            continue  # rc != 0 but no bail file; not a real bail
                         msg = f"exec {self.name}: exited {shell_rc}"
                         if shell_output:
                             msg += f"\n{shell_output}"
