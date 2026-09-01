@@ -33,7 +33,9 @@ jobs:
           maturin build --profile ci
           pip install --force-reinstall target/wheels/gremlins_ai-*.whl
       - name: Lint, format, type-check, clippy, rustfmt
-        run: make check
+        run: |
+          source .venv/bin/activate
+          make check
       - name: Test (Rust + Python)
         run: |
           source .venv/bin/activate
