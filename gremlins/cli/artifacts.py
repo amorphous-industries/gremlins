@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import argparse
+import pathlib
 import sys
 from typing import Any
 
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.artifacts.uri import Uri
-from gremlins.paths import project_root, scratch_root, state_root
+from _gremlins_core.config import project_root, scratch_root, state_root
 from gremlins.pipeline import Pipeline
 from gremlins.pipeline.discovery import resolve_pipeline_name
 from gremlins.utils.yaml_io import YamlLoadError
@@ -17,15 +18,15 @@ def artifacts_main(argv: list[str]) -> int:
     p.add_argument("target")
     args = p.parse_args(argv)
     target = args.target
-    gdir = state_root() / target
+    gdir = pathlib.Path(state_root()) / target
     if gdir.exists():
-        sdir = scratch_root(target) / "artifacts"
+        sdir = pathlib.Path(scratch_root(target)) / "artifacts"
         if sdir.exists():
             reg = ArtifactRegistry(artifact_dir=sdir)
             _print_live(reg)
             return 0
     try:
-        ppath = resolve_pipeline_name(target, project_root())
+        ppath = resolve_pipeline_name(target, pathlib.Path(project_root()))
         pipe = Pipeline.from_yaml(ppath)
         _print_static(pipe)
         return 0

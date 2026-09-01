@@ -5,7 +5,7 @@ import json
 import os
 import sys
 
-from gremlins import paths as _paths
+from _gremlins_core.config import state_root as _state_root_fn
 from gremlins.fleet.ack import do_ack, do_skip
 from gremlins.fleet.close import do_close
 from gremlins.fleet.land import do_land, do_rm
@@ -114,7 +114,7 @@ def render_view(args: argparse.Namespace, here_root: str | None) -> None:
 
 
 def _no_state_root() -> bool:
-    if not os.path.isdir(str(_paths.state_root())):
+    if not os.path.isdir(str(_state_root_fn())):
         print("No gremlins have been launched on this machine.")
         return True
     return False
@@ -239,7 +239,7 @@ def _main_impl(argv: list[str] | None = None) -> int:
         sys.exit(1)
 
     # Early exit if state root doesn't exist.
-    if not os.path.isdir(str(_paths.state_root())):
+    if not os.path.isdir(str(_state_root_fn())):
         if args.json:
             empty: object = (
                 {"gremlins": [], "queue": queue_summary()}

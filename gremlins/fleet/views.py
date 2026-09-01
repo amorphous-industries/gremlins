@@ -8,7 +8,7 @@ import sys
 import time
 from collections.abc import Iterator
 
-from gremlins import paths
+from _gremlins_core.config import scratch_root, state_root
 from gremlins.executor.gremlin import Gremlin
 from gremlins.fleet.duration import parse_duration
 from gremlins.fleet.render import FleetRow, build_row, print_table

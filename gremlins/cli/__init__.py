@@ -75,10 +75,10 @@ def main(argv: list[str] | None = None) -> int:
         _build_parser().print_help()
         return 0
 
-    from gremlins import config as _config
+    from _gremlins_core.config import init as _init_config
 
     try:
-        _config.init()
+        _init_config()
     except ValueError as exc:
         import sys as _sys
 

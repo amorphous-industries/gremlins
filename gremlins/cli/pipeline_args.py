@@ -66,13 +66,13 @@ def load_prefix_clients() -> tuple[dict[str, str], dict[str, str]]:
     the central ``gremlins.config`` module's ``default_client_by_stage``
     property, which handles validation.
     """
-    from gremlins.config import get_config
+    from _gremlins_core.config import get_config
 
-    return get_config().default_client_by_stage
+    return get_config().default_client_by_stage()
 
 
 def launch_client_label(pipeline_args: list[str], pipeline: Pipeline | None) -> str:
-    from gremlins.config import get_config
+    from _gremlins_core.config import get_config, user_config_root
 
     client_spec = extract_client_spec(pipeline_args)
     if client_spec:
@@ -82,9 +82,8 @@ def launch_client_label(pipeline_args: list[str], pipeline: Pipeline | None) -> 
         return global_client
     if pipeline and pipeline.default_client:
         return str(pipeline.default_client)
-    from gremlins.paths import user_config_root
 
-    config_path = user_config_root() / "config.json"
+    config_path = pathlib.Path(user_config_root()) / "config.json"
     raise ValueError(
         "no client configured — pass --client, set default-client in "
         f"{config_path}, or ensure the pipeline declares "

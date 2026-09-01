@@ -20,7 +20,7 @@ import subprocess
 import sys
 from typing import Any, cast
 
-from gremlins import paths as _paths
+from _gremlins_core.config import project_root as _project_root_fn, scratch_root as _scratch_root_fn, state_root as _state_root_fn
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.artifacts.uri import Uri
 from gremlins.executor.gremlin import Gremlin, validate_gremlin_id, write_initial_state
@@ -44,7 +44,7 @@ class GremlinStateDirExists(RuntimeError):
 
 
 def _state_root() -> pathlib.Path:
-    return _paths.state_root()
+    return pathlib.Path(_state_root_fn())
 
 
 def _resolve_description_and_slug(
@@ -63,7 +63,7 @@ def _build_spawn_env(gremlin_id: str, *, telemetry: bool = False) -> dict[str, s
     env["PYTHONSAFEPATH"] = "1"
     env["GREMLINS_GREMLIN_ID"] = gremlin_id
     env["GREMLINS_OVERLAY_DIR"] = str(
-        _state_root() / gremlin_id / _paths.OVERLAY_DIRNAME
+        _state_root() / gremlin_id / ".gremlins"
     )
     if telemetry:
         env["GREMLINS_TELEMETRY"] = "1"
@@ -89,7 +89,7 @@ class _Inputs:
 
 
 def _reject_pipeline_collision(gremlin_id: str) -> None:
-    pipeline_names = {name for name, _ in list_pipelines(_paths.project_root())}
+    pipeline_names = {name for name, _ in list_pipelines(pathlib.Path(_project_root_fn()))}
     if gremlin_id in pipeline_names:
         raise ValueError(
             f"--gremlin-id {gremlin_id!r} shadows the name of a pipeline. Pick a different id."
@@ -173,7 +173,7 @@ def _resolve_inputs(
         if r.returncode == 0 and r.stdout.strip():
             project_root = r.stdout.strip()
         else:
-            project_root = str(_paths.project_root())
+            project_root = _project_root_fn()
 
     resolved_gremlin_id = _resolve_gremlin_id(slug, gremlin_id)
 
@@ -355,7 +355,7 @@ def _bake_prefix_clients_into_stage(
 
 def _persist_expanded_pipeline(state_dir: pathlib.Path, pipeline_path: str) -> str:
     from gremlins.cli.pipeline_args import load_prefix_clients
-    from gremlins.config import get_config as _get_config
+    from _gremlins_core.config import get_config as _get_config
     from gremlins.pipeline.preprocess import expand_pipeline
     from gremlins.utils.yaml_io import dump_yaml_text
 
@@ -447,7 +447,7 @@ def launch(
             stage_inputs=inputs.stage_inputs,
             state_dir=state_dir,
         )
-        artifact_dir = _paths.scratch_root(inputs.gremlin_id) / "artifacts"
+        artifact_dir = pathlib.Path(_scratch_root_fn(inputs.gremlin_id)) / "artifacts"
         artifact_dir.mkdir(parents=True, exist_ok=True)
         registry = ArtifactRegistry(artifact_dir=artifact_dir)
         if inputs.base_ref_sha:
@@ -570,7 +570,7 @@ def _spawn_resume(
 def resume(gremlin_id: str, *, graft: str | None = None) -> None:
     gremlin = Gremlin.open(gremlin_id)
     _check_resume_preconditions(gremlin, graft)
-    project_root = gremlin.project_root or str(_paths.project_root())
+    _pr = gremlin.project_root or _project_root_fn()
 
     stage = gremlin.state_data.stage
     if not stage or stage == "starting":
@@ -582,7 +582,7 @@ def resume(gremlin_id: str, *, graft: str | None = None) -> None:
         stage = "chain"
 
     if graft is not None:
-        stage = _append_graft(gremlin.state_dir, graft, project_root)
+        stage = _append_graft(gremlin.state_dir, graft, _pr)
 
     state_data = gremlin.state_data
     _patch_state_for_resume(
@@ -602,7 +602,7 @@ def resume(gremlin_id: str, *, graft: str | None = None) -> None:
         gremlin.pipeline_path,
         gremlin.pipeline_args,
         stage,
-        project_root,
+        _pr,
     )
     (gremlin.state_dir / "pid").write_text(str(p.pid), encoding="utf-8")
     Gremlin.patch_state_for(gremlin_id, pid=p.pid)
