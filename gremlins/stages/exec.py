@@ -169,9 +169,7 @@ class Exec(Stage):
             log_path.write_text(raw_output or "(no output)\n", encoding="utf-8")
             shell_output = raw_output.strip()
             shell_rc = result.returncode
-            out_summary = (
-                f" (output: {len(raw_output)} chars)" if raw_output else ""
-            )
+            out_summary = f" (output: {len(raw_output)} chars)" if raw_output else ""
             logger.info(
                 "exec %s: done in %.2fs rc=%d%s",
                 self.name,
