@@ -49,18 +49,15 @@ pub struct Config {
 
 impl Config {
     /// Load from `user_config_root(None) / "config.json"`.
-    /// Returns `Config::default()` if the file doesn't exist or parsing fails.
-    pub fn load() -> Self {
-        let path = user_config_root_inner(None).join("config.json");
+    /// Returns `Config::default()` if the file doesn't exist.
+    pub fn load() -> Result<Self, ConfigError> {
+        let path = resolve_user_config_root(None).join("config.json");
         let raw = match parse_json_config(&path) {
             Ok(raw) => raw,
             Err(ConfigError::Io(e)) if e.kind() == std::io::ErrorKind::NotFound => {
-                return Self::default();
+                return Ok(Self::default());
             }
-            Err(e) => {
-                warn!("Failed to load config from {}: {}", path.display(), e);
-                return Self::default();
-            }
+            Err(e) => return Err(e),
         };
 
         let default_client = raw
@@ -81,13 +78,13 @@ impl Config {
             })
             .unwrap_or_default();
 
-        Config {
+        Ok(Config {
             raw,
             default_client,
             exact_stage_clients,
             prefix_stage_clients,
             path_overrides,
-        }
+        })
     }
 
     pub fn default_client(&self) -> Option<&str> {
@@ -161,7 +158,7 @@ fn parse_stage_clients(
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, thiserror::Error)]
-enum ConfigError {
+pub enum ConfigError {
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
     #[error("JSON parse error: {0}")]
@@ -185,8 +182,9 @@ fn parse_json_config(path: &Path) -> Result<HashMap<String, Value>, ConfigError>
 
 static GLOBAL_CONFIG: Mutex<Option<Arc<Config>>> = Mutex::new(None);
 
-pub fn init_global() {
-    *GLOBAL_CONFIG.lock().unwrap() = Some(Arc::new(Config::load()));
+pub fn init_global() -> Result<(), ConfigError> {
+    *GLOBAL_CONFIG.lock().unwrap() = Some(Arc::new(Config::load()?));
+    Ok(())
 }
 
 pub fn get_global() -> Option<Arc<Config>> {
@@ -194,13 +192,14 @@ pub fn get_global() -> Option<Arc<Config>> {
 }
 
 /// Get the global config, loading lazily on first access.
-pub fn global_config() -> Arc<Config> {
-    if let Some(cfg) = get_global() {
-        return cfg;
+pub fn global_config() -> Result<Arc<Config>, ConfigError> {
+    let mut guard = GLOBAL_CONFIG.lock().unwrap();
+    if let Some(ref cfg) = *guard {
+        return Ok(cfg.clone());
     }
-    let cfg = Arc::new(Config::load());
-    *GLOBAL_CONFIG.lock().unwrap() = Some(cfg.clone());
-    cfg
+    let cfg = Arc::new(Config::load()?);
+    *guard = Some(cfg.clone());
+    Ok(cfg)
 }
 
 pub fn clear_global() {
@@ -233,7 +232,7 @@ fn overlay_dir_env_override() -> Option<PathBuf> {
 // Internal path resolvers — pure, no global dependency
 // ---------------------------------------------------------------------------
 
-pub fn user_config_root_inner(overrides: Option<&PathOverrides>) -> PathBuf {
+pub fn resolve_user_config_root(overrides: Option<&PathOverrides>) -> PathBuf {
     if let Some(sandbox) = sandbox_override("config") {
         return sandbox;
     }
@@ -242,8 +241,9 @@ pub fn user_config_root_inner(overrides: Option<&PathOverrides>) -> PathBuf {
             return p.clone();
         }
     }
-    dirs::config_dir()
+    dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
+        .join(".config")
         .join("gremlins")
 }
 
@@ -295,7 +295,7 @@ pub fn resolve_project_root(overrides: Option<&PathOverrides>) -> PathBuf {
     std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
 }
 
-fn resolve_project_overlay_dir(overrides: Option<&PathOverrides>, project_root: &Path) -> PathBuf {
+pub fn resolve_project_overlay_dir(overrides: Option<&PathOverrides>, project_root: &Path) -> PathBuf {
     if let Some(p) = overlay_dir_env_override() {
         return p;
     }
@@ -307,7 +307,7 @@ fn resolve_project_overlay_dir(overrides: Option<&PathOverrides>, project_root: 
     project_root.join(".gremlins")
 }
 
-fn resolve_scratch_root(overrides: Option<&PathOverrides>, gremlin_id: Option<&str>) -> PathBuf {
+pub fn resolve_scratch_root(overrides: Option<&PathOverrides>, gremlin_id: Option<&str>) -> PathBuf {
     let sub = gremlin_id.unwrap_or("direct");
     if let Some(sandbox) = sandbox_override("scratch") {
         let p = sandbox.join(sub);
@@ -344,7 +344,7 @@ pub fn user_config_root() -> PathBuf {
     // Bootstrap: never consult config.json for config-root during load.
     // Post-bootstrap, honour the override.
     let overrides = get_global().map(|c| c.path_overrides().clone());
-    user_config_root_inner(overrides.as_ref())
+    resolve_user_config_root(overrides.as_ref())
 }
 
 pub fn project_root() -> PathBuf {
@@ -498,19 +498,17 @@ mod tests {
 
     #[test]
     fn test_paths_section_absent() {
-        let raw: HashMap<String, Value> =
-            serde_json::from_str(r#"{"default-client": "a:b"}"#).unwrap();
-        let overrides = raw
-            .get("paths")
-            .and_then(|v| v.as_object())
-            .map(|obj| {
-                let m: HashMap<String, Value> =
-                    obj.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
-                parse_path_overrides(&m)
-            })
-            .unwrap_or_default();
+        let _guard = ENV_MUTEX.lock().unwrap();
+        clear_sandbox_env();
+        let dir = tempfile::tempdir().unwrap();
+        let config_json = dir.path().join("config.json");
+        fs::write(&config_json, r#"{"default-client": "a:b"}"#).unwrap();
+        std::env::set_var("GREMLINS_SANDBOX_ROOT", dir.path());
+        let cfg = Config::load().unwrap();
+        let overrides = cfg.path_overrides();
         assert!(overrides.state_root.is_none());
         assert!(overrides.work_root.is_none());
+        clear_sandbox_env();
     }
 
     // -----------------------------------------------------------------------
@@ -614,7 +612,7 @@ mod tests {
         clear_sandbox_env();
         let dir = tempfile::tempdir().unwrap();
         std::env::set_var("GREMLINS_SANDBOX_ROOT", dir.path());
-        let result = user_config_root_inner(None);
+        let result = resolve_user_config_root(None);
         assert_eq!(result, dir.path().join("config"));
         clear_sandbox_env();
     }
@@ -623,7 +621,7 @@ mod tests {
     fn test_user_config_root_default() {
         let _guard = ENV_MUTEX.lock().unwrap();
         clear_sandbox_env();
-        let result = user_config_root_inner(None);
+        let result = resolve_user_config_root(None);
         assert!(result.to_str().unwrap().contains("gremlins"));
     }
 
@@ -713,9 +711,7 @@ mod tests {
     fn test_global_init_clear() {
         clear_global();
         assert!(get_global().is_none());
-        // init_global loads from disk; since there's no config file in the
-        // default location, it'll produce a default config.
-        init_global();
+        init_global().unwrap();
         assert!(get_global().is_some());
         clear_global();
         assert!(get_global().is_none());
@@ -724,8 +720,8 @@ mod tests {
     #[test]
     fn test_global_lazy_load() {
         clear_global();
-        let cfg1 = global_config();
-        let cfg2 = global_config();
+        let cfg1 = global_config().unwrap();
+        let cfg2 = global_config().unwrap();
         // Same Arc — lazy load only happens once
         assert!(Arc::ptr_eq(&cfg1, &cfg2));
     }
@@ -733,9 +729,9 @@ mod tests {
     #[test]
     fn test_global_after_clear_reloads() {
         clear_global();
-        let cfg1 = global_config();
+        let cfg1 = global_config().unwrap();
         clear_global();
-        let cfg2 = global_config();
+        let cfg2 = global_config().unwrap();
         // After clear, a new Arc is created
         assert!(!Arc::ptr_eq(&cfg1, &cfg2));
     }

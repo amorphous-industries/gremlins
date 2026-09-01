@@ -42,6 +42,9 @@ fn _gremlins_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // discovery submodule
     python::discovery::register_discovery_module(m)?;
 
+    // config submodule
+    python::config::register_config_module(m)?;
+
     let modules = m.py().import("sys")?.getattr("modules")?;
     modules.set_item("_gremlins_core.utils", &utils)?;
     modules.set_item("_gremlins_core.utils.proc", &proc)?;

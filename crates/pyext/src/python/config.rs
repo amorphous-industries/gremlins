@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
+use pyo3::types::{PyBool, PyDict};
 
 use gremlins::config::{self, Config};
 
@@ -23,7 +23,9 @@ impl PyConfig {
     }
 
     fn load(&mut self) -> PyResult<()> {
-        self.inner = Arc::new(Config::load());
+        self.inner = Arc::new(
+            Config::load().map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?,
+        );
         Ok(())
     }
 
@@ -38,7 +40,7 @@ impl PyConfig {
     }
 
     #[getter]
-    fn raw(&self, py: Python<'_>) -> PyResult<PyObject> {
+    fn raw(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let raw = self.inner.raw();
         let dict = PyDict::new(py);
         for (k, v) in raw {
@@ -49,26 +51,28 @@ impl PyConfig {
     }
 }
 
-fn serde_json_to_py(py: Python<'_>, value: &serde_json::Value) -> PyResult<PyObject> {
+fn serde_json_to_py(py: Python<'_>, value: &serde_json::Value) -> PyResult<Py<PyAny>> {
     match value {
         serde_json::Value::Null => Ok(py.None()),
-        serde_json::Value::Bool(b) => Ok(b.to_object(py)),
+        serde_json::Value::Bool(b) => Ok(PyBool::new(py, *b).to_owned().into_any().unbind()),
         serde_json::Value::Number(n) => {
             if let Some(i) = n.as_i64() {
-                Ok(i.to_object(py))
+                Ok(i.into_pyobject(py)?.into_any().unbind())
+            } else if let Some(u) = n.as_u64() {
+                Ok(u.into_pyobject(py)?.into_any().unbind())
             } else if let Some(f) = n.as_f64() {
-                Ok(f.to_object(py))
+                Ok(f.into_pyobject(py)?.into_any().unbind())
             } else {
-                Ok(py.None())
+                Ok(n.to_string().into_pyobject(py)?.into_any().unbind())
             }
         }
-        serde_json::Value::String(s) => Ok(s.to_object(py)),
+        serde_json::Value::String(s) => Ok(s.clone().into_pyobject(py)?.into_any().unbind()),
         serde_json::Value::Array(arr) => {
-            let list: Vec<PyObject> = arr
+            let list: Vec<Py<PyAny>> = arr
                 .iter()
                 .map(|v| serde_json_to_py(py, v))
                 .collect::<PyResult<_>>()?;
-            Ok(list.to_object(py))
+            Ok(list.into_pyobject(py)?.into_any().unbind())
         }
         serde_json::Value::Object(obj) => {
             let dict = PyDict::new(py);
@@ -86,14 +90,15 @@ fn serde_json_to_py(py: Python<'_>, value: &serde_json::Value) -> PyResult<PyObj
 
 #[pyfunction]
 fn init() -> PyResult<()> {
-    config::init_global();
+    config::init_global().map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
     Ok(())
 }
 
 #[pyfunction]
 fn get_config() -> PyResult<PyConfig> {
     Ok(PyConfig {
-        inner: config::global_config(),
+        inner: config::global_config()
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?,
     })
 }
 
@@ -109,7 +114,7 @@ fn clear() -> PyResult<()> {
 
 #[pyfunction]
 #[pyo3(signature = (config=None))]
-fn state_root(config: Option<&PyConfig>) -> PyResult<String> {
+fn state_root(config: Option<PyRef<'_, PyConfig>>) -> PyResult<String> {
     if let Some(cfg) = config {
         let overrides = cfg.inner.path_overrides();
         Ok(gremlins::config::resolve_state_root(Some(overrides))
@@ -122,7 +127,7 @@ fn state_root(config: Option<&PyConfig>) -> PyResult<String> {
 
 #[pyfunction]
 #[pyo3(signature = (config=None))]
-fn work_root(config: Option<&PyConfig>) -> PyResult<String> {
+fn work_root(config: Option<PyRef<'_, PyConfig>>) -> PyResult<String> {
     if let Some(cfg) = config {
         let overrides = cfg.inner.path_overrides();
         Ok(gremlins::config::resolve_work_root(Some(overrides))
@@ -135,10 +140,10 @@ fn work_root(config: Option<&PyConfig>) -> PyResult<String> {
 
 #[pyfunction]
 #[pyo3(signature = (config=None))]
-fn user_config_root(config: Option<&PyConfig>) -> PyResult<String> {
+fn user_config_root(config: Option<PyRef<'_, PyConfig>>) -> PyResult<String> {
     if let Some(cfg) = config {
         let overrides = cfg.inner.path_overrides();
-        Ok(gremlins::config::user_config_root_inner(Some(overrides))
+        Ok(gremlins::config::resolve_user_config_root(Some(overrides))
             .to_string_lossy()
             .to_string())
     } else {
@@ -148,7 +153,7 @@ fn user_config_root(config: Option<&PyConfig>) -> PyResult<String> {
 
 #[pyfunction]
 #[pyo3(signature = (config=None))]
-fn project_root(config: Option<&PyConfig>) -> PyResult<String> {
+fn project_root(config: Option<PyRef<'_, PyConfig>>) -> PyResult<String> {
     if let Some(cfg) = config {
         let overrides = cfg.inner.path_overrides();
         Ok(gremlins::config::resolve_project_root(Some(overrides))
@@ -161,7 +166,7 @@ fn project_root(config: Option<&PyConfig>) -> PyResult<String> {
 
 #[pyfunction]
 #[pyo3(signature = (project_root, config=None))]
-fn project_overlay_dir(project_root: &str, config: Option<&PyConfig>) -> PyResult<String> {
+fn project_overlay_dir(project_root: &str, config: Option<PyRef<'_, PyConfig>>) -> PyResult<String> {
     let pr = PathBuf::from(project_root);
     if let Some(cfg) = config {
         let overrides = cfg.inner.path_overrides();
@@ -179,7 +184,7 @@ fn project_overlay_dir(project_root: &str, config: Option<&PyConfig>) -> PyResul
 
 #[pyfunction]
 #[pyo3(signature = (gremlin_id=None, config=None))]
-fn scratch_root(gremlin_id: Option<&str>, config: Option<&PyConfig>) -> PyResult<String> {
+fn scratch_root(gremlin_id: Option<&str>, config: Option<PyRef<'_, PyConfig>>) -> PyResult<String> {
     if let Some(cfg) = config {
         let overrides = cfg.inner.path_overrides();
         Ok(
@@ -199,15 +204,23 @@ fn scratch_root(gremlin_id: Option<&str>, config: Option<&PyConfig>) -> PyResult
 // ---------------------------------------------------------------------------
 
 pub fn register_config_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<PyConfig>()?;
-    m.add_function(wrap_pyfunction!(init, m)?)?;
-    m.add_function(wrap_pyfunction!(get_config, m)?)?;
-    m.add_function(wrap_pyfunction!(clear, m)?)?;
-    m.add_function(wrap_pyfunction!(state_root, m)?)?;
-    m.add_function(wrap_pyfunction!(work_root, m)?)?;
-    m.add_function(wrap_pyfunction!(user_config_root, m)?)?;
-    m.add_function(wrap_pyfunction!(project_root, m)?)?;
-    m.add_function(wrap_pyfunction!(project_overlay_dir, m)?)?;
-    m.add_function(wrap_pyfunction!(scratch_root, m)?)?;
+    let config_mod = PyModule::new(m.py(), "config")?;
+
+    config_mod.add_class::<PyConfig>()?;
+    config_mod.add_function(wrap_pyfunction!(init, &config_mod)?)?;
+    config_mod.add_function(wrap_pyfunction!(get_config, &config_mod)?)?;
+    config_mod.add_function(wrap_pyfunction!(clear, &config_mod)?)?;
+    config_mod.add_function(wrap_pyfunction!(state_root, &config_mod)?)?;
+    config_mod.add_function(wrap_pyfunction!(work_root, &config_mod)?)?;
+    config_mod.add_function(wrap_pyfunction!(user_config_root, &config_mod)?)?;
+    config_mod.add_function(wrap_pyfunction!(project_root, &config_mod)?)?;
+    config_mod.add_function(wrap_pyfunction!(project_overlay_dir, &config_mod)?)?;
+    config_mod.add_function(wrap_pyfunction!(scratch_root, &config_mod)?)?;
+
+    m.add_submodule(&config_mod)?;
+
+    let modules = m.py().import("sys")?.getattr("modules")?;
+    modules.set_item("_gremlins_core.config", &config_mod)?;
+
     Ok(())
 }
