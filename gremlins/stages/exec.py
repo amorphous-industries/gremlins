@@ -132,13 +132,13 @@ class Exec(Stage):
         if any(Uri.is_range(v) for v in self.bind_map.values()):
             pre_sha = snapshot_head_before(cwd=pathlib.Path(state.cwd))
 
+        raw_cmds = [c.strip() for c in self.options.get("cmds", []) if c.strip()]
         cmds = [
             _sub_artifact_paths(
-                self.substitute_vars(c.rstrip(), state, extra_env),
+                self.substitute_vars(c, state, extra_env),
                 state.artifacts,
             )
-            for c in self.options.get("cmds", [])
-            if c.strip()
+            for c in raw_cmds
         ]
         bail_triggered = False
         shell_output = ""
@@ -147,7 +147,7 @@ class Exec(Stage):
         timeout: float | None = float(raw_timeout) if raw_timeout is not None else None
         if cmds:
             joined = " && ".join(cmds)
-            _cmd_summary = "; ".join(c.replace("\n", "\\n") for c in cmds)
+            _cmd_summary = " && ".join(c.replace("\n", "\\n") for c in raw_cmds)
             if len(_cmd_summary) > 400:
                 _cmd_summary = _cmd_summary[:400] + "..."
             logger.info(
