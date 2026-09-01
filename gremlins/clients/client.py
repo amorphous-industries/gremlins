@@ -121,6 +121,8 @@ class Client:
         artifact_dir: pathlib.Path | None = None,
         idle_timeout: float | None = None,
         extra_env: dict[str, str] | None = None,
+        expected_artifact_paths: list[pathlib.Path] | None = None,
+        artifact_reminder_count: int = 0,
     ) -> CompletedRun:
         return await self._get_impl().run(
             prompt,
@@ -134,6 +136,8 @@ class Client:
             artifact_dir=artifact_dir,
             idle_timeout=idle_timeout,
             extra_env=extra_env,
+            expected_artifact_paths=expected_artifact_paths,
+            artifact_reminder_count=artifact_reminder_count,
         )
 
     async def resume(self) -> CompletedRun:

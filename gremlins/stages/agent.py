@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pathlib
 import secrets
 from typing import TYPE_CHECKING, Any, cast
 
@@ -158,11 +159,25 @@ class Agent(Stage):
 
         raw_path = state.artifact_dir / f"stream-{self.name}.jsonl"
         model = self.substitute_vars(raw_model, state, resolved) if raw_model else None
+
+        # Single-output stages: compute expected artifact paths for the
+        # reminder loop so the agent is nudged to call Write if it forgets.
+        single = len(file_names) == 1
+        if single:
+            expected_paths: list[pathlib.Path] = []
+            for uri_str in slugged_out.values():
+                uri = Uri.parse(uri_str)
+                if uri.scheme == "file" and uri.path.startswith("session/"):
+                    p = state.artifacts.file_resolver.path_for(uri)
+                    expected_paths.append(p)
+            if expected_paths:
+                opts["expected_artifact_paths"] = expected_paths
+                opts["artifact_reminder_count"] = 1
+
         await run_agent(
             state, prompt, label=self.name, raw_path=raw_path, model=model, **opts
         )
 
-        single = len(file_names) == 1
         for key, uri_str in slugged_out.items():
             uri = Uri.parse(uri_str)
             if not single and uri.scheme == "file" and uri.path.startswith("session/"):
