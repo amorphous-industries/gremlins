@@ -510,7 +510,8 @@ async fn run_agent_loop_core<M: CompletionModel>(
                     reminder_budget -= 1;
 
                     log::info!(
-                        "reminder: {} missing artifact(s) — nudging agent (budget={})",
+                        target: "_gremlins_core.clients.openai_backend",
+                        "reminder: {} missing artifact(s) — nudging agent (remaining_budget={})",
                         missing.len(),
                         reminder_budget,
                     );
@@ -544,9 +545,10 @@ async fn run_agent_loop_core<M: CompletionModel>(
                     next_prompt = Message::user(reminder);
                     continue;
                 } else if expected_artifact_paths.is_empty() {
-                    log::debug!("reminder check: no expected artifact paths set — skipping");
+                    log::debug!(target: "_gremlins_core.clients.openai_backend", "reminder check: no expected artifact paths set — skipping");
                 } else {
                     log::debug!(
+                        target: "_gremlins_core.clients.openai_backend",
                         "reminder check: {} expected artifact(s) all present — no nudge needed",
                         expected_artifact_paths.len(),
                     );
