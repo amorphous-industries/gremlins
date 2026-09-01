@@ -147,10 +147,14 @@ class Exec(Stage):
         timeout: float | None = float(raw_timeout) if raw_timeout is not None else None
         if cmds:
             joined = " && ".join(cmds)
+            _cmd_summary = "; ".join(c.replace("\n", "\\n") for c in cmds)
+            if len(_cmd_summary) > 400:
+                _cmd_summary = _cmd_summary[:400] + "..."
             logger.info(
-                "exec %s: running %d command(s)",
+                "exec %s: running %d command(s): %s",
                 self.name,
                 len(cmds),
+                _cmd_summary,
             )
             for i, c in enumerate(cmds):
                 logger.debug(
