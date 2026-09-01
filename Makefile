@@ -35,7 +35,7 @@ rust-fmt-check:
 	cargo fmt --all -- --check
 
 rust-clippy:
-	cargo clippy --all-targets -- -D warnings
+	cargo clippy -q --all-targets -- -D warnings
 
 # --- Stubs ---
 
