@@ -16,8 +16,8 @@ from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from _gremlins_core.clients import RustClient as Client
-
 from _gremlins_core.config import project_root, scratch_root, state_root
+
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.stages.constants import FRAMEWORK_KEYS
 from gremlins.utils.state_file import locked_update
@@ -534,8 +534,7 @@ def build_state(
         client=client,
         artifact_dir=artifact_dir,
         artifacts=artifacts or reg,
-        cwd=cwd
-        or (str(worktree) if worktree is not None else str(project_root())),
+        cwd=cwd or (str(worktree) if worktree is not None else str(project_root())),
         args=args if args is not None else argparse.Namespace(),
         pipeline_data=pipeline_data,
         worktree=worktree,

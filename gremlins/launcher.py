@@ -20,7 +20,10 @@ import subprocess
 import sys
 from typing import Any, cast
 
-from _gremlins_core.config import project_root as _project_root_fn, scratch_root as _scratch_root_fn, state_root as _state_root_fn
+from _gremlins_core.config import project_root as _project_root_fn
+from _gremlins_core.config import scratch_root as _scratch_root_fn
+from _gremlins_core.config import state_root as _state_root_fn
+
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.artifacts.uri import Uri
 from gremlins.executor.gremlin import Gremlin, validate_gremlin_id, write_initial_state
@@ -62,9 +65,7 @@ def _build_spawn_env(gremlin_id: str, *, telemetry: bool = False) -> dict[str, s
     env = dict(os.environ)
     env["PYTHONSAFEPATH"] = "1"
     env["GREMLINS_GREMLIN_ID"] = gremlin_id
-    env["GREMLINS_OVERLAY_DIR"] = str(
-        _state_root() / gremlin_id / ".gremlins"
-    )
+    env["GREMLINS_OVERLAY_DIR"] = str(_state_root() / gremlin_id / ".gremlins")
     if telemetry:
         env["GREMLINS_TELEMETRY"] = "1"
     return env
@@ -89,7 +90,9 @@ class _Inputs:
 
 
 def _reject_pipeline_collision(gremlin_id: str) -> None:
-    pipeline_names = {name for name, _ in list_pipelines(pathlib.Path(_project_root_fn()))}
+    pipeline_names = {
+        name for name, _ in list_pipelines(pathlib.Path(_project_root_fn()))
+    }
     if gremlin_id in pipeline_names:
         raise ValueError(
             f"--gremlin-id {gremlin_id!r} shadows the name of a pipeline. Pick a different id."
@@ -354,8 +357,9 @@ def _bake_prefix_clients_into_stage(
 
 
 def _persist_expanded_pipeline(state_dir: pathlib.Path, pipeline_path: str) -> str:
-    from gremlins.cli.pipeline_args import load_prefix_clients
     from _gremlins_core.config import get_config as _get_config
+
+    from gremlins.cli.pipeline_args import load_prefix_clients
     from gremlins.pipeline.preprocess import expand_pipeline
     from gremlins.utils.yaml_io import dump_yaml_text
 

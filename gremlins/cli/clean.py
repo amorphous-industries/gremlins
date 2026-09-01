@@ -6,6 +6,7 @@ import pathlib
 from dataclasses import dataclass
 
 from _gremlins_core.config import state_root as _state_root_fn
+
 from gremlins.fleet.land import cleanup_gremlin
 from gremlins.fleet.state import liveness_of_state_file, load_state
 
