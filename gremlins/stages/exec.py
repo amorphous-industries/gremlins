@@ -147,7 +147,7 @@ class Exec(Stage):
         timeout: float | None = float(raw_timeout) if raw_timeout is not None else None
         if cmds:
             joined = " && ".join(cmds)
-            logger.debug(
+            logger.info(
                 "exec %s: running %d command(s)",
                 self.name,
                 len(cmds),
@@ -165,27 +165,24 @@ class Exec(Stage):
             )
             elapsed = time.monotonic() - _t0
             log_path = state.artifact_dir / f"exec-{self.name}.log"
-            log_path.write_text(
-                result.stdout + result.stderr or "(no output)\n", encoding="utf-8"
-            )
-            shell_output = (result.stdout + result.stderr).strip()
+            raw_output = result.stdout + result.stderr
+            log_path.write_text(raw_output or "(no output)\n", encoding="utf-8")
+            shell_output = raw_output.strip()
             shell_rc = result.returncode
-            out_summary = (
-                f" (output: {len(shell_output)} chars)" if shell_output else ""
-            )
-            logger.debug(
+            out_summary = f" (output: {len(raw_output)} chars)" if raw_output else ""
+            logger.info(
                 "exec %s: done in %.2fs rc=%d%s",
                 self.name,
                 elapsed,
                 shell_rc,
                 out_summary,
             )
-            if shell_output:
-                logger.debug(
+            if raw_output:
+                logger.info(
                     "exec %s: output written to %s (%d chars)",
                     self.name,
                     log_path,
-                    len(shell_output),
+                    len(raw_output),
                 )
             if shell_rc != 0:
                 if shell_output:
