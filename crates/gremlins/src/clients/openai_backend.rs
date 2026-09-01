@@ -499,7 +499,9 @@ async fn run_agent_loop_core<M: CompletionModel>(
 
         if tool_calls.is_empty() {
             // Check for missing expected artifacts — inject a reminder if budget remains.
-            if !nested && reminder_budget > 0 {
+            // Only inject when the model wrote text this turn (no point reminding if
+            // the model produced nothing, and an empty assistant message may be rejected).
+            if !nested && reminder_budget > 0 && !text.is_empty() {
                 let missing: Vec<&PathBuf> = expected_artifact_paths
                     .iter()
                     .filter(|p| !p.exists() || p.metadata().map(|m| m.len()).unwrap_or(0) == 0)
@@ -507,10 +509,10 @@ async fn run_agent_loop_core<M: CompletionModel>(
                 if !missing.is_empty() {
                     reminder_budget -= 1;
 
-                    // Push the assistant's final text into history so the model
+                    // Push the assistant's current text into history so the model
                     // sees what it produced before the reminder.
                     history.push(next_prompt);
-                    history.push(assistant_tool_message(&final_text, &[]));
+                    history.push(assistant_tool_message(&text, &[]));
 
                     let paths: Vec<String> = missing
                         .iter()
@@ -522,6 +524,14 @@ async fn run_agent_loop_core<M: CompletionModel>(
                          — just write the files.",
                         paths.join("\n")
                     );
+
+                    // Record the reminder in the raw and captured streams so the
+                    // transcript accurately reflects the interaction.
+                    write_raw(raw, &serde_json::json!({"type": "reminder", "message": reminder}));
+                    if let Some(evts) = captured.as_mut() {
+                        evts.push(serde_json::json!({"type": "reminder", "message": reminder}));
+                    }
+
                     next_prompt = Message::user(reminder);
                     continue;
                 }

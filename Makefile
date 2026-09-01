@@ -25,7 +25,7 @@ $(TEST_FILES): dev
 
 # --- Rust ---
 
-rust-test:
+rust-test: dev
 	cargo test -q -p gremlins --lib && cargo test -q -p gremlins-pyext --lib
 
 rust-fmt:
