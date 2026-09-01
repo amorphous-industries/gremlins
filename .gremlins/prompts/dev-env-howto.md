@@ -35,7 +35,7 @@ This project has an incremental Rust port. Two crates exist:
 
 ### How to check if a Rust function is live
 
-1. Search Python imports: `grep -rn '_core\.schemas\|from _gremlins_core' gremlins/ --include='*.py'`.
+1. Search Python code for references to `_gremlins_core`: `grep -rn '_core\.schemas\|from _gremlins_core' gremlins/ --include='*.py'`.
 2. Check the Python call site — if the Python function still exists and is
    referenced (e.g. from launcher.py or pipeline/__init__.py), that's the active one.
 3. Delete the Rust function. If nothing breaks, it wasn't wired in.
