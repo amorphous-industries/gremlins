@@ -77,6 +77,10 @@ impl PyUsageStats {
 }
 
 /// Python-exposed completed run result.
+///
+/// Events are JSON-encoded strings (one per event emitted by the backend)
+/// rather than parsed dicts — downstream consumers should call
+/// ``json.loads()`` on each element if they need structured access.
 #[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 pub struct PyCompletedRun {
@@ -134,7 +138,7 @@ fn parse_spec(s: &str) -> PyResult<(String, String, IndexMap<String, String>)> {
         rest.to_string()
     } else {
         let params_pattern = regex::Regex::new(
-            r":([a-zA-Z_][a-zA-Z0-9_]*=[^=,]+)(?:,([a-zA-Z_][a-zA-Z0-9_]*=[^=,]+))*$",
+            r":([a-zA-Z_][a-zA-Z0-9_]*=[^,]+)(?:,([a-zA-Z_][a-zA-Z0-9_]*=[^,]+))*$",
         )
         .unwrap();
         if let Some(m) = params_pattern.find(rest) {
@@ -295,11 +299,6 @@ impl RustClient {
         })
     }
 
-    #[staticmethod]
-    fn from_spec(py: Python<'_>, s: &str) -> PyResult<Self> {
-        Self::parse(py, s)
-    }
-
     fn __str__(&self) -> String {
         let mut s = format!("{}:{}", self.provider, self.model);
         if !self.extra_params.is_empty() {
@@ -344,7 +343,7 @@ impl RustClient {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (prompt, label, model=None, raw_path=None, capture_events=false, on_timeout_prompt=None, max_retries=0, cwd=None, artifact_dir=None, idle_timeout=None, extra_env=None, expected_artifact_paths=None, artifact_reminder_count=0))]
+    #[pyo3(signature = (prompt, label, model=None, raw_path=None, capture_events=false, on_timeout_prompt=None, max_retries=3, cwd=None, artifact_dir=None, idle_timeout=None, extra_env=None, expected_artifact_paths=None, artifact_reminder_count=0))]
     fn run<'py>(
         &self,
         py: Python<'py>,
@@ -362,7 +361,7 @@ impl RustClient {
         expected_artifact_paths: Option<Vec<PathBuf>>,
         artifact_reminder_count: usize,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let backend = self.get_or_build_backend()?;
+        let backend = self.get_or_build_backend(py)?;
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let params = RunParams {
                 prompt,
@@ -385,7 +384,7 @@ impl RustClient {
     }
 
     fn resume<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let backend = self.get_or_build_backend()?;
+        let backend = self.get_or_build_backend(py)?;
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let result = backend.resume().await.map_err(map_error)?;
             Python::attach(|py| PyCompletedRun::from_rust(py, &result))
@@ -409,7 +408,7 @@ impl RustClient {
 }
 
 impl RustClient {
-    fn get_or_build_backend(&self) -> PyResult<Arc<dyn Backend>> {
+    fn get_or_build_backend(&self, py: Python<'_>) -> PyResult<Arc<dyn Backend>> {
         {
             let guard = self.inner.lock().unwrap();
             if let Some(ref backend) = *guard {
@@ -428,9 +427,42 @@ impl RustClient {
             "xai" => OpenAiProvider::Xai,
             "openrouter" => OpenAiProvider::OpenRouter,
             other => {
-                return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                    "unknown provider '{other}'"
-                )));
+                // Fall back to CLIENT_FACTORIES for custom providers registered by
+                // tests or user code (e.g. "fake" in conftest.py).
+                let factories: Bound<'_, PyDict> = py
+                    .import("_gremlins_core.clients")?
+                    .getattr("CLIENT_FACTORIES")?
+                    .cast_into()?;
+                let factory = factories.get_item(other)?;
+                match factory {
+                    Some(f) => {
+                        let args: (&str, &IndexMap<String, String>) =
+                            (&self.model, &self.extra_params);
+                        let result = f.call1(args)?;
+                        let delegate: Py<Self> = result.extract()?;
+                        let borrowed = delegate.borrow(py);
+                        let backend = borrowed.inner.lock().unwrap().clone();
+                        match backend {
+                            Some(backend) => {
+                                *self.inner.lock().unwrap() = Some(backend.clone());
+                                return Ok(backend);
+                            }
+                            None => {
+                                return Err(pyo3::exceptions::PyRuntimeError::new_err(
+                                    format!(
+                                        "factory for provider '{other}' returned without \
+                                         building a backend"
+                                    ),
+                                ));
+                            }
+                        }
+                    }
+                    None => {
+                        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                            "unknown provider '{other}'"
+                        )));
+                    }
+                }
             }
         };
         let backend =
@@ -472,6 +504,18 @@ pub fn init_clients_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<RustClient>()?;
     m.add_class::<PyCompletedRun>()?;
     m.add_class::<PyUsageStats>()?;
+
+    // Set Python-visible docstrings — Rust /// doc comments don't propagate.
+    m.getattr("PyUsageStats")?
+        .setattr("__doc__", "Token usage summary for a model invocation.")?;
+    m.getattr("PyCompletedRun")?.setattr(
+        "__doc__",
+        concat!(
+            "Result of a single model run.\n\n",
+            "Events are JSON-encoded strings (one per event). ",
+            "Call `json.loads()` on each element to get structured dicts.",
+        ),
+    )?;
 
     let tools = vec!["Bash", "Edit", "Read", "Write", "Grep", "Glob"];
     let py_tools = PyList::new(m.py(), &tools)?;

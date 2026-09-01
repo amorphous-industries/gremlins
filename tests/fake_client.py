@@ -52,7 +52,7 @@ class FakeClient:
         return f"{self.provider}:{self.model}"
 
     def __repr__(self) -> str:
-        return f"FakeClient({self.provider!r}, {self.model!r})"
+        return f"FakeClient(model={self.model!r})"
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, FakeClient):
