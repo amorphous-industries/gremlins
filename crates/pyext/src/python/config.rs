@@ -24,7 +24,8 @@ impl PyConfig {
 
     fn load(&mut self) -> PyResult<()> {
         self.inner = Arc::new(
-            Config::load().map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?,
+            Config::load()
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?,
         );
         Ok(())
     }
@@ -90,7 +91,8 @@ fn serde_json_to_py(py: Python<'_>, value: &serde_json::Value) -> PyResult<Py<Py
 
 #[pyfunction]
 fn init() -> PyResult<()> {
-    config::init_global().map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+    config::init_global()
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
     Ok(())
 }
 
@@ -166,7 +168,10 @@ fn project_root(config: Option<PyRef<'_, PyConfig>>) -> PyResult<String> {
 
 #[pyfunction]
 #[pyo3(signature = (project_root, config=None))]
-fn project_overlay_dir(project_root: &str, config: Option<PyRef<'_, PyConfig>>) -> PyResult<String> {
+fn project_overlay_dir(
+    project_root: &str,
+    config: Option<PyRef<'_, PyConfig>>,
+) -> PyResult<String> {
     let pr = PathBuf::from(project_root);
     if let Some(cfg) = config {
         let overrides = cfg.inner.path_overrides();

@@ -295,7 +295,10 @@ pub fn resolve_project_root(overrides: Option<&PathOverrides>) -> PathBuf {
     std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
 }
 
-pub fn resolve_project_overlay_dir(overrides: Option<&PathOverrides>, project_root: &Path) -> PathBuf {
+pub fn resolve_project_overlay_dir(
+    overrides: Option<&PathOverrides>,
+    project_root: &Path,
+) -> PathBuf {
     if let Some(p) = overlay_dir_env_override() {
         return p;
     }
@@ -307,7 +310,10 @@ pub fn resolve_project_overlay_dir(overrides: Option<&PathOverrides>, project_ro
     project_root.join(".gremlins")
 }
 
-pub fn resolve_scratch_root(overrides: Option<&PathOverrides>, gremlin_id: Option<&str>) -> PathBuf {
+pub fn resolve_scratch_root(
+    overrides: Option<&PathOverrides>,
+    gremlin_id: Option<&str>,
+) -> PathBuf {
     let sub = gremlin_id.unwrap_or("direct");
     if let Some(sandbox) = sandbox_override("scratch") {
         let p = sandbox.join(sub);
