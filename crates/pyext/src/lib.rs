@@ -13,6 +13,8 @@ fn __version__() -> &'static str {
 /// The `_gremlins_core` native extension module.
 #[pymodule(name = "_gremlins_core")]
 fn _gremlins_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    let _ = pyo3_log::init();
+
     // utils submodule
     let utils = PyModule::new(m.py(), "utils")?;
     let proc = PyModule::new(m.py(), "proc")?;
