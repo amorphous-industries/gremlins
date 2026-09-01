@@ -147,7 +147,7 @@ class Exec(Stage):
         timeout: float | None = float(raw_timeout) if raw_timeout is not None else None
         if cmds:
             joined = " && ".join(cmds)
-            logger.debug(
+            logger.info(
                 "exec %s: running %d command(s)",
                 self.name,
                 len(cmds),
@@ -173,7 +173,7 @@ class Exec(Stage):
             out_summary = (
                 f" (output: {len(shell_output)} chars)" if shell_output else ""
             )
-            logger.debug(
+            logger.info(
                 "exec %s: done in %.2fs rc=%d%s",
                 self.name,
                 elapsed,
@@ -181,7 +181,7 @@ class Exec(Stage):
                 out_summary,
             )
             if shell_output:
-                logger.debug(
+                logger.info(
                     "exec %s: output written to %s (%d chars)",
                     self.name,
                     log_path,
