@@ -448,12 +448,10 @@ impl RustClient {
                                 return Ok(backend);
                             }
                             None => {
-                                return Err(pyo3::exceptions::PyRuntimeError::new_err(
-                                    format!(
-                                        "factory for provider '{other}' returned without \
+                                return Err(pyo3::exceptions::PyRuntimeError::new_err(format!(
+                                    "factory for provider '{other}' returned without \
                                          building a backend"
-                                    ),
-                                ));
+                                )));
                             }
                         }
                     }
