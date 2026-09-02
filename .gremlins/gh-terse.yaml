@@ -38,7 +38,7 @@ stage-definitions:
         type: exec
         options:
           cmds:
-            - make format
+            - make autoformat
             - git add -A
             - git diff --cached --quiet || git commit -m 'format'
 
@@ -53,7 +53,7 @@ stage-definitions:
 stages:
   - { type: gremlins:plan-gh, prompt: [code-style, terse, gremlins:plan_gh.md] }
   - { type: gremlins:implement, prompt: [code-style, terse, dev-env, no_lint_in_implement.md, gremlins:implement_gh.md] }
-  - { type: check-and-fix }
+  - { name: check-and-fix, type: check-and-fix }
 
   - parallel:
       - name: local-review-one
@@ -74,10 +74,10 @@ stages:
       review-one: artifact.local-review-one
       review-two: artifact.local-review-two
 
-  - { type: check-and-fix }
+  - { name: check-and-fix-2, type: check-and-fix }
   - { type: gremlins:github-open-pr }
   - { type: gremlins:github-request-copilot-review }
   - { type: gremlins:github-wait-copilot, interpolation: {pr: artifact.pr} }
   - { name: github-address-pull-request-reviews, type: agent, interpolation: {pr: artifact.pr}, prompt: [code-style, terse, dev-env, gremlins:github_address_pull_request_reviews.md, gremlins:bail_section.md] }
-  - { type: check-and-fix }
+  - { name: check-and-fix-3, type: check-and-fix }
   - { type: gremlins:github-wait-ci, interpolation: {pr: artifact.pr}, prompt: [terse, dev-env, gremlins:ci_fix.md, gremlins:bail_section_fix.md] }

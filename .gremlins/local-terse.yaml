@@ -30,7 +30,7 @@ stage-definitions:
         type: exec
         options:
           cmds:
-            - make format
+            - make autoformat
             - git add -A
             - git diff --cached --quiet || git commit -m 'format'
 
@@ -45,7 +45,7 @@ stage-definitions:
 stages:
   - { type: gremlins:plan,      prompt: [code-style, terse, gremlins:plan.md] }
   - { type: gremlins:implement,  prompt: [code-style, terse, dev-env, no_lint_in_implement.md, gremlins:implement_local.md] }
-  - { type: check-and-fix }
+  - { name: check-and-fix, type: check-and-fix }
   - { type: gremlins:review-code,  prompt: [code-style, terse, dev-env, local_review.md] }
   - { name: address-code, type: agent, interpolation: {text: artifact.review-code}, prompt: [code-style, terse, dev-env, gremlins:address.md, gremlins:bail_section.md] }
-  - { type: check-and-fix }
+  - { name: check-and-fix-2, type: check-and-fix }
