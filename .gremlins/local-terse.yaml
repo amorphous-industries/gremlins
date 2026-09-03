@@ -23,35 +23,29 @@ prompts:
   dev-env: dev-env-howto.md
 
 stage-definitions:
-  normalize:
-    type: exec
-    options:
-      cmds:
-        - "ruff format ."
-        - "ruff check --fix ."
-        - "git add -A"
-        - "git diff --cached --quiet || git commit -m 'normalize'"
-
   check-and-fix:
-    type: verify
-    options:
-      cmds:
-        - "make -j8 check && make -j8 test"
-      max_iterations: 7
-    prompt: verify
+    type: sequence
+    body:
+      - name: format
+        type: exec
+        options:
+          cmds:
+            - make autoformat
+            - git add -A
+            - git diff --cached --quiet || git commit -m 'format'
+
+      - name: verify
+        type: verify
+        options:
+          cmds:
+            - "make -j8 check && make -j8 test"
+          max_iterations: 7
+        prompt: [dev-env-howto.md, gremlins:verify_fix.md, gremlins:bail_section_fix.md]
 
 stages:
   - { type: gremlins:plan,      prompt: [code-style, terse, gremlins:plan.md] }
   - { type: gremlins:implement,  prompt: [code-style, terse, dev-env, no_lint_in_implement.md, gremlins:implement_local.md] }
-  - { type: normalize }
-  - name: verify-check
-    type: verify
-    options:
-      cmds: ["make check"]
-      max_iterations: 7
-    prompt: verify
-
+  - { type: check-and-fix }
   - { type: gremlins:review-code,  prompt: [code-style, terse, dev-env, local_review.md] }
   - { name: address-code, type: agent, interpolation: {text: artifact.review-code}, prompt: [code-style, terse, dev-env, gremlins:address.md, gremlins:bail_section.md] }
-
-  - { type: check-and-fix }
+  - { , type: check-and-fix }
