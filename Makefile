@@ -1,4 +1,4 @@
-PYTHON := .venv/bin/python
+PYTHON ?= python
 
 MAKEFLAGS += -j$(shell sysctl -n hw.ncpu 2>/dev/null || nproc) --output-sync=line
 
@@ -18,7 +18,7 @@ format-write:
 	$(PYTHON) -m ruff format .
 
 autoformat: format-write rust-fmt
-	ruff check --fix .
+	$(PYTHON) -m ruff check --fix .
 	cargo clippy --fix --all-targets --allow-dirty
 
 typecheck:
@@ -45,17 +45,17 @@ rust-clippy:
 
 # --- Stubs ---
 
-install-stubs: ## Install .py source stubs alongside the .so for pyright
+install-stubs: ## Install .pyi type stubs alongside the .so for pyright
 	$(PYTHON) crates/pyext/_install_stubs.py
 
 # --- Build ---
 
 dev: ## Build and install the native extension in dev mode
-	.venv/bin/maturin develop
+	maturin develop
 	$(MAKE) install-stubs
 
 install: ## Build and install the native extension in release mode
-	.venv/bin/maturin develop --release
+	maturin develop --release
 
 check: lint format typecheck rust-fmt-check rust-clippy
 	@grep -r 'from gremlins.executor.state' gremlins/ --include='*.py' | grep -v 'gremlins/executor/' && echo 'ERROR: state.py leak' && exit 1 || true

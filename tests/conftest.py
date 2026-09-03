@@ -205,10 +205,10 @@ def _restore_os_environ():
 
 @pytest.fixture(autouse=True)
 def _reset_config() -> None:
-    """Clear the gremlins.config module-level singleton between tests.
+    """Clear the _gremlins_core.config singleton between tests.
 
-    Each test gets a unique sandbox, so the previously cached Config
-    instance would point to the old sandbox's config.json.  Resetting
+    Each test gets a unique sandbox, so the previously cached config
+    state would point to the old sandbox's config.json.  Resetting
     it here ensures get_config() re-reads from the new sandbox on its
     first call.
     """

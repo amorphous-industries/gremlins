@@ -63,8 +63,8 @@ def load_prefix_clients() -> tuple[dict[str, str], dict[str, str]]:
     Returns ``(exact_map, prefix_map)`` — exact stage-name keys and
     prefix globs (with the ``*`` stripped).  Returns two empty dicts
     when no config file exists or no rules are defined.  Delegates to
-    the central ``gremlins.config`` module's ``default_client_by_stage``
-    property, which handles validation.
+    ``_gremlins_core.config.get_config().default_client_by_stage()``,
+    which handles validation.
     """
     from _gremlins_core.config import get_config
 
