@@ -260,7 +260,7 @@ pub fn resolve_state_root(overrides: Option<&PathOverrides>) -> PathBuf {
         }
     }
     let p = dirs::state_dir()
-        .or_else(|| dirs::data_dir())
+        .or_else(dirs::data_dir)
         .unwrap_or_else(|| PathBuf::from("."))
         .join("gremlins");
     std::fs::create_dir_all(&p).ok();
