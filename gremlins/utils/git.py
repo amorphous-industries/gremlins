@@ -16,7 +16,9 @@ import pathlib
 import secrets
 import shutil
 
-from gremlins import paths
+from _gremlins_core.config import work_root
+
+from gremlins import OVERLAY_DIRNAME
 from gremlins.utils import proc
 
 
@@ -299,7 +301,9 @@ def setup_detached_worktree(
     if fetch:
         _run_git(["fetch", "origin", "--", base_ref], cwd=project_root)
         base_ref = "FETCH_HEAD"
-    parent = worktree_parent if worktree_parent is not None else paths.work_root()
+    parent = (
+        worktree_parent if worktree_parent is not None else pathlib.Path(work_root())
+    )
     parent.mkdir(parents=True, exist_ok=True)
     workdir = str(parent / f"aibg-gremlin.{secrets.token_hex(6)}")
     _run_git(["worktree", "add", "--detach", workdir, base_ref], cwd=project_root)
@@ -324,8 +328,8 @@ def remove_worktree(project_root: str, workdir: str) -> None:
 
 
 def stage_gremlins_overlay(project_root: str, state_dir: os.PathLike[str]) -> None:
-    src = pathlib.Path(project_root) / paths.OVERLAY_DIRNAME
-    dst = pathlib.Path(state_dir) / paths.OVERLAY_DIRNAME
+    src = pathlib.Path(project_root) / OVERLAY_DIRNAME
+    dst = pathlib.Path(state_dir) / OVERLAY_DIRNAME
     if src.is_dir() and src.resolve() != dst.resolve():
         shutil.copytree(src, dst, dirs_exist_ok=True)
 
@@ -376,7 +380,9 @@ async def setup_detached_worktree_async(
                 stderr = stderr.decode()
             raise GitError(r.returncode, stderr.strip())
         base_ref = "FETCH_HEAD"
-    parent = worktree_parent if worktree_parent is not None else paths.work_root()
+    parent = (
+        worktree_parent if worktree_parent is not None else pathlib.Path(work_root())
+    )
     parent.mkdir(parents=True, exist_ok=True)
     workdir = str(parent / f"aibg-gremlin.{secrets.token_hex(6)}")
     r = await proc.run_async(

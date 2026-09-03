@@ -6,7 +6,8 @@ import os
 import pathlib
 import subprocess
 
-from gremlins import paths
+from _gremlins_core.config import work_root
+
 from gremlins.utils.git import setup_detached_worktree
 
 _GIT_ENV = {
@@ -34,7 +35,7 @@ def test_setup_detached_worktree_defaults_to_work_root(tmp_path: pathlib.Path) -
     _init_repo(repo)
     workdir = setup_detached_worktree(str(repo), "HEAD")
     try:
-        assert pathlib.Path(workdir).parent == paths.work_root()
+        assert pathlib.Path(workdir).parent == pathlib.Path(work_root())
     finally:
         subprocess.run(
             ["git", "worktree", "remove", "--force", workdir],

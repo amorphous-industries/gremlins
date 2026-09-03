@@ -28,7 +28,7 @@ def _local_pipeline_path(cwd):
 def test_local_main_plan_mode(tmp_path, monkeypatch):
     gremlin_id = "test-gr-id"
     monkeypatch.setenv("GREMLINS_SANDBOX_ROOT", str(tmp_path))
-    state_dir = tmp_path / gremlin_id
+    state_dir = tmp_path / "state" / gremlin_id
     state_dir.mkdir(parents=True, exist_ok=True)
     artifact_dir = tmp_path / "scratch" / gremlin_id / "artifacts"
     artifact_dir.mkdir(parents=True)
@@ -40,10 +40,6 @@ def test_local_main_plan_mode(tmp_path, monkeypatch):
 
     monkeypatch.chdir(tmp_path)
     _common_patches(monkeypatch)
-    monkeypatch.setattr(
-        "gremlins.paths.state_root",
-        lambda: tmp_path,
-    )
     client = _ReviewCreatingClient(
         fixtures={
             "implement": MINIMAL_EVENTS,
@@ -74,7 +70,7 @@ def test_local_main_resume_from_review_code_requires_git_changes(
 ):
     gremlin_id = "test-gr-id"
     monkeypatch.setenv("GREMLINS_SANDBOX_ROOT", str(tmp_path))
-    state_dir = tmp_path / gremlin_id
+    state_dir = tmp_path / "state" / gremlin_id
     state_dir.mkdir(parents=True, exist_ok=True)
     artifact_dir = tmp_path / "scratch" / gremlin_id / "artifacts"
     artifact_dir.mkdir(parents=True)
@@ -85,10 +81,6 @@ def test_local_main_resume_from_review_code_requires_git_changes(
 
     monkeypatch.chdir(tmp_path)
     _common_patches(monkeypatch)
-    monkeypatch.setattr(
-        "gremlins.paths.state_root",
-        lambda: tmp_path,
-    )
     monkeypatch.setattr("gremlins.executor.run.in_git_repo", lambda: True)
     monkeypatch.setattr("gremlins.executor.run.has_dirty_worktree", lambda: False)
     monkeypatch.setattr("gremlins.executor.run.has_commits", lambda: False)
@@ -113,7 +105,7 @@ def test_local_main_resume_from_review_code_allows_existing_git_changes(
 ):
     gremlin_id = "test-gr-id"
     monkeypatch.setenv("GREMLINS_SANDBOX_ROOT", str(tmp_path))
-    state_dir = tmp_path / gremlin_id
+    state_dir = tmp_path / "state" / gremlin_id
     state_dir.mkdir(parents=True, exist_ok=True)
     artifact_dir = tmp_path / "scratch" / gremlin_id / "artifacts"
     artifact_dir.mkdir(parents=True)
@@ -124,10 +116,6 @@ def test_local_main_resume_from_review_code_allows_existing_git_changes(
 
     monkeypatch.chdir(tmp_path)
     _common_patches(monkeypatch)
-    monkeypatch.setattr(
-        "gremlins.paths.state_root",
-        lambda: tmp_path,
-    )
     monkeypatch.setattr("gremlins.executor.run.in_git_repo", lambda: True)
     monkeypatch.setattr("gremlins.executor.run.has_dirty_worktree", lambda: False)
     monkeypatch.setattr("gremlins.executor.run.has_commits", lambda: True)
@@ -162,7 +150,7 @@ def test_local_main_injected_client_model(tmp_path, monkeypatch):
     """Injected client.model flows into stage run() calls."""
     gremlin_id = "test-gr-id"
     monkeypatch.setenv("GREMLINS_SANDBOX_ROOT", str(tmp_path))
-    state_dir = tmp_path / gremlin_id
+    state_dir = tmp_path / "state" / gremlin_id
     state_dir.mkdir(parents=True, exist_ok=True)
     artifact_dir = tmp_path / "scratch" / gremlin_id / "artifacts"
     artifact_dir.mkdir(parents=True)
@@ -173,10 +161,6 @@ def test_local_main_injected_client_model(tmp_path, monkeypatch):
 
     monkeypatch.chdir(tmp_path)
     _common_patches(monkeypatch)
-    monkeypatch.setattr(
-        "gremlins.paths.state_root",
-        lambda: tmp_path,
-    )
     client = _ReviewCreatingClient(
         model="gpt-4o",
         fixtures={
@@ -267,10 +251,6 @@ def test_local_main_env_file_vars_reach_verify(tmp_path, monkeypatch):
 
     monkeypatch.chdir(tmp_path)
     _common_patches(monkeypatch)
-    monkeypatch.setattr(
-        "gremlins.paths.state_root",
-        lambda: tmp_path,
-    )
 
     captured_envs: list[dict] = []
 
@@ -337,10 +317,6 @@ def test_local_main_env_file_sourced_with_overlay_dir_set(tmp_path, monkeypatch)
 
     monkeypatch.chdir(proj_dir)
     _common_patches(monkeypatch)
-    monkeypatch.setattr(
-        "gremlins.paths.state_root",
-        lambda: state_root,
-    )
 
     captured_envs: list[dict] = []
 
@@ -384,7 +360,7 @@ def test_local_main_pipeline_default_client_model(tmp_path, monkeypatch):
     """
     gremlin_id = "test-gr-id"
     monkeypatch.setenv("GREMLINS_SANDBOX_ROOT", str(tmp_path))
-    state_dir = tmp_path / gremlin_id
+    state_dir = tmp_path / "state" / gremlin_id
     state_dir.mkdir(parents=True, exist_ok=True)
     artifact_dir = tmp_path / "scratch" / gremlin_id / "artifacts"
     artifact_dir.mkdir(parents=True)
@@ -395,10 +371,6 @@ def test_local_main_pipeline_default_client_model(tmp_path, monkeypatch):
 
     monkeypatch.chdir(tmp_path)
     _common_patches(monkeypatch)
-    monkeypatch.setattr(
-        "gremlins.paths.state_root",
-        lambda: tmp_path,
-    )
     # Override Pipeline.from_yaml to inject default_client: openai:gpt-4o and
     # re-fill stage clients so every stage inherits that model.
     from gremlins.pipeline import _fill_stage_clients
@@ -450,7 +422,7 @@ def test_plan_skip_if_exists_on_resume(tmp_path, monkeypatch):
     """Resume: plan stage is skipped when plan artifact is already verified."""
     gremlin_id = "test-gr-id"
     monkeypatch.setenv("GREMLINS_SANDBOX_ROOT", str(tmp_path))
-    state_dir = tmp_path / gremlin_id
+    state_dir = tmp_path / "state" / gremlin_id
     state_dir.mkdir(parents=True, exist_ok=True)
     artifact_dir = tmp_path / "scratch" / gremlin_id / "artifacts"
     artifact_dir.mkdir(parents=True)
@@ -461,10 +433,6 @@ def test_plan_skip_if_exists_on_resume(tmp_path, monkeypatch):
 
     monkeypatch.chdir(tmp_path)
     _common_patches(monkeypatch)
-    monkeypatch.setattr(
-        "gremlins.paths.state_root",
-        lambda: tmp_path,
-    )
     client = _ReviewCreatingClient(
         fixtures={
             "implement": MINIMAL_EVENTS,

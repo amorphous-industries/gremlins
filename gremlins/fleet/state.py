@@ -8,8 +8,14 @@ import time
 from collections.abc import Iterator
 from typing import cast
 
+from _gremlins_core.config import (
+    project_root as _project_root,
+)
+from _gremlins_core.config import (
+    state_root as _state_root,
+)
+
 import gremlins.fleet.constants as _constants
-from gremlins import paths
 from gremlins.utils import git as _git_mod
 
 
@@ -175,7 +181,7 @@ def parse_liveness(live: str) -> dict[str, object]:
 
 def iter_state_files() -> Iterator[tuple[str, str, str]]:
     """Yield (gremlin_id, state_file_path, wdir) for every gremlin in the state root."""
-    state_root = str(paths.state_root())
+    state_root = str(_state_root())
     if not os.path.isdir(state_root):
         return
     try:
@@ -238,4 +244,4 @@ def git_toplevel() -> str:
     try:
         return _git_mod.toplevel()
     except Exception:
-        return str(paths.project_root())
+        return str(_project_root())

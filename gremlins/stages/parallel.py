@@ -15,7 +15,8 @@ import signal
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, cast
 
-from gremlins import paths
+from _gremlins_core.config import project_root, scratch_root, state_root
+
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.executor.parallel_state import ParallelGroupState
 
@@ -151,7 +152,7 @@ class ParallelStage(Stage):
         child_runners: list[tuple[str, State, Callable[[], Any]]],
         *,
         parent_state: State,
-        project_root: pathlib.Path | None = None,
+        project_root_path: pathlib.Path | None = None,
         worktree_parent: pathlib.Path | None = None,
         set_stage_fn: Callable[[str], None] | None = None,
         child_stages: list[Stage] | None = None,
@@ -165,7 +166,7 @@ class ParallelStage(Stage):
             cancel_on_bail=self._cancel_on_bail,
             bail_policy=self._bail_policy,
             parent_state=parent_state,
-            project_root=project_root or paths.project_root(),
+            project_root=project_root_path or pathlib.Path(project_root()),
             worktree_parent=worktree_parent,
             stage_path=self.path or self.name,
             child_stages=child_stages,
@@ -195,7 +196,7 @@ class ParallelStage(Stage):
         for _, fn in self.build_runtime_stages(
             child_runners,
             parent_state=state,
-            project_root=paths.project_root(),
+            project_root_path=pathlib.Path(project_root()),
             worktree_parent=state.worktree_parent,
             set_stage_fn=lambda n: state.record_stage_progress(self.name, sub_stage=n),
             child_stages=self.body,
@@ -475,7 +476,7 @@ class _ParallelExecutor:
         if not parent_gid:
             return
         # Clean up child state dirs under state_root.
-        sr = paths.state_root()
+        sr = pathlib.Path(state_root())
         prefix = f"{parent_gid}--{self._group_name}--"
         for entry in sr.iterdir():
             if entry.name.startswith(prefix) and entry.is_dir():
@@ -483,7 +484,7 @@ class _ParallelExecutor:
         # Clean up child scratch dirs under scratch_root.
         for child_key in self._stages_by_key:
             child_id = f"{parent_gid}--{self._group_name}--{child_key}"
-            child_scratch = paths.scratch_root(child_id)
+            child_scratch = pathlib.Path(scratch_root(child_id))
             if child_scratch.is_dir():
                 shutil.rmtree(child_scratch, ignore_errors=True)
 
@@ -494,7 +495,10 @@ class _ParallelExecutor:
         if not parent_gid:
             return
 
-        scratch = paths.scratch_root
+        def _scratch(_cid: str) -> pathlib.Path:
+            return pathlib.Path(scratch_root(_cid))
+
+        scratch = _scratch
         parent_keys: set[str] = set(parent_state.artifacts.keys())
 
         # key -> list of (child_key, child_id, child_registry)

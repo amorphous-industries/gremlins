@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import pathlib
 
-from gremlins import PACKAGE_ROOT, paths
+from _gremlins_core.config import project_overlay_dir
+
+from gremlins import OVERLAY_DIRNAME, PACKAGE_ROOT
 
 BUNDLED_PIPELINE_DIR = PACKAGE_ROOT / "pipelines"
 
@@ -12,8 +14,8 @@ def _project_pipeline_dirs(project_root: pathlib.Path) -> list[pathlib.Path]:
     dirs: list[pathlib.Path] = []
     seen: set[pathlib.Path] = set()
     for d in [
-        paths.project_overlay_dir(project_root),
-        project_root / paths.OVERLAY_DIRNAME,
+        pathlib.Path(project_overlay_dir(str(project_root))),
+        project_root / OVERLAY_DIRNAME,
     ]:
         resolved = d.resolve()
         if resolved not in seen:
