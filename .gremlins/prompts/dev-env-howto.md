@@ -1,7 +1,7 @@
 ## Development environment
 
 A Python virtual environment is available at `.venv` in the working directory.
-To use it in any shell command, prefix with a source:
+To use it in any shell command:
 
 ```bash
 source .venv/bin/activate && <your command>
@@ -14,15 +14,90 @@ Or use the venv Python directly:
 ```
 
 The venv has the project installed in editable mode with all dev dependencies
-(ruff, pyright, pytest, maturin). Use `make check` and `make test` to verify
-your work.
+(ruff, pyright, pytest, maturin).
+
+## Makefile recipes
+
+Always use `make` targets rather than raw commands. The Makefile handles
+parallelism, dependency ordering, and ensures the native extension is built.
+
+| Recipe | What it does | When to use |
+|---|---|---|
+| `make build` | Compile the native extension crate (`cargo build -p gremlins-pyext`). | Check compilation after Rust-only changes. |
+| `make install` | `build` + `maturin develop` — always produces a fresh `.so` in the venv. | **After any Rust change** — this is the safe one-shot. |
+| `make dev` | `maturin develop` (may skip build if only transitive deps changed). | Quick install when the pyext crate itself was changed. |
+| `make release` | `maturin develop --release` (optimized build). | For production installs. |
+| `make check` | Lint + format-check + pyright + rustfmt + clippy. | Before commit. |
+| `make test` | `install` + Rust tests + all Python tests. | Before PR / final verify. |
+| `make autoformat` | Auto-fix Python and Rust formatting issues. | After messy edits. |
+
+### Critical: rust build freshness
+
+**`maturin develop` can skip the Rust build when changes affect only the
+`gremlins` crate (a transitive dependency of the pyext), leaving a stale `.so`
+in the venv.**
+
+The `make test` and `make install` targets solve this by running `cargo build -p gremlins-pyext`
+before `maturin develop`, guaranteeing a fresh `.so`:
+
+```bash
+make install   # build + install, always fresh
+make test      # build + install + run all tests, always fresh
+```
+
+Avoid depending on bare `make dev` when you've changed anything in `crates/` —
+it delegates to `maturin develop` which may audit-skip.
+
+For a full clean:
+
+```bash
+cargo clean -p gremlins-pyext && make install
+```
+
+### Running tests
+
+**Always run the full suite with `make test`.** It runs Python tests in
+parallel (one Make sub-target per `tests/test_*.py` file):
+
+```bash
+make test
+```
+
+The Makefile auto-detects core count, so explicit `-j` flags are unnecessary
+but harmless.
+
+For a single test file:
+
+```bash
+make tests/test_active_children.py
+```
+
+This triggers `dev` (builds the extension if needed) then runs just that file.
+
+**Never use `uv run pytest`** — the venv is the test target, not whatever
+`uv run` resolves.
+
+**Never use bare `make dev` after Rust changes to `crates/gremlins/`** —
+the stale `.so` trap. Use `make install` instead.
+
+### Check before you think you're done
+
+```bash
+make check      # passes fast, but doesn't run tests
+make test       # full verification (slower)
+```
+
+`make check` does **not** depend on `dev`, so if the `.so` is stale it will
+pass even when tests would fail. Always run `make test` (or at least
+`make install`) after Rust changes.
 
 ## Python ↔ Rust boundary
 
 This project has an incremental Rust port. Two crates exist:
-- **`crates/gremlins`** — Pure Rust library, no PyO3. Testable standalone.
-- **`crates/pyext`** — PyO3 native extension compiling to `_gremlins_core`, a
-  Python C extension callable via `import _gremlins_core`.
+- **`crates/gremlins`** — Pure Rust library, no PyO3. Testable standalone
+  with `cargo test -p gremlins`.
+- **`crates/pyext`** — PyO3 native extension compiling to `_gremlins_core`,
+  a Python C extension callable via `import _gremlins_core`.
 
 ### What is actively live from Rust
 
@@ -32,10 +107,14 @@ This project has an incremental Rust port. Two crates exist:
   `gremlins/utils/spawn_logged_process.py`, and some helpers in `gremlins/utils/proc.py`.
 - **`_gremlins_core.clients.RustClient`** — LLM client backend. Wrapped in
   `gremlins/clients/__init__.py`. Handles all provider API calls.
+- **`_gremlins_core.config`** — Config accessors (`project_root`, `scratch_root`,
+  `state_root`, `overlay_dirname`, `work_root`, etc.).
 
 ### How to check if a Rust function is live
 
-1. Search Python code for references to `_gremlins_core`: `grep -rn '_core\.schemas\|from _gremlins_core' gremlins/ --include='*.py'`.
-2. Check the Python call site — if the Python function still exists and is
-   referenced (e.g. from launcher.py or pipeline/__init__.py), that's the active one.
-3. Delete the Rust function. If nothing breaks, it wasn't wired in.
+```bash
+grep -rn '_core\.schemas\|from _gremlins_core' gremlins/ --include='*.py'
+```
+
+If the Python call site still exists and is referenced, that's the active one.
+Delete the Rust function; if nothing breaks, it wasn't wired in.
