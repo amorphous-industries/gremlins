@@ -216,6 +216,12 @@ def _reset_config() -> None:
 
     clear()
 
+    # Also clear the Rust config singleton so _gremlins_core.config
+    # re-reads from the new sandbox.
+    from _gremlins_core.config import clear as _rust_clear
+
+    _rust_clear()
+
 
 @pytest.fixture(autouse=True)
 def sandbox(monkeypatch, request):

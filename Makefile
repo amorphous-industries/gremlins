@@ -1,3 +1,5 @@
+PYTHON := .venv/bin/python
+
 MAKEFLAGS += -j$(shell sysctl -n hw.ncpu 2>/dev/null || nproc) --output-sync=line
 
 TEST_FILES := $(wildcard tests/test_*.py)
@@ -7,25 +9,25 @@ TEST_FILES := $(wildcard tests/test_*.py)
         $(TEST_FILES)
 
 lint:
-	ruff check .
+	$(PYTHON) -m ruff check .
 
 format:
-	ruff format --check .
+	$(PYTHON) -m ruff format --check .
 
 format-write:
-	ruff format .
+	$(PYTHON) -m ruff format .
 
 autoformat: format-write rust-fmt
 	ruff check --fix .
 	cargo clippy --fix --all-targets --allow-dirty
 
 typecheck:
-	pyright
+	$(PYTHON) -m pyright
 
 test: rust-test $(TEST_FILES)
 
 $(TEST_FILES): dev
-	python -m pytest -q --tb=short $@ || { code=$$?; [ $$code -eq 5 ] && exit 0 || exit $$code; }
+	$(PYTHON) -m pytest -q --tb=short $@ || { code=$$?; [ $$code -eq 5 ] && exit 0 || exit $$code; }
 
 # --- Rust ---
 
@@ -44,16 +46,16 @@ rust-clippy:
 # --- Stubs ---
 
 install-stubs: ## Install .py source stubs alongside the .so for pyright
-	python crates/pyext/_install_stubs.py
+	$(PYTHON) crates/pyext/_install_stubs.py
 
 # --- Build ---
 
 dev: ## Build and install the native extension in dev mode
-	maturin develop
+	.venv/bin/maturin develop
 	$(MAKE) install-stubs
 
 install: ## Build and install the native extension in release mode
-	maturin develop --release
+	.venv/bin/maturin develop --release
 
 check: lint format typecheck rust-fmt-check rust-clippy
 	@grep -r 'from gremlins.executor.state' gremlins/ --include='*.py' | grep -v 'gremlins/executor/' && echo 'ERROR: state.py leak' && exit 1 || true

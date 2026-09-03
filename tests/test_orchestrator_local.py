@@ -222,12 +222,8 @@ def test_local_main_writes_stage_to_state(tmp_path, monkeypatch):
     monkeypatch.setenv("GREMLINS_SANDBOX_ROOT", str(tmp_path))
     monkeypatch.chdir(tmp_path)
     _common_patches(monkeypatch)
-    monkeypatch.setattr(
-        "gremlins.paths.state_root",
-        lambda: tmp_path,
-    )
     gremlin_id = "test-gr-id"
-    state_dir = tmp_path / gremlin_id
+    state_dir = tmp_path / "state" / gremlin_id
     state_dir.mkdir(parents=True, exist_ok=True)
     (state_dir / "state.json").write_text(json.dumps({"id": gremlin_id, "stage": ""}))
     artifact_dir = tmp_path / "scratch" / gremlin_id / "artifacts"
