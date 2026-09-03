@@ -17,6 +17,7 @@ format-write:
 
 autoformat: format-write rust-fmt
 	ruff check --fix .
+	cargo clippy --fix --all-targets --allow-dirty
 
 typecheck:
 	pyright
