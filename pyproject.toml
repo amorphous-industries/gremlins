@@ -59,3 +59,5 @@ include = [
 exclude = [
     "tests",
 ]
+reportMissingTypeStubs = false
+reportMissingModuleSource = false
