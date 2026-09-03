@@ -77,14 +77,13 @@ Run `uv pip install -e ".[dev]"` **before** `make dev` — the dev extra install
 
 | Target | What it runs |
 |---|---|
-| `make dev` | `maturin develop` + `make install-stubs` |
+| `make dev` | `maturin develop` |
 | `make install` | `maturin develop --release` |
-| `make install-stubs` | Install `.py` source stubs alongside the `.so` for pyright |
 | `make test` | `cargo test -p gremlins --lib && cargo test -p gremlins-pyext --lib`, then each `tests/test_*.py` via pytest |
 | `make lint` | `ruff check .` |
 | `make format` | `ruff format --check .` |
 | `make format-write` | `ruff format .` |
-| `make typecheck` | `pyright` |
+| `make typecheck` | `pyright` (gremlins/) |
 | `make rust-test` | `cargo test -p gremlins --lib && cargo test -p gremlins-pyext --lib` |
 | `make rust-fmt` | `cargo fmt --all` |
 | `make rust-fmt-check` | `cargo fmt --all -- --check` |

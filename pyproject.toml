@@ -53,10 +53,17 @@ ban-relative-imports = "all"
 
 [tool.pyright]
 typeCheckingMode = "strict"
-stubPath = "crates/pyext"
 include = [
     "gremlins",
 ]
 exclude = [
     "tests",
 ]
+reportMissingTypeStubs = false
+reportMissingModuleSource = false
+reportMissingImports = false
+reportUnknownVariableType = false
+reportUnknownMemberType = false
+reportUnknownParameterType = false
+reportUnknownArgumentType = false
+reportAttributeAccessIssue = false

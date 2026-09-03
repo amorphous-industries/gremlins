@@ -43,16 +43,10 @@ rust-fmt-check:
 rust-clippy:
 	cargo clippy -q --all-targets -- -D warnings
 
-# --- Stubs ---
-
-install-stubs: ## Install .pyi type stubs alongside the .so for pyright
-	$(PYTHON) crates/pyext/_install_stubs.py
-
 # --- Build ---
 
 dev: ## Build and install the native extension in dev mode
 	maturin develop
-	$(MAKE) install-stubs
 
 install: ## Build and install the native extension in release mode
 	maturin develop --release
