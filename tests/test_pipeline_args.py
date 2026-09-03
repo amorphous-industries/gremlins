@@ -8,44 +8,6 @@ import pytest
 from gremlins.cli.pipeline_args import launch_client_label, load_prefix_clients
 
 
-class TestLoadGlobalConfig:
-    def test_returns_empty_dict_when_no_file(self, sandbox):
-        from gremlins.config import Config
-
-        cfg = Config()
-        cfg.load()
-        assert cfg.raw == {}
-
-    def test_returns_parsed_dict(self, sandbox):
-        from gremlins.config import Config
-
-        sandbox.config.mkdir(parents=True, exist_ok=True)
-        (sandbox.config / "config.json").write_text(
-            json.dumps({"default-client": "openai:gpt-4o"})
-        )
-        cfg = Config()
-        cfg.load()
-        assert cfg.raw == {"default-client": "openai:gpt-4o"}
-
-    def test_raises_on_non_dict_top_level(self, sandbox):
-        from gremlins.config import Config
-
-        sandbox.config.mkdir(parents=True, exist_ok=True)
-        (sandbox.config / "config.json").write_text("[1, 2, 3]")
-        cfg = Config()
-        with pytest.raises(ValueError, match="JSON object"):
-            cfg.load()
-
-    def test_raises_on_malformed_json(self, sandbox):
-        from gremlins.config import Config
-
-        sandbox.config.mkdir(parents=True, exist_ok=True)
-        (sandbox.config / "config.json").write_text("{bad")
-        cfg = Config()
-        with pytest.raises(ValueError, match="config.json is not valid JSON"):
-            cfg.load()
-
-
 class TestLoadPrefixClients:
     def test_returns_empty_when_no_file(self, sandbox):
         assert load_prefix_clients() == ({}, {})

@@ -13,8 +13,8 @@ from typing import Any
 
 import pytest
 from _gremlins_core.clients import CLIENT_FACTORIES
+from _gremlins_core.config import scratch_root
 
-from gremlins import paths
 from gremlins.executor.gremlin import Gremlin, State
 from gremlins.executor.state import StateData, build_state
 from tests.fake_client import FakeClient
@@ -212,7 +212,7 @@ def _reset_config() -> None:
     it here ensures get_config() re-reads from the new sandbox on its
     first call.
     """
-    from gremlins.config import clear
+    from _gremlins_core.config import clear
 
     clear()
 
@@ -508,7 +508,7 @@ def make_state_dir(sandbox):
 
 def make_parent_state(data: StateData) -> State:
     if data.gremlin_id:
-        artifact_dir = paths.scratch_root(data.gremlin_id) / "artifacts"
+        artifact_dir = pathlib.Path(scratch_root(data.gremlin_id)) / "artifacts"
     else:
         artifact_dir = pathlib.Path("/tmp") / "artifacts"
     artifact_dir.mkdir(parents=True, exist_ok=True)

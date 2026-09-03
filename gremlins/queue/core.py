@@ -21,9 +21,9 @@ SUBDIRS = ("pending", "running", "done", "failed")
 
 
 def _runner_pid_path() -> Path:
-    from gremlins.paths import state_root
+    from _gremlins_core.config import state_root
 
-    return state_root() / "queues" / "default" / "runner.pid"
+    return Path(state_root()) / "queues" / "default" / "runner.pid"
 
 
 def _pid_is_runner(pid: int) -> bool:
@@ -60,9 +60,9 @@ class QueueSummary(TypedDict):
 
 
 def queue_summary() -> QueueSummary:
-    from gremlins.paths import state_root
+    from _gremlins_core.config import state_root
 
-    root = state_root() / "queues" / "default"
+    root = Path(state_root()) / "queues" / "default"
     counts: dict[str, int] = {sub: 0 for sub in SUBDIRS}
     if root.exists():
         for sub in SUBDIRS:
@@ -78,9 +78,9 @@ def queue_summary() -> QueueSummary:
 
 
 def queue_root() -> Path:
-    from gremlins.paths import state_root
+    from _gremlins_core.config import state_root
 
-    root = state_root() / "queues" / "default"
+    root = Path(state_root()) / "queues" / "default"
     for sub in SUBDIRS:
         (root / sub).mkdir(parents=True, exist_ok=True)
     return root

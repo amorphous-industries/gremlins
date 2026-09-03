@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import argparse
+import pathlib
 import sys
 import time
 from typing import Any
 
-from gremlins import paths as _paths
-from gremlins.config import get_config as _get_config
+from _gremlins_core.config import get_config as _get_config
+from _gremlins_core.config import project_root as _project_root_fn
+from _gremlins_core.config import state_root as _state_root_fn
+
 from gremlins.launcher import launch
 from gremlins.pipeline import Pipeline
 from gremlins.pipeline.discovery import list_pipelines, resolve_pipeline_name
@@ -98,7 +101,7 @@ def build_launch_parser(
 
 def launch_main(argv: list[str]) -> int:
     if "--list" in argv:
-        for name, path in list_pipelines(_paths.project_root()):
+        for name, path in list_pipelines(pathlib.Path(_project_root_fn())):
             try:
                 pipeline = Pipeline.from_yaml(path)
                 label = pipeline.name
@@ -114,7 +117,7 @@ def launch_main(argv: list[str]) -> int:
     name = argv[0]
 
     try:
-        pipeline_path = resolve_pipeline_name(name, _paths.project_root())
+        pipeline_path = resolve_pipeline_name(name, pathlib.Path(_project_root_fn()))
     except FileNotFoundError as exc:
         sys.stderr.write(f"error: {exc}\n")
         return 1
@@ -183,7 +186,7 @@ def _self_background_main(
         sys.stderr.write(f"error: {exc}\n")
         return 1
 
-    state_root = _paths.state_root()
+    state_root = pathlib.Path(_state_root_fn())
     state_dir = state_root / gremlin_id
     log_path = state_dir / "log"
     sf = state_dir / "state.json"

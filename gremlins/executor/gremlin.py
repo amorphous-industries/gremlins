@@ -13,8 +13,8 @@ from collections.abc import Awaitable, Callable, Sequence
 from typing import Any, cast
 
 from _gremlins_core.clients import RustClient as Client
+from _gremlins_core.config import project_root, scratch_root, state_root
 
-from gremlins import paths as _paths
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.artifacts.uri import Uri
 from gremlins.executor.state import (
@@ -200,7 +200,7 @@ class Gremlin:
 
     @property
     def artifact_dir(self) -> pathlib.Path:
-        return _paths.scratch_root(self.gremlin_id) / "artifacts"
+        return pathlib.Path(scratch_root(self.gremlin_id)) / "artifacts"
 
     @property
     def state_data(self) -> StateData:
@@ -236,7 +236,7 @@ class Gremlin:
         """
         child_state_dir = self.state_dir.parent / target_id
         child_state_dir.mkdir(parents=True, exist_ok=True)
-        child_artifact_dir = _paths.scratch_root(target_id) / "artifacts"
+        child_artifact_dir = pathlib.Path(scratch_root(target_id)) / "artifacts"
 
         # Copy artifact directory and registry in thread to avoid blocking event loop
         # Use self.artifact_dir (parent gremlin) as the source, not state.artifact_dir.
@@ -259,7 +259,7 @@ class Gremlin:
             child_worktree = pathlib.Path(child_worktree_path)
 
         # Load registry from source and persist to child dir
-        src_registry = _paths.scratch_root(self.gremlin_id) / "registry.json"
+        src_registry = pathlib.Path(scratch_root(self.gremlin_id)) / "registry.json"
         child_registry = ArtifactRegistry.from_registry_file(
             src_registry,
             artifact_dir=child_artifact_dir,
@@ -423,7 +423,7 @@ class Gremlin:
         """
         from gremlins.cli.pipeline_args import resolve_pipeline
 
-        state_dir = _paths.state_root() / gremlin_id
+        state_dir = pathlib.Path(state_root()) / gremlin_id
         sf = state_dir / "state.json"
 
         if not state_dir.is_dir():
@@ -444,7 +444,7 @@ class Gremlin:
 
         # Extract persisted fields from state.json
         kind = cast(str, state_raw.get("kind") or "")
-        project_root = cast(str, state_raw.get("project_root") or _paths.project_root())
+        _project_root = cast(str, state_raw.get("project_root") or project_root())
         pipeline_args = cast(list[str], state_raw.get("pipeline_args") or [])
         pipeline_path = cast(str, state_raw.get("pipeline_path") or "")
         worktree_dir_str = cast(str, state_raw.get("workdir") or "")
@@ -456,7 +456,7 @@ class Gremlin:
         elif kind:
             try:
                 filtered, resolved = resolve_pipeline(
-                    kind, tuple(pipeline_args), project_root
+                    kind, tuple(pipeline_args), _project_root
                 )
                 pipeline_args = filtered
                 pipeline_path = resolved
@@ -469,7 +469,7 @@ class Gremlin:
             try:
                 pipeline = _PipelineData.from_yaml(
                     resolve_pipeline_path(
-                        pipeline_path or kind, pathlib.Path(project_root)
+                        pipeline_path or kind, pathlib.Path(_project_root)
                     )
                 )
             except FileNotFoundError:
@@ -499,7 +499,7 @@ class Gremlin:
             gremlin_id=gremlin_id,
             pipeline_data=pipeline,
             worktree_dir=worktree_dir,
-            project_root=project_root,
+            project_root=_project_root,
             pipeline_path=pipeline_path,
             pipeline_args=pipeline_args,
         )
@@ -669,7 +669,7 @@ class Gremlin:
         child_id = spec.get("child_id") or None
         if child_id:
             validate_gremlin_id(child_id)
-            artifact_dir = _paths.scratch_root(child_id) / "artifacts"
+            artifact_dir = pathlib.Path(scratch_root(child_id)) / "artifacts"
             artifact_dir.mkdir(parents=True, exist_ok=True)
             gremlin_id = child_id
             data = StateData(child_id)
@@ -684,10 +684,10 @@ class Gremlin:
                 validate_gremlin_id(gremlin_id)
             data = StateData(gremlin_id)
 
-        project_root = (
+        _project_root = (
             pathlib.Path(data.project_root)
             if data.project_root
-            else _paths.project_root()
+            else pathlib.Path(project_root())
         )
         client = Client.parse(client_label)
 
@@ -729,7 +729,7 @@ class Gremlin:
         )
 
         if gremlin_id:
-            state_dir = _paths.state_root() / gremlin_id
+            state_dir = pathlib.Path(state_root()) / gremlin_id
         else:
             state_dir = artifact_dir.parent
 
@@ -741,7 +741,7 @@ class Gremlin:
             or _PipelineData(name="", path=pathlib.Path("."), stages=[]),
             worktree_dir=worktree,
             worktree_parent=worktree_parent,
-            project_root=str(project_root),
+            project_root=str(_project_root),
             base_ref=str(spec.get("base_ref") or ""),
         )
         gremlin.state = state

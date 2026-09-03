@@ -18,7 +18,13 @@ import sys
 import time
 from typing import Any, cast
 
-from gremlins import paths as _paths
+from _gremlins_core.config import (
+    project_root as _project_root,
+)
+from _gremlins_core.config import (
+    state_root as _state_root,
+)
+
 from gremlins.fleet.state import liveness_of_state_file, read_description_artifact
 from gremlins.utils import git as _git_mod
 
@@ -35,7 +41,7 @@ def _run() -> int:
     if os.environ.get("GREMLIN_SKIP_SUMMARY") == "1":
         return 0
 
-    state_root = str(_paths.state_root())
+    state_root = str(_state_root())
     if not os.path.isdir(state_root):
         return 0
 
@@ -80,7 +86,7 @@ def _read_stdin() -> dict[str, Any]:
 
 
 def _resolve_project_root(cwd_from_input: str) -> str:
-    root = cwd_from_input or str(_paths.project_root())
+    root = cwd_from_input or str(_project_root())
     if root:
         try:
             return _git_mod.toplevel(root)

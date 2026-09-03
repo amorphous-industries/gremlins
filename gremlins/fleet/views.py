@@ -4,11 +4,13 @@ import argparse
 import datetime
 import json
 import os
+import pathlib
 import sys
 import time
 from collections.abc import Iterator
 
-from gremlins import paths
+from _gremlins_core.config import scratch_root
+
 from gremlins.executor.gremlin import Gremlin
 from gremlins.fleet.duration import parse_duration
 from gremlins.fleet.render import FleetRow, build_row, print_table
@@ -248,7 +250,7 @@ def do_drill_in(target: str) -> None:
 
     print()
     print(f"  state directory: {wdir}")
-    scratch = paths.scratch_root(gremlin_id)
+    scratch = pathlib.Path(scratch_root(gremlin_id))
     if scratch.is_dir():
         print(f"  scratch dir    : {scratch}")
     else:
@@ -402,7 +404,7 @@ def do_drill_in_json(target: str) -> None:
             fpath = os.path.join(artifacts_dir, fname)
             if os.path.isfile(fpath):
                 artifact_paths.append(fpath)
-    scratch = paths.scratch_root(gremlin_id)
+    scratch = pathlib.Path(scratch_root(gremlin_id))
     obj: dict[str, object] = {
         "id": gremlin_id,
         "liveness": parse_liveness(live),

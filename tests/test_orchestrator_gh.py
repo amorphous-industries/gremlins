@@ -154,15 +154,11 @@ def _patch_common(
         "gremlins.executor.run._install_signal_handlers", lambda c, g: None
     )
     monkeypatch.setenv("GREMLINS_SANDBOX_ROOT", str(tmp_path))
-    monkeypatch.setattr(
-        "gremlins.paths.state_root",
-        lambda: tmp_path,
-    )
 
     artifact_dir = tmp_path / "scratch" / "gr-test" / "artifacts"
     artifact_dir.mkdir(parents=True, exist_ok=True)
 
-    state_file = tmp_path / "gr-test" / "state.json"
+    state_file = tmp_path / "state" / "gr-test" / "state.json"
     state_file.parent.mkdir(parents=True, exist_ok=True)
     head_r = _real_subprocess_run(
         ["git", "rev-parse", "HEAD"], cwd=tmp_path, capture_output=True, text=True

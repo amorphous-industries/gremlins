@@ -19,7 +19,8 @@ def test_configure_logging_respects_env(monkeypatch):
     assert logging.getLogger().level == logging.DEBUG
 
 
-def test_configure_logging_default_level():
+def test_configure_logging_default_level(monkeypatch):
+    monkeypatch.delenv("GREMLINS_LOG_LEVEL", raising=False)
     configure_logging()
     assert logging.getLogger().level == logging.INFO
 
