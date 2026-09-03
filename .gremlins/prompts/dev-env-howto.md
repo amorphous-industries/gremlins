@@ -72,7 +72,7 @@ For a single test file:
 make tests/test_active_children.py
 ```
 
-This triggers `dev` (builds the extension if needed) then runs just that file.
+This triggers `install` (always rebuilds + installs a fresh extension) then runs just that file.
 
 **Never use `uv run pytest`** — the venv is the test target, not whatever
 `uv run` resolves.
@@ -113,7 +113,7 @@ This project has an incremental Rust port. Two crates exist:
 ### How to check if a Rust function is live
 
 ```bash
-grep -rn '_core\.schemas\|from _gremlins_core' gremlins/ --include='*.py'
+grep -rnE '_core\.schemas|from _gremlins_core' gremlins/ --include='*.py'
 ```
 
 If the Python call site still exists and is referenced, that's the active one.
