@@ -204,7 +204,7 @@ def _parallel_execute_stage(
         for k, fn in child_fns
     ]
     stages = ParallelStage("grp", []).build_runtime_stages(
-        child_runners, parent_state=parent_state, project_root=pathlib.Path.cwd()
+        child_runners, parent_state=parent_state, project_root_path=pathlib.Path.cwd()
     )
     return stages[1][1]  # execute stage
 

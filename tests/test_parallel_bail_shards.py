@@ -60,15 +60,15 @@ def _make_parallel_stages(
     cancel_on_bail: bool = False,
     bail_policy: str = "any",
     parent_state: State | None = None,
-    project_root: pathlib.Path | None = None,
+    project_root_path: pathlib.Path | None = None,
 ) -> list:
     if set_stage_fn is None:
 
         def set_stage_fn(_n):
             return None
 
-    if project_root is None:
-        project_root = pathlib.Path.cwd()
+    if project_root_path is None:
+        project_root_path = pathlib.Path.cwd()
     if parent_state is None:
         parent_state = make_parent_state(StateData())
     return ParallelStage(
@@ -80,7 +80,7 @@ def _make_parallel_stages(
     ).build_runtime_stages(
         child_runners,
         parent_state=parent_state,
-        project_root=project_root,
+        project_root_path=project_root_path,
         set_stage_fn=set_stage_fn,
     )
 
@@ -197,7 +197,7 @@ def _build_fanin_test(
         cancel_on_bail=False,
         bail_policy=bail_policy,
         parent_state=make_parent_state(StateData(gremlin_id)),
-        project_root=project_root,
+        project_root_path=project_root,
     )
     return sf, stages
 
@@ -295,7 +295,7 @@ def test_cancel_on_bail_skips_unstarted_children():
         set_stage_fn=lambda _n: None,
         cancel_on_bail=True,
         bail_policy="any",
-        project_root=pathlib.Path.cwd(),
+        project_root_path=pathlib.Path.cwd(),
     )
 
     # Run just the parallel stage (index 1); skip fanout/fanin.
@@ -351,7 +351,7 @@ def test_run_stages_resume_from_fanin_name(tmp_path, sandbox):
         cancel_on_bail=False,
         bail_policy="any",
         parent_state=make_parent_state(StateData(gremlin_id)),
-        project_root=project_root,
+        project_root_path=project_root,
     )
 
     # The three stage names should be reviews-fanout, reviews, reviews-fanin.
@@ -427,7 +427,7 @@ def test_worktree_lifecycle_fanout_creates_and_fanin_removes(tmp_path):
         set_stage_fn=lambda _n: None,
         cancel_on_bail=False,
         bail_policy="any",
-        project_root=repo,
+        project_root_path=repo,
     )
 
     # Fan-out: worktrees should be created.
@@ -506,7 +506,7 @@ def test_fanout_persists_worktrees_and_fresh_fanin_can_clean_up(tmp_path, sandbo
         cancel_on_bail=False,
         bail_policy="any",
         parent_state=make_parent_state(StateData(gremlin_id)),
-        project_root=repo,
+        project_root_path=repo,
     )
     asyncio.run(stages_run1[0][1]())  # fan-out only
 
@@ -530,7 +530,7 @@ def test_fanout_persists_worktrees_and_fresh_fanin_can_clean_up(tmp_path, sandbo
         cancel_on_bail=False,
         bail_policy="any",
         parent_state=make_parent_state(StateData(gremlin_id)),
-        project_root=repo,
+        project_root_path=repo,
     )
     asyncio.run(stages_run2[2][1]())  # fan-in
 
@@ -569,7 +569,7 @@ def test_fanout_resume_tears_down_prior_worktrees(tmp_path, sandbox):
         cancel_on_bail=False,
         bail_policy="any",
         parent_state=make_parent_state(StateData(gremlin_id)),
-        project_root=repo,
+        project_root_path=repo,
     )
     asyncio.run(stages_run1[0][1]())  # fan-out
 
@@ -589,7 +589,7 @@ def test_fanout_resume_tears_down_prior_worktrees(tmp_path, sandbox):
         cancel_on_bail=False,
         bail_policy="any",
         parent_state=make_parent_state(StateData(gremlin_id)),
-        project_root=repo,
+        project_root_path=repo,
     )
     asyncio.run(stages_run2[0][1]())  # fan-out again
 
@@ -618,7 +618,7 @@ def test_build_parallel_stages_returns_three_named_stages():
         set_stage_fn=lambda _n: None,
         cancel_on_bail=False,
         bail_policy="any",
-        project_root=pathlib.Path.cwd(),
+        project_root_path=pathlib.Path.cwd(),
     )
     names = [n for n, _ in stages]
     assert names == ["reviews-fanout", "reviews", "reviews-fanin"]
@@ -652,7 +652,7 @@ def test_parallel_all_children_complete_with_defaults():
         set_stage_fn=lambda _n: None,
         cancel_on_bail=False,
         bail_policy="any",
-        project_root=pathlib.Path.cwd(),
+        project_root_path=pathlib.Path.cwd(),
     )
 
     async def _run_all() -> None:
@@ -807,7 +807,7 @@ def test_fanin_allows_child_worktree_mutations(tmp_path, sandbox, caplog):
         cancel_on_bail=False,
         bail_policy="any",
         parent_state=make_parent_state(StateData(gremlin_id)),
-        project_root=repo,
+        project_root_path=repo,
     )
     asyncio.run(stages_run1[0][1]())  # fan-out
 
@@ -853,7 +853,7 @@ def test_fanin_allows_child_worktree_mutations(tmp_path, sandbox, caplog):
         cancel_on_bail=False,
         bail_policy="any",
         parent_state=make_parent_state(StateData(gremlin_id)),
-        project_root=repo,
+        project_root_path=repo,
     )
     caplog.clear()
     asyncio.run(stages_run2[2][1]())  # fan-in
