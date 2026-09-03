@@ -5,7 +5,8 @@ import os
 import pathlib
 from dataclasses import dataclass
 
-from gremlins import paths
+from _gremlins_core.config import state_root as _state_root_fn
+
 from gremlins.fleet.land import cleanup_gremlin
 from gremlins.fleet.state import liveness_of_state_file, load_state
 
@@ -35,7 +36,7 @@ def _dir_size(path: pathlib.Path) -> int:
 
 def _scan_state(failed: bool = False, finished: bool = False) -> list[CleanItem]:
     items: list[CleanItem] = []
-    root = paths.state_root()
+    root = pathlib.Path(_state_root_fn())
     if not root.is_dir():
         return items
     candidates: list[tuple[str, pathlib.Path, int]] = []

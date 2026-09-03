@@ -176,13 +176,10 @@ def test_run_bail_records_stage_progress(
     tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """state.json records stage name before run, even if the stage bails."""
-    import gremlins.paths as _paths
-
-    state_root = tmp_path / "state"
-    monkeypatch.setattr(_paths, "state_root", lambda: state_root)
+    monkeypatch.setenv("GREMLINS_SANDBOX_ROOT", str(tmp_path))
 
     gremlin_id = "test-bail-progress"
-    state_dir = state_root / gremlin_id
+    state_dir = tmp_path / "state" / gremlin_id
     state_dir.mkdir(parents=True, exist_ok=True)
     (state_dir / "state.json").write_text(
         json.dumps({"id": gremlin_id, "attempt": "a1", "status": "running"}),
@@ -211,13 +208,10 @@ def test_run_bail_preserves_child_stage_in_own_state(
     tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Parallel child writes child name as top-level stage to its own state.json."""
-    import gremlins.paths as _paths
-
-    state_root = tmp_path / "state"
-    monkeypatch.setattr(_paths, "state_root", lambda: state_root)
+    monkeypatch.setenv("GREMLINS_SANDBOX_ROOT", str(tmp_path))
 
     child_id = "child-abc"
-    child_dir = state_root / child_id
+    child_dir = tmp_path / "state" / child_id
     child_dir.mkdir(parents=True, exist_ok=True)
     (child_dir / "state.json").write_text(
         json.dumps({"id": child_id, "attempt": "a1", "status": "running"}),
@@ -255,13 +249,10 @@ def test_run_patches_child_pid(
     tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """_run() writes os.getpid() to the child's state.json."""
-    import gremlins.paths as _paths
-
-    state_root = tmp_path / "state"
-    monkeypatch.setattr(_paths, "state_root", lambda: state_root)
+    monkeypatch.setenv("GREMLINS_SANDBOX_ROOT", str(tmp_path))
 
     child_id = "child-pid-test"
-    child_dir = state_root / child_id
+    child_dir = tmp_path / "state" / child_id
     child_dir.mkdir(parents=True, exist_ok=True)
     (child_dir / "state.json").write_text(
         json.dumps({"id": child_id, "attempt": "a1", "status": "running"}),

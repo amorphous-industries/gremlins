@@ -11,9 +11,11 @@ import time
 from typing import Any, cast
 
 from _gremlins_core.clients import RustClient as Client
+from _gremlins_core.config import project_root as _project_root_fn
+from _gremlins_core.config import scratch_root as _scratch_root_fn
+from _gremlins_core.config import state_root as _state_root_fn
 
 import gremlins.utils.git as _git
-from gremlins import paths
 from gremlins.artifacts.registry import ArtifactRegistry, MissingArtifact
 from gremlins.env_file import load_env_file
 from gremlins.fleet.resolve import resolve_gremlin
@@ -110,7 +112,7 @@ def _resolve_landing_cwd(state: dict[str, Any]) -> str:
             # returning a possibly-detached intermediate ancestor.
             return own_root
         seen.add(pid)
-        parent_sf = os.path.join(str(paths.state_root()), pid, "state.json")
+        parent_sf = os.path.join(_state_root_fn(), pid, "state.json")
         parent_state = load_state(parent_sf)
         if not parent_state:
             # Unreadable parent state — fall back to own_root rather than
@@ -158,7 +160,7 @@ def _remove_worktree(wdir: str, state: dict[str, Any], cwd: str | None) -> None:
 
     workdir = state.get("workdir") or ""
     if workdir and os.path.exists(workdir):
-        _git.remove_worktree(cwd or str(paths.project_root()), workdir)
+        _git.remove_worktree(cwd or _project_root_fn(), workdir)
         if os.path.exists(workdir):
             try:
                 shutil.rmtree(workdir)
@@ -170,7 +172,7 @@ def _remove_worktree(wdir: str, state: dict[str, Any], cwd: str | None) -> None:
 
 def _remove_scratch(gremlin_id: str) -> None:
     """Remove the gremlin's scratch directory if it exists."""
-    scratch = paths.scratch_root(gremlin_id)
+    scratch = pathlib.Path(_scratch_root_fn(gremlin_id))
     if scratch.is_dir():
         try:
             shutil.rmtree(scratch)
@@ -235,13 +237,13 @@ def cleanup_gremlin(
 
 def _rm_parallel_children(gremlin_id: str, cwd_for_git: str | None) -> None:
     prefix = f"{gremlin_id}--"
-    state_root = str(paths.state_root())
-    if not os.path.isdir(state_root):
+    _sr = _state_root_fn()
+    if not os.path.isdir(_sr):
         return
-    for name in sorted(os.listdir(state_root)):
+    for name in sorted(os.listdir(_sr)):
         if not name.startswith(prefix):
             continue
-        wdir = os.path.join(state_root, name)
+        wdir = os.path.join(_sr, name)
         sf = os.path.join(wdir, "state.json")
         if not os.path.isfile(sf):
             continue
@@ -308,7 +310,7 @@ def _registry_for_gremlin(gremlin_id: str, state: dict[str, Any]) -> ArtifactReg
         if project_root and os.path.isdir(project_root)
         else None
     )
-    artifact_dir = paths.scratch_root(gremlin_id) / "artifacts"
+    artifact_dir = pathlib.Path(_scratch_root_fn(gremlin_id)) / "artifacts"
     artifact_dir.mkdir(parents=True, exist_ok=True)
     return ArtifactRegistry(artifact_dir=artifact_dir, cwd=cwd)
 
@@ -760,7 +762,7 @@ def _land_gh(
     project_root = _resolve_landing_cwd(state)
     cwd = project_root if project_root and os.path.isdir(project_root) else None
 
-    artifact_dir = paths.scratch_root(gremlin_id) / "artifacts"
+    artifact_dir = pathlib.Path(_scratch_root_fn(gremlin_id)) / "artifacts"
     artifact_dir.mkdir(parents=True, exist_ok=True)
     registry = ArtifactRegistry(
         artifact_dir=artifact_dir,
@@ -924,10 +926,10 @@ def _load_pipeline_land_stage(state: dict[str, Any]):
     from gremlins.pipeline.discovery import resolve_pipeline_path
 
     pipeline_path = str(state.get("pipeline_path") or "")
-    project_root = str(state.get("project_root") or "")
+    _pr = str(state.get("project_root") or "")
     if not pipeline_path:
         return None
-    project_dir = pathlib.Path(project_root) if project_root else paths.project_root()
+    project_dir = pathlib.Path(_pr) if _pr else pathlib.Path(_project_root_fn())
     try:
         p = resolve_pipeline_path(pipeline_path, project_dir)
         pipeline = Pipeline.from_yaml(p)
@@ -1040,7 +1042,7 @@ def do_land(
         return False
 
     if shape in ("empty", "one_branch"):
-        artifact_dir = paths.scratch_root(gremlin_id) / "artifacts"
+        artifact_dir = pathlib.Path(_scratch_root_fn(gremlin_id)) / "artifacts"
         artifact_dir.mkdir(parents=True, exist_ok=True)
         registry = ArtifactRegistry(artifact_dir=artifact_dir)
         if registry.produced("pr"):

@@ -18,8 +18,14 @@ from collections.abc import Callable, Sequence
 from typing import Any
 
 from _gremlins_core.clients import RustClient as Client
+from _gremlins_core.config import (
+    get_config,
+    project_overlay_dir,
+    project_root,
+    scratch_root,
+    state_root,
+)
 
-from gremlins import paths
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.env_file import load_env_file_isolated
 from gremlins.errors import die
@@ -126,7 +132,7 @@ def _unique_clients(stages: Sequence[StageProtocol]) -> list[Client]:
 
 
 def _read_state_json(gremlin_id: str | None) -> dict[str, Any]:
-    sf = paths.state_root() / gremlin_id / "state.json" if gremlin_id else None
+    sf = pathlib.Path(state_root()) / gremlin_id / "state.json" if gremlin_id else None
     if sf is None or not sf.exists():
         return {}
     try:
@@ -149,29 +155,31 @@ async def run_pipeline(
         os.environ.pop("GREMLINS_RESUME_FROM", None) or args.resume_from or None
     )
 
-    _project_root = paths.project_root()
+    _project_root = project_root()
 
     if shutil.which("git") is None:
         die("git not found on PATH")
 
     if not in_git_repo():
         die(
-            f"gremlins requires a git repository; {paths.project_root()} is not inside a git worktree"
+            f"gremlins requires a git repository; {project_root()} is not inside a git worktree"
         )
 
     state_json = _read_state_json(gremlin_id)
     if gremlin_id:
-        state_dir = paths.state_root() / gremlin_id
-        artifact_dir = paths.scratch_root(gremlin_id) / "artifacts"
+        state_dir = pathlib.Path(state_root()) / gremlin_id
+        artifact_dir = pathlib.Path(scratch_root(gremlin_id)) / "artifacts"
     else:
         ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         rand = secrets.token_hex(3)
-        artifact_dir = paths.scratch_root(gremlin_id) / f"{ts}-{rand}" / "artifacts"
+        artifact_dir = (
+            pathlib.Path(scratch_root(gremlin_id)) / f"{ts}-{rand}" / "artifacts"
+        )
         state_dir = artifact_dir.parent
     artifact_dir.mkdir(parents=True, exist_ok=True)
     _workdir = str(state_json.get("workdir") or "")
     worktree_dir = pathlib.Path(_workdir) if _workdir else None
-    project_root = str(state_json.get("project_root") or "")
+    _stored_project_root = str(state_json.get("project_root") or "")
     stage_inputs: dict[str, Any] = dict(state_json.get("stage_inputs") or {})
 
     # base_ref_sha and base_ref are bound in registry.json at launch time
@@ -188,14 +196,16 @@ async def run_pipeline(
 
     fetch_worktree = False
 
-    project_dir = pathlib.Path(project_root) if project_root else paths.project_root()
+    project_dir = (
+        pathlib.Path(_stored_project_root)
+        if _stored_project_root
+        else pathlib.Path(project_root())
+    )
     # Fall back to global config's default-client when --client is absent, so
     # project-overlay pipelines that omit default_client still work.
     _effective_client_override: str | None = args.client
     if _effective_client_override is None:
         try:
-            from gremlins.config import get_config
-
             _global_client = get_config().default_client
             if _global_client:
                 _effective_client_override = _global_client
@@ -215,13 +225,13 @@ async def run_pipeline(
         gremlin = Gremlin.initialize_with_runtime(
             gremlin_id=gremlin_id,
             state_dir=state_dir,
-            project_dir=pathlib.Path(project_root)
-            if project_root
-            else paths.project_root(),
+            project_dir=pathlib.Path(_stored_project_root)
+            if _stored_project_root
+            else pathlib.Path(project_root()),
             pipeline_ref=str(pipeline_path),
             resume_from=resume_from,
             worktree_dir=worktree_dir,
-            project_root=project_root,
+            project_root=_stored_project_root,
             base_ref_sha=base_ref_sha,
             base_ref=base_ref,
             fetch_worktree=fetch_worktree,
@@ -243,7 +253,7 @@ async def run_pipeline(
         for k, v in {
             "GREMLINS_GREMLIN_ID": gremlin_id or "",
             "GREMLINS_PROJECT_ROOT": str(_project_root),
-            "GREMLINS_OVERLAY_DIR": str(state_dir / paths.OVERLAY_DIRNAME),
+            "GREMLINS_OVERLAY_DIR": str(state_dir / ".gremlins"),
             "GREMLINS_WORKTREE_PATH": str(gremlin.worktree_dir)
             if gremlin.worktree_dir
             else None,
@@ -263,10 +273,12 @@ async def run_pipeline(
     _base = dict(os.environ)
     _base.update(_system)
 
-    _env_file = paths.project_overlay_dir(_project_root) / "env"
+    _env_file = pathlib.Path(project_overlay_dir(str(_project_root))) / "env"
     if _env_file.is_file():
         try:
-            _env = load_env_file_isolated(_env_file, base_env=_base, cwd=_project_root)
+            _env = load_env_file_isolated(
+                _env_file, base_env=_base, cwd=pathlib.Path(_project_root)
+            )
         except RuntimeError as exc:
             die(str(exc))
     else:
@@ -286,7 +298,9 @@ async def run_pipeline(
     os.environ.update(_system)
     # --- end env isolation ---
 
-    os.environ["GREMLINS_SCRATCH_DIR"] = str(paths.scratch_root(gremlin.gremlin_id))
+    os.environ["GREMLINS_SCRATCH_DIR"] = str(
+        pathlib.Path(scratch_root(gremlin.gremlin_id))
+    )
 
     _bootstrap = gremlin.pipeline_data.bootstrap
     _has_bootstrap = bool(

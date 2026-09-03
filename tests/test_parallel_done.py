@@ -42,7 +42,7 @@ def _build_stages(group: str, runners: list, gremlin_id: str) -> list:
     return ParallelStage(group, []).build_runtime_stages(
         runners,
         parent_state=make_parent_state(StateData(gremlin_id)),
-        project_root=pathlib.Path.cwd(),
+        project_root_path=pathlib.Path.cwd(),
     )
 
 

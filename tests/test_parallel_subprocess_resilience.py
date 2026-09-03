@@ -127,7 +127,7 @@ def _run_parallel(
     rt = ParallelStage("g", stages).build_runtime_stages(
         runners,
         parent_state=parent_state,
-        project_root=project_root,
+        project_root_path=project_root,
         child_stages=stages,
     )
     rt_by_name = {name: fn for name, fn in rt}
@@ -403,7 +403,7 @@ def test_subprocess_cost_accumulated_in_state(
     rt = ParallelStage("g", [stage_a, stage_b]).build_runtime_stages(
         runners,
         parent_state=parent_state,
-        project_root=tmp_path,
+        project_root_path=tmp_path,
         child_stages=[stage_a, stage_b],
     )
     parallel_fn = dict(rt)["g"]

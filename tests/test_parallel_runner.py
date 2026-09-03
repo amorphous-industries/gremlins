@@ -54,7 +54,7 @@ def _make_parallel_stages(
     cancel_on_bail: bool = False,
     bail_policy: str = "any",
     parent_state: State | None = None,
-    project_root: pathlib.Path | None = None,
+    project_root_path: pathlib.Path | None = None,
 ) -> list[tuple[str, Callable[[], Any]]]:
     if parent_state is None:
         parent_state = make_parent_state(StateData())
@@ -67,7 +67,7 @@ def _make_parallel_stages(
     ).build_runtime_stages(
         child_runners,
         parent_state=parent_state,
-        project_root=project_root or pathlib.Path.cwd(),
+        project_root_path=project_root_path or pathlib.Path.cwd(),
         set_stage_fn=set_stage_fn,
     )
 
@@ -376,7 +376,7 @@ def test_parallel_sequence_child_worktree_flows() -> None:
     stages = _make_parallel_stages(
         "reviews",
         [("seq", seq_ctx, seq_runner)],
-        project_root=project_root,
+        project_root_path=project_root,
     )
 
     async def _run_all() -> None:

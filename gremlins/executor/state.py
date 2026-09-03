@@ -16,8 +16,8 @@ from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from _gremlins_core.clients import RustClient as Client
+from _gremlins_core.config import project_root, scratch_root, state_root
 
-from gremlins import paths as _paths
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.stages.constants import FRAMEWORK_KEYS
 from gremlins.utils.state_file import locked_update
@@ -41,12 +41,12 @@ def resolve_state_file(gremlin_id: str | None) -> pathlib.Path | None:
     """Return path to state.json for gremlin_id, or None when gremlin_id is absent."""
     if not gremlin_id:
         return None
-    return _paths.state_root() / gremlin_id / "state.json"
+    return pathlib.Path(state_root()) / gremlin_id / "state.json"
 
 
 def resolve_artifact_dir(gremlin_id: str | None = None) -> pathlib.Path:
     """Resolve the artifacts directory for the current run."""
-    scratch = _paths.scratch_root(gremlin_id)
+    scratch = pathlib.Path(scratch_root(gremlin_id))
     if gremlin_id:
         artifact_dir = scratch / "artifacts"
     else:
@@ -534,8 +534,7 @@ def build_state(
         client=client,
         artifact_dir=artifact_dir,
         artifacts=artifacts or reg,
-        cwd=cwd
-        or (str(worktree) if worktree is not None else str(_paths.project_root())),
+        cwd=cwd or (str(worktree) if worktree is not None else str(project_root())),
         args=args if args is not None else argparse.Namespace(),
         pipeline_data=pipeline_data,
         worktree=worktree,

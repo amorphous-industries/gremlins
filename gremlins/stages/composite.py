@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import dataclasses
+import pathlib
 
-from gremlins import paths as _paths
+from _gremlins_core.config import scratch_root
+
 from gremlins.executor.gremlin import State
 from gremlins.stages.base import Stage
 
@@ -24,7 +26,7 @@ def child_state(
             new_state.data.patch(client=str(client))
         return new_state
     if child_id:
-        artifact_dir = _paths.scratch_root(child_id) / "artifacts"
+        artifact_dir = pathlib.Path(scratch_root(child_id)) / "artifacts"
         artifact_dir.mkdir(parents=True, exist_ok=True)
     else:
         artifact_dir = parent.artifact_dir / child.name

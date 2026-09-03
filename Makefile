@@ -1,3 +1,5 @@
+PYTHON ?= python
+
 MAKEFLAGS += -j$(shell sysctl -n hw.ncpu 2>/dev/null || nproc) --output-sync=line
 
 TEST_FILES := $(wildcard tests/test_*.py)
@@ -7,25 +9,25 @@ TEST_FILES := $(wildcard tests/test_*.py)
         $(TEST_FILES)
 
 lint:
-	ruff check .
+	$(PYTHON) -m ruff check .
 
 format:
-	ruff format --check .
+	$(PYTHON) -m ruff format --check .
 
 format-write:
-	ruff format .
+	$(PYTHON) -m ruff format .
 
 autoformat: format-write rust-fmt
-	ruff check --fix .
+	$(PYTHON) -m ruff check --fix .
 	cargo clippy --fix --all-targets --allow-dirty
 
 typecheck:
-	pyright
+	$(PYTHON) -m pyright
 
 test: rust-test $(TEST_FILES)
 
 $(TEST_FILES): dev
-	python -m pytest -q --tb=short $@ || { code=$$?; [ $$code -eq 5 ] && exit 0 || exit $$code; }
+	$(PYTHON) -m pytest -q --tb=short $@ || { code=$$?; [ $$code -eq 5 ] && exit 0 || exit $$code; }
 
 # --- Rust ---
 
@@ -43,8 +45,8 @@ rust-clippy:
 
 # --- Stubs ---
 
-install-stubs: ## Install .py source stubs alongside the .so for pyright
-	python crates/pyext/_install_stubs.py
+install-stubs: ## Install .pyi type stubs alongside the .so for pyright
+	$(PYTHON) crates/pyext/_install_stubs.py
 
 # --- Build ---
 

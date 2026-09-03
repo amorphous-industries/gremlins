@@ -30,7 +30,7 @@ def test_fresh_child_writes_stay_in_child_sandbox(child_sandbox, sandbox):
         [
             sys.executable,
             "-c",
-            "import gremlins.paths; (gremlins.paths.state_root() / 'sentinel.txt').write_text('x')",
+            "import pathlib; from _gremlins_core.config import state_root; (pathlib.Path(state_root()) / 'sentinel.txt').write_text('x')",
         ],
         env=cs.env,
         check=True,
@@ -50,7 +50,7 @@ def test_share_child_writes_go_to_parent_sandbox(child_sandbox, sandbox):
         [
             sys.executable,
             "-c",
-            "import gremlins.paths; (gremlins.paths.state_root() / 'shared_sentinel.txt').write_text('x')",
+            "import pathlib; from _gremlins_core.config import state_root; (pathlib.Path(state_root()) / 'shared_sentinel.txt').write_text('x')",
         ],
         env=env,
         check=True,

@@ -135,10 +135,6 @@ def test_local_main_does_not_clobber_external_state(tmp_path, monkeypatch, sandb
     parent_state_file, original_content, parent_mtime = _stage_parent_state(sandbox)
 
     _common_patches(monkeypatch)
-    monkeypatch.setattr(
-        "gremlins.paths.state_root",
-        lambda: tmp_path,
-    )
     client = _ReviewCreatingClient(
         fixtures={
             "plan": MINIMAL_EVENTS,
