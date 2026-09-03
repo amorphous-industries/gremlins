@@ -1,3 +1,0 @@
-def __version__() -> str:
-    """Return the version of the native extension."""
-    ...
