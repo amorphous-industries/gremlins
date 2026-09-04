@@ -134,15 +134,43 @@ async def run_shell_async(
         proc.pid,
         cmd.replace("\n", "\\n")[:200],
     )
+    async def _drain(stream: asyncio.StreamReader) -> bytes:
+        """Read stream until EOF. Continous pumping avoids pipe-buffer deadlock
+        where a burst of output fills the kernel pipe buffer before the event loop
+        can schedule the read handler."""
+        chunks: list[bytes] = []
+        while True:
+            chunk = await stream.read(65536)
+            if not chunk:
+                break
+            chunks.append(chunk)
+        return b"".join(chunks)
+
+    stdout_task = asyncio.create_task(_drain(proc.stdout))
+    stderr_task = asyncio.create_task(_drain(proc.stderr))
+    proc_task = asyncio.create_task(proc.wait())
+
     try:
-        stdout_b, stderr_b = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        await asyncio.wait_for(
+            asyncio.gather(proc_task, stdout_task, stderr_task),
+            timeout=timeout,
+        )
+        stdout_b = stdout_task.result()
+        stderr_b = stderr_task.result()
     except TimeoutError:
         elapsed = time.monotonic() - _t0
         try:
             os.killpg(proc.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
-        stdout_b, stderr_b = await proc.communicate()
+        try:
+            stdout_b = await asyncio.wait_for(stdout_task, timeout=5.0)
+        except (TimeoutError, asyncio.CancelledError):
+            stdout_b = b""
+        try:
+            stderr_b = await asyncio.wait_for(stderr_task, timeout=5.0)
+        except (TimeoutError, asyncio.CancelledError):
+            stderr_b = b""
         logger.warning(
             "run_shell_async: pid=%d timed out after %.2fs (timeout=%s)",
             proc.pid,
@@ -161,7 +189,12 @@ async def run_shell_async(
             os.killpg(proc.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
-        await asyncio.shield(proc.communicate())
+        stdout_task.cancel()
+        stderr_task.cancel()
+        proc_task.cancel()
+        # Collect whatever the drain tasks managed to read before cancellation.
+        stdout_b = stdout_task.result() if stdout_task.done() and not stdout_task.cancelled() else b""
+        stderr_b = stderr_task.result() if stderr_task.done() and not stderr_task.cancelled() else b""
         logger.warning(
             "run_shell_async: pid=%d cancelled after %.2fs%s%s",
             proc.pid,
