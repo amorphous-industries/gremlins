@@ -88,7 +88,9 @@ class ArtifactRegistry:
         value = self.data[key]
         if not isinstance(value, str):
             raise ValueError(f"artifact {key!r} is not a URI (stored value: {value!r})")
-        return Uri.parse(value)
+        uri = Uri.parse(value)
+        logger.debug("ArtifactRegistry: resolve %r -> %s", key, uri)
+        return uri
 
     def _resolve_value(self, value: Any) -> Any:
         if not isinstance(value, str):
@@ -219,12 +221,15 @@ class ArtifactRegistry:
         Keys already present in self are skipped. When *key_prefix* is set,
         each incoming key is suffixed with ``"/" + key_prefix``.
         """
+        merged = 0
+        skipped = 0
         for key in keys if keys is not None else other.keys():
             uri_str = other.raw_entry(key)
             if not isinstance(uri_str, str):
                 continue
             bound_key = f"{key}/{key_prefix}" if key_prefix else key
             if bound_key in self.data:
+                skipped += 1
                 continue
             if uri_str.startswith("file://session/") and copy_files:
                 name = uri_str[len("file://session/") :]
@@ -240,9 +245,11 @@ class ArtifactRegistry:
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(src, dest)
                 self.bind(bound_key, Uri.parse(f"file://session/{dest_name}"))
+                merged += 1
             else:
                 try:
                     self.bind(bound_key, Uri.parse(uri_str))
+                    merged += 1
                 except Exception:
                     logger.warning(
                         "failed to bind %s -> %s into parent registry",
@@ -250,6 +257,12 @@ class ArtifactRegistry:
                         uri_str,
                         exc_info=True,
                     )
+        logger.debug(
+            "ArtifactRegistry: merge_from -> merged %d, skipped %d, key_prefix=%r",
+            merged,
+            skipped,
+            key_prefix,
+        )
 
     @classmethod
     def from_registry_file(
@@ -265,4 +278,9 @@ class ArtifactRegistry:
             if path.exists():
                 registry.data = dict(json.loads(path.read_text(encoding="utf-8")))
                 registry._persist()
+                logger.debug(
+                    "ArtifactRegistry.from_registry_file: loaded %d entries from %s",
+                    len(registry.data),
+                    path,
+                )
         return registry

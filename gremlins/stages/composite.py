@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import dataclasses
+import logging
 import pathlib
 
 from _gremlins_core.config import scratch_root
 
 from gremlins.executor.gremlin import State
 from gremlins.stages.base import Stage
+
+logger = logging.getLogger(__name__)
 
 
 def child_state(
@@ -19,6 +22,15 @@ def child_state(
         child.client
         if (child.client is not None and child.client_explicit)
         else parent.client
+    )
+    logger.debug(
+        "child_state: parent=%s child=%s client=%s:%s fan_out=%s child_id=%s",
+        id(parent),
+        child.name,
+        client.provider,
+        client.model,
+        fan_out,
+        child_id,
     )
     if not fan_out:
         new_state = dataclasses.replace(parent, client=client)
@@ -31,6 +43,11 @@ def child_state(
     else:
         artifact_dir = parent.artifact_dir / child.name
         artifact_dir.mkdir(parents=True, exist_ok=True)
+    logger.debug(
+        "child_state: fan-out child=%s artifact_dir=%s",
+        child.name,
+        artifact_dir,
+    )
     return dataclasses.replace(
         parent,
         client=client,

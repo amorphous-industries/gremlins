@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 from typing import TYPE_CHECKING, Any, NamedTuple
 
@@ -10,6 +11,8 @@ from gremlins.stages.outcome import Outcome
 
 if TYPE_CHECKING:
     from gremlins.executor.gremlin import Gremlin, State
+
+logger = logging.getLogger(__name__)
 
 _VAR_SUB = re.compile(r"(?<!\$)\{([-\w]+)\}")
 
@@ -60,7 +63,15 @@ class Stage:
         non-word braces (shell ${x}, {read:k}, brace expansion) are left as-is."""
         string_opts = {k: v for k, v in self.options.items() if isinstance(v, str)}
         subs = {**string_opts, **(extra or {}), **state.framework_subs(self)}  # type: ignore[arg-type]
-        return _VAR_SUB.sub(lambda m: subs.get(m.group(1), m.group(0)), text)
+        result = _VAR_SUB.sub(lambda m: subs.get(m.group(1), m.group(0)), text)
+        if result != text:
+            logger.debug(
+                "stage %s: resolved substitutions with %d candidates (text len=%d)",
+                self.name,
+                len(subs),
+                len(text),
+            )
+        return result
 
     @property
     def path(self) -> str:
@@ -78,6 +89,17 @@ class Stage:
         client = get_client_from_dict(d)
         stage.client = client
         stage.client_explicit = client is not None
+        if client is not None:
+            client_label = f"{client.provider}:{client.model}"
+        else:
+            client_label = "None"
+        logger.debug(
+            "constructed stage %r (type=%s, client=%s, client_explicit=%s)",
+            stage.name,
+            stage.type or "?",
+            client_label,
+            client is not None,
+        )
         return stage
 
     @classmethod
@@ -85,4 +107,5 @@ class Stage:
         return []
 
     async def run(self, gremlin: Gremlin) -> Outcome:  # noqa: ARG002
+        logger.debug("stage %s: abstract run() invoked — not overridden", self.name)
         raise NotImplementedError
