@@ -824,7 +824,9 @@ mod tests {
         std::env::set_var("GREMLINS_SANDBOX_ROOT", dir.path());
         let result = ApiKeys::load();
         assert!(result.is_err());
-        assert!(matches!(result, Err(ApiKeysError::Io(ref e)) if e.kind() == std::io::ErrorKind::NotFound));
+        assert!(
+            matches!(result, Err(ApiKeysError::Io(ref e)) if e.kind() == std::io::ErrorKind::NotFound)
+        );
         clear_sandbox_env();
     }
 
