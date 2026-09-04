@@ -58,9 +58,7 @@ def _read_artifact_listing(wdir: str) -> str:
     if not artifacts_dir.is_dir():
         return "(no artifacts directory)"
 
-    entries = sorted(
-        p for p in artifacts_dir.iterdir() if p.is_file()
-    )
+    entries = sorted(p for p in artifacts_dir.iterdir() if p.is_file())
     if not entries:
         return "(no artifact files)"
 
