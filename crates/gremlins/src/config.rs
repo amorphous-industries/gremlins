@@ -678,6 +678,11 @@ mod tests {
     }
 
     #[test]
+    fn test_overlay_dirname() {
+        assert_eq!(overlay_dirname(), ".gremlins");
+    }
+
+    #[test]
     fn test_scratch_root_sandbox() {
         let _guard = ENV_MUTEX.lock().unwrap();
         clear_sandbox_env();

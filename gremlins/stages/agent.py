@@ -158,13 +158,14 @@ class Agent(Stage):
             else:
                 slugged_out[k] = v
 
-        logger.debug(
-            "agent %s: slug=%s, %d file outputs: %s",
-            self.name,
-            slug,
-            len(file_names),
-            list(slugged.keys()),
-        )
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                "agent %s: slug=%s, %d file outputs: %s",
+                self.name,
+                slug,
+                len(file_names),
+                list(slugged.keys()),
+            )
 
         for key, uri_str in slugged_out.items():
             # Each run rebinds to a fresh slug (required for loop re-entry).

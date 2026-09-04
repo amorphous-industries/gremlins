@@ -4,15 +4,13 @@ use std::path::PathBuf;
 pub mod error;
 pub use error::DiscoveryError;
 
-const OVERLAY_DIRNAME: &str = ".gremlins";
-
 fn project_overlay_dir(project_root: &std::path::Path) -> PathBuf {
     if let Ok(ov) = std::env::var("GREMLINS_OVERLAY_DIR") {
         if !ov.is_empty() {
             return PathBuf::from(ov);
         }
     }
-    project_root.join(OVERLAY_DIRNAME)
+    project_root.join(crate::config::OVERLAY_DIRNAME)
 }
 
 fn project_pipeline_dirs(project_root: &std::path::Path) -> Vec<PathBuf> {
@@ -20,7 +18,7 @@ fn project_pipeline_dirs(project_root: &std::path::Path) -> Vec<PathBuf> {
     let mut seen: HashSet<PathBuf> = HashSet::new();
     for d in &[
         project_overlay_dir(project_root),
-        project_root.join(OVERLAY_DIRNAME),
+        project_root.join(crate::config::OVERLAY_DIRNAME),
     ] {
         let resolved = d.canonicalize().unwrap_or_else(|_| d.clone());
         if seen.insert(resolved) {
