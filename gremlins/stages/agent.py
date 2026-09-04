@@ -98,13 +98,14 @@ class Agent(Stage):
             bind_map=strip_artifact_prefix_keys(cast(dict[str, str], raw_bind), name),
         )
         stage.client = get_client_from_dict(d)
-        logger.debug(
-            "Agent %r: %d prompts, %d interpolation keys, %d bind keys",
-            name,
-            len(stage.prompts),
-            len(stage.interpolation_map),
-            len(stage.bind_map),
-        )
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                "Agent %r: %d prompts, %d interpolation keys, %d bind keys",
+                name,
+                len(stage.prompts),
+                len(stage.interpolation_map),
+                len(stage.bind_map),
+            )
         return stage
 
     async def run(self, gremlin: Gremlin) -> Outcome:
@@ -113,14 +114,15 @@ class Agent(Stage):
             raise RuntimeError("agent stage requires gremlin.state to be initialized")
         opts = dict(self.options)
         raw_model = cast(str | None, opts.pop("model", None))
-        logger.debug(
-            "agent %s: running with %d prompts, model=%s, interpolation=%d keys, bind=%d keys",
-            self.name,
-            len(self.prompts),
-            raw_model or "<default>",
-            len(self.interpolation_map),
-            len(self.bind_map),
-        )
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                "agent %s: running with %d prompts, model=%s, interpolation=%d keys, bind=%d keys",
+                self.name,
+                len(self.prompts),
+                raw_model or "<default>",
+                len(self.interpolation_map),
+                len(self.bind_map),
+            )
 
         try:
             resolved = resolve_interpolation_map(
@@ -216,11 +218,12 @@ class Agent(Stage):
             state, prompt, label=self.name, raw_path=raw_path, model=model, **opts
         )
 
-        logger.debug(
-            "agent %s: agent run completed, verifying %d output bindings",
-            self.name,
-            len(slugged_out),
-        )
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                "agent %s: run completed, checking %d output bindings (multi-output keys skipped)",
+                self.name,
+                len(slugged_out),
+            )
 
         for key, uri_str in slugged_out.items():
             uri = Uri.parse(uri_str)
@@ -229,12 +232,13 @@ class Agent(Stage):
                 # written only a subset of the declared files, so a missing
                 # file is not an error here. It stays bound and reads back
                 # empty downstream.
-                logger.debug(
-                    "agent %s: multi-output skip verification for %s -> %s",
-                    self.name,
-                    key,
-                    uri_str,
-                )
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug(
+                        "agent %s: multi-output skip verification for %s -> %s",
+                        self.name,
+                        key,
+                        uri_str,
+                    )
                 continue
             state.artifacts.resolver(uri.scheme).verify_produced(uri)
 

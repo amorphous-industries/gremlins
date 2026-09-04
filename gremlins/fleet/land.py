@@ -11,7 +11,7 @@ import time
 from typing import Any, cast
 
 from _gremlins_core.clients import RustClient as Client
-from _gremlins_core.config import project_root as _project_root_fn
+from _gremlins_core.config import overlay_dirname, project_root as _project_root_fn
 from _gremlins_core.config import scratch_root as _scratch_root_fn
 from _gremlins_core.config import state_root as _state_root_fn
 
@@ -1019,7 +1019,7 @@ def do_land(
     raw: object | None = state.get("project_root")
     project_root = str(raw) if raw else ""
     if project_root and os.path.isdir(project_root):
-        env_file = pathlib.Path(project_root) / ".gremlins" / "env"
+        env_file = pathlib.Path(project_root) / overlay_dirname() / "env"
         if env_file.is_file():
             try:
                 env_vars = load_env_file(env_file, cwd=pathlib.Path(project_root))
