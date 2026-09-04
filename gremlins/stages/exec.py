@@ -131,11 +131,12 @@ class Exec(Stage):
         pre_sha: str | None = None
         if any(Uri.is_range(v) for v in self.bind_map.values()):
             pre_sha = snapshot_head_before(cwd=pathlib.Path(state.cwd))
-            logger.debug(
-                "exec %s: git://range bind found, pre_sha=%s",
-                self.name,
-                pre_sha,
-            )
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(
+                    "exec %s: git://range bind found, pre_sha=%s",
+                    self.name,
+                    pre_sha,
+                )
 
         raw_cmds = [c.strip() for c in self.options.get("cmds", []) if c.strip()]
         cmds = [

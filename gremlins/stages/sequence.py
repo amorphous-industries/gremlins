@@ -49,25 +49,28 @@ class SequenceStage(Stage):
             )
         key = self.path or self.name
         done = state.done_for(key)
-        logger.debug(
-            "sequence %s: running %d children (skipping %d already done)",
-            self.name,
-            len(self.body),
-            len(done),
-        )
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                "sequence %s: running %d children (skipping %d already done)",
+                self.name,
+                len(self.body),
+                len(done),
+            )
         for child in self.body:
             if child.name in done:
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug(
+                        "sequence %s: child %s already done, skipping",
+                        self.name,
+                        child.name,
+                    )
+                continue
+            if logger.isEnabledFor(logging.DEBUG):
                 logger.debug(
-                    "sequence %s: child %s already done, skipping",
+                    "sequence %s: running child %s",
                     self.name,
                     child.name,
                 )
-                continue
-            logger.debug(
-                "sequence %s: running child %s",
-                self.name,
-                child.name,
-            )
             state.data.patch(active_children=[child.name])
             runner = _child_state(state, child).make_runner(
                 child, gremlin, scope=self.body, record_stage=False

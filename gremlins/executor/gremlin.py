@@ -367,6 +367,9 @@ class Gremlin:
     def _make_build_state_kwargs(
         self, data: StateData, client: Client
     ) -> dict[str, Any]:
+        base_ref = self.base_ref
+        if not base_ref or base_ref == "current":
+            base_ref = self.pipeline_data.base_ref
         return {
             "data": data,
             "client": client,
@@ -376,11 +379,7 @@ class Gremlin:
             "worktree": self.worktree_dir,
             "worktree_parent": self.worktree_parent,
             "artifacts": self.registry,
-            "base_ref": (
-                self.pipeline_data.base_ref
-                if self.pipeline_data and self.pipeline_data.base_ref != "current"
-                else self.base_ref
-            ),
+            "base_ref": base_ref,
         }
 
     def _collect_stages(

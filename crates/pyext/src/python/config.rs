@@ -35,6 +35,11 @@ impl PyConfig {
         self.inner.default_client()
     }
 
+    #[getter]
+    fn overlay_dirname(&self) -> &'static str {
+        self.inner.overlay_dirname()
+    }
+
     fn default_client_by_stage(&self) -> (HashMap<String, String>, HashMap<String, String>) {
         let (exact, prefix) = self.inner.default_client_by_stage();
         (exact.clone(), prefix.clone())
@@ -88,6 +93,11 @@ fn serde_json_to_py(py: Python<'_>, value: &serde_json::Value) -> PyResult<Py<Py
 // ---------------------------------------------------------------------------
 // Module-level functions — thin delegation to Rust global
 // ---------------------------------------------------------------------------
+
+#[pyfunction]
+fn overlay_dirname() -> &'static str {
+    gremlins::config::overlay_dirname()
+}
 
 #[pyfunction]
 fn init() -> PyResult<()> {
@@ -221,6 +231,7 @@ pub fn register_config_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     config_mod.add_function(wrap_pyfunction!(project_root, &config_mod)?)?;
     config_mod.add_function(wrap_pyfunction!(project_overlay_dir, &config_mod)?)?;
     config_mod.add_function(wrap_pyfunction!(scratch_root, &config_mod)?)?;
+    config_mod.add_function(wrap_pyfunction!(overlay_dirname, &config_mod)?)?;
 
     m.add_submodule(&config_mod)?;
 

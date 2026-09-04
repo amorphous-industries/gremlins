@@ -239,6 +239,7 @@ class _ParallelExecutor:
         )
         self._group_state = ParallelGroupState(self._group_name, self._parent_data)
         self._tasks: list[asyncio.Task[None]] = []
+        self._max_concurrent = max_concurrent
         self._sem: asyncio.Semaphore | None = (
             asyncio.Semaphore(max_concurrent) if max_concurrent is not None else None
         )
@@ -260,11 +261,12 @@ class _ParallelExecutor:
         gs.hydrate()
         prior = list(gs.worktree_paths.values())
         if prior:
-            logger.debug(
-                "parallel %s: removing %d prior worktrees",
-                self._group_name,
-                len(prior),
-            )
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(
+                    "parallel %s: removing %d prior worktrees",
+                    self._group_name,
+                    len(prior),
+                )
             await git.remove_worktrees_async(
                 str(self._project_root), [str(p) for p in prior]
             )
@@ -388,28 +390,33 @@ class _ParallelExecutor:
     async def _parallel(self) -> None:
         self._set_stage(self._group_name)
         if not self._child_runners:
-            logger.debug("parallel %s: no child runners to execute", self._group_name)
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(
+                    "parallel %s: no child runners to execute", self._group_name
+                )
             return
 
         self._group_state.hydrate()
         done = self._parent_data.done_for(self._stage_path)
         active = [(k, s, fn) for k, s, fn in self._child_runners if k not in done]
         if not active:
-            logger.debug(
-                "parallel %s: all %d children already done, skipping",
-                self._group_name,
-                len(self._child_runners),
-            )
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(
+                    "parallel %s: all %d children already done, skipping",
+                    self._group_name,
+                    len(self._child_runners),
+                )
             return
 
-        logger.debug(
-            "parallel %s: executing %d/%d children (max_concurrent=%s, cancel_on_bail=%s)",
-            self._group_name,
-            len(active),
-            len(self._child_runners),
-            self._parallel_stage.max_concurrent or "unlimited",
-            self._cancel_on_bail,
-        )
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                "parallel %s: executing %d/%d children (max_concurrent=%s, cancel_on_bail=%s)",
+                self._group_name,
+                len(active),
+                len(self._child_runners),
+                self._max_concurrent if self._sem else "unlimited",
+                self._cancel_on_bail,
+            )
 
         for child_key, child_state, _ in active:
             wt = self._group_state.worktree_paths.get(child_key)
@@ -418,12 +425,13 @@ class _ParallelExecutor:
 
         # Snapshot of all dispatched keys; not updated per-task as children finish.
         self._parent_data.patch(active_children=[k for k, _, _ in active])
-        logger.debug(
-            "parallel %s: dispatching %d children: %s",
-            self._group_name,
-            len(active),
-            [k for k, _, _ in active],
-        )
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                "parallel %s: dispatching %d children: %s",
+                self._group_name,
+                len(active),
+                [k for k, _, _ in active],
+            )
         try:
             self._tasks = [
                 asyncio.create_task(self._dispatch(k, s, fn)) for k, s, fn in active
@@ -616,13 +624,14 @@ class _ParallelExecutor:
 
         for key, producers in per_key.items():
             multi = len(producers) > 1
-            logger.debug(
-                "parallel %s: gathering artifact %s from %d producer(s) (multi=%s)",
-                self._group_name,
-                key,
-                len(producers),
-                multi,
-            )
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(
+                    "parallel %s: gathering artifact %s from %d producer(s) (multi=%s)",
+                    self._group_name,
+                    key,
+                    len(producers),
+                    multi,
+                )
             for child_key, _, child in producers:
                 parent_state.artifacts.merge_from(
                     child,
@@ -632,16 +641,18 @@ class _ParallelExecutor:
                     keys={key},
                 )
 
-        logger.debug(
-            "parallel %s: gathered %d artifact keys from children",
-            self._group_name,
-            len(per_key),
-        )
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                "parallel %s: gathered %d artifact keys from children",
+                self._group_name,
+                len(per_key),
+            )
 
     async def _fan_in(self) -> None:
         self._set_stage(f"{self._group_name}-fanin")
         self._group_state.hydrate()
-        logger.debug("parallel %s: gathering child artifacts", self._group_name)
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("parallel %s: gathering child artifacts", self._group_name)
         self._gather_child_artifacts()
         try:
             await self._do_fan_in()
@@ -660,14 +671,15 @@ class _ParallelExecutor:
         )
         decision = parallel_bail.decide(bailed, len(child_keys), self._bail_policy)
 
-        logger.debug(
-            "parallel %s: fan-in decision: should_bail=%s, bailed=%d/%d children, policy=%s",
-            self._group_name,
-            decision.should_bail,
-            len(bailed),
-            len(child_keys),
-            self._bail_policy,
-        )
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                "parallel %s: fan-in decision: should_bail=%s, bailed=%d/%d children, policy=%s",
+                self._group_name,
+                decision.should_bail,
+                len(bailed),
+                len(child_keys),
+                self._bail_policy,
+            )
 
         if decision.should_bail and decision.first_bail:
             self._parent_data.write_bail_file(

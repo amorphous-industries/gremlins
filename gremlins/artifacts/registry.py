@@ -89,7 +89,8 @@ class ArtifactRegistry:
         if not isinstance(value, str):
             raise ValueError(f"artifact {key!r} is not a URI (stored value: {value!r})")
         uri = Uri.parse(value)
-        logger.debug("ArtifactRegistry: resolve %r -> %s", key, uri)
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("ArtifactRegistry: resolve %s -> %s", key, uri)
         return uri
 
     def _resolve_value(self, value: Any) -> Any:

@@ -65,12 +65,13 @@ class Stage:
         subs = {**string_opts, **(extra or {}), **state.framework_subs(self)}  # type: ignore[arg-type]
         result = _VAR_SUB.sub(lambda m: subs.get(m.group(1), m.group(0)), text)
         if result != text:
-            logger.debug(
-                "stage %s: resolved substitutions with %d candidates (text len=%d)",
-                self.name,
-                len(subs),
-                len(text),
-            )
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(
+                    "stage %s: substitution map has %d entries (len=%d)",
+                    self.name,
+                    len(subs),
+                    len(text),
+                )
         return result
 
     @property
