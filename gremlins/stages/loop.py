@@ -135,6 +135,13 @@ class LoopStage(Stage):
     async def run(self, gremlin: Gremlin) -> Outcome:
         if gremlin.state is None:
             raise RuntimeError("gremlin.state is required for LoopStage")
+        logger.debug(
+            "loop %s: starting (max_iterations=%d, stop_when_exists=%s, interval=%s)",
+            self.name,
+            self._max_iterations,
+            self._stop_when_exists,
+            self._interval,
+        )
         for iteration in range(1, self._max_iterations + 1):
             gremlin.state.record_state_field(loop_iteration=iteration)
             gremlin.state.artifacts.unbind(_BAIL_KEY)
@@ -142,6 +149,13 @@ class LoopStage(Stage):
                 for raw_key in getattr(child, "bind_map", {}):
                     key = raw_key.removesuffix("?")
                     gremlin.state.artifacts.unbind(key)
+            logger.debug(
+                "loop %s: iteration %d/%d starting (%d body runners)",
+                self.name,
+                iteration,
+                self._max_iterations,
+                len(self.body),
+            )
             runners = (
                 self._body_runners
                 if self._body_runners is not None
@@ -151,12 +165,29 @@ class LoopStage(Stage):
                 await runner()
 
             if _is_bail_set(gremlin.state.artifacts):
+                logger.debug(
+                    "loop %s: iteration %d hit bail artifact",
+                    self.name,
+                    iteration,
+                )
                 _do_bail(gremlin, gremlin.state.artifacts)
 
             if self._stop_when_exists is not None and gremlin.state.artifacts.produced(
                 self._stop_when_exists
             ):
+                logger.debug(
+                    "loop %s: iteration %d stopping (artifact %s produced)",
+                    self.name,
+                    iteration,
+                    self._stop_when_exists,
+                )
                 return Done()
+
+            logger.debug(
+                "loop %s: iteration %d complete, not yet stopping",
+                self.name,
+                iteration,
+            )
 
             if iteration == self._max_iterations:
                 gremlin.state.record_bail(
@@ -165,6 +196,11 @@ class LoopStage(Stage):
                 raise Bail(f"loop exhausted {self._max_iterations} iterations")
 
             if self._interval is not None:
+                logger.debug(
+                    "loop %s: sleeping %.1fs before next iteration",
+                    self.name,
+                    self._interval,
+                )
                 await asyncio.sleep(self._interval)
 
         # All loop paths above either return Done() or raise Bail.
