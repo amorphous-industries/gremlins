@@ -1020,7 +1020,7 @@ def do_land(
     if pipeline_path and project_root:
         from gremlins.pipeline.bootstrap import Bootstrap
         from gremlins.pipeline.discovery import resolve_pipeline_path
-        from gremlins.utils.yaml_io import load_yaml_file, YamlLoadError
+        from gremlins.utils.yaml_io import YamlLoadError, load_yaml_file
 
         project_dir = pathlib.Path(project_root)
         try:
