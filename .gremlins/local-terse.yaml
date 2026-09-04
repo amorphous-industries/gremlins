@@ -41,6 +41,12 @@ stage-definitions:
             - "make -j8 check && make -j8 test"
           max_iterations: 7
         prompt: [dev-env-howto.md, gremlins:verify_fix.md, gremlins:bail_section_fix.md]
+      - name: commit
+        type: exec
+        options:
+          cmds:
+            - git add -A
+            - git diff --cached --quiet || git commit -m "fix checks"
 
 stages:
   - { type: gremlins:plan,      prompt: [code-style, terse, gremlins:plan.md] }
