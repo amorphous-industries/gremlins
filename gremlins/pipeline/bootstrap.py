@@ -8,10 +8,8 @@ import pathlib
 from collections.abc import Mapping
 from typing import Any, cast
 
-_BOOTSTRAP_KEYS = frozenset({"source", "launch_cmds", "cmds", "cli_out"})
-_MAPPING_ERROR = (
-    "'bootstrap' must be a mapping with optional source:/launch_cmds:/cmds:/cli_out:"
-)
+_BOOTSTRAP_KEYS = frozenset({"source", "launch_cmds", "cmds", "cli_out", "env"})
+_MAPPING_ERROR = "'bootstrap' must be a mapping with optional source:/launch_cmds:/cmds:/cli_out:/env:"
 _VALID_SOURCE_TYPES = frozenset({"filepath", "string"})
 
 
@@ -98,6 +96,7 @@ class Bootstrap:
     launch_cmds: list[str] = dataclasses.field(default_factory=list[str])
     cmds: list[str] = dataclasses.field(default_factory=list[str])
     cli_out: dict[str, str] = dataclasses.field(default_factory=dict[str, str])
+    env: str = ""
 
     @classmethod
     def from_yaml(cls, raw: object) -> Bootstrap:
@@ -130,11 +129,20 @@ class Bootstrap:
                 str(k): str(v) for k, v in cast(dict[str, Any], cli_out_raw).items()
             }
 
+        env_raw = raw.get("env")
+        if env_raw is None:
+            env = ""
+        elif not isinstance(env_raw, str):
+            raise ValueError("'bootstrap.env' must be a string")
+        else:
+            env = env_raw
+
         return cls(
             source=source,
             launch_cmds=_string_list(raw.get("launch_cmds"), "bootstrap.launch_cmds"),
             cmds=_string_list(raw.get("cmds"), "bootstrap.cmds"),
             cli_out=cli_out,
+            env=env,
         )
 
 

@@ -19,20 +19,16 @@ from typing import Any
 
 from _gremlins_core.clients import RustClient as Client
 from _gremlins_core.config import (
-    get_config,
-    project_overlay_dir,
     project_root,
     scratch_root,
     state_root,
 )
 
 from gremlins.artifacts.registry import ArtifactRegistry
-from gremlins.env_file import load_env_file_isolated
+from gremlins.env_file import source_env_string
 from gremlins.errors import die
 from gremlins.executor.gremlin import Gremlin
 from gremlins.logging_setup import configure_logging
-from gremlins.pipeline import Pipeline as _PipelineData
-from gremlins.pipeline.discovery import resolve_pipeline_path
 from gremlins.protocols import StageProtocol
 from gremlins.stages.outcome import Bail
 from gremlins.utils.git import (
@@ -41,7 +37,6 @@ from gremlins.utils.git import (
     in_git_repo,
     stage_gremlins_overlay,
 )
-from gremlins.utils.yaml_io import YamlLoadError as _YamlLoadError
 
 logger = logging.getLogger(__name__)
 
@@ -196,31 +191,6 @@ async def run_pipeline(
 
     fetch_worktree = False
 
-    project_dir = (
-        pathlib.Path(_stored_project_root)
-        if _stored_project_root
-        else pathlib.Path(project_root())
-    )
-    # Fall back to global config's default-client when --client is absent, so
-    # project-overlay pipelines that omit default_client still work.
-    _effective_client_override: str | None = args.client
-    if _effective_client_override is None:
-        try:
-            _global_client = get_config().default_client
-            if _global_client:
-                _effective_client_override = _global_client
-        except Exception:
-            logger.warning(
-                "failed to read default-client from global config", exc_info=True
-            )
-    try:
-        _pipeline_preview = _PipelineData.from_yaml(
-            resolve_pipeline_path(str(pipeline_path), project_dir),
-            default_client_override=_effective_client_override,
-        )
-    except (FileNotFoundError, _YamlLoadError, ValueError) as exc:
-        die(str(exc))
-    logger.info("artifact: %s", artifact_dir)
     try:
         gremlin = Gremlin.initialize_with_runtime(
             gremlin_id=gremlin_id,
@@ -243,11 +213,12 @@ async def run_pipeline(
     except ValueError as exc:
         die(str(exc))
 
+    logger.info("artifact: %s", artifact_dir)
     stage_gremlins_overlay(str(_project_root), state_dir)
 
     # --- env isolation ---
     # Build the system vars table. These are available during
-    # .gremlins/env sourcing and forcibly re-injected afterward.
+    # bootstrap.env sourcing and forcibly re-injected afterward.
     _system = {
         k: v
         for k, v in {
@@ -266,23 +237,21 @@ async def run_pipeline(
         if v is not None
     }
 
-    # Base env: full parent environment so .gremlins/env has complete
-    # control — it can forward what it wants, override, or unset.
-    # System vars go on top (available during sourcing) but are
-    # re-injected last so users cannot tamper with them.
-    _base = dict(os.environ)
-    _base.update(_system)
-
-    _env_file = pathlib.Path(project_overlay_dir(str(_project_root))) / "env"
-    if _env_file.is_file():
+    # Source bootstrap.env inline. Write to a temp file so bash's `source`
+    # builtin works.
+    env_script = gremlin.pipeline_data.bootstrap.env.strip()
+    if env_script:
+        _base = dict(os.environ)
+        _base.update(_system)
         try:
-            _env = load_env_file_isolated(
-                _env_file, base_env=_base, cwd=pathlib.Path(_project_root)
+            _env = source_env_string(
+                env_script, base_env=_base, cwd=pathlib.Path(_project_root)
             )
         except RuntimeError as exc:
             die(str(exc))
     else:
-        _env = dict(_base)
+        _env = dict(os.environ)
+        _env.update(_system)
 
     # Clear os.environ entirely, then apply the sourced env followed
     # by system vars. System vars go last so users cannot override them.

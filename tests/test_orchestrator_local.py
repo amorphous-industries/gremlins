@@ -236,21 +236,30 @@ def test_local_main_writes_stage_to_state(tmp_path, monkeypatch):
 
 
 def test_local_main_env_file_vars_reach_verify(tmp_path, monkeypatch):
-    """Vars from .gremlins/env are passed to exec subprocess environments."""
+    """Vars from bootstrap.env are passed to exec subprocess environments."""
     import subprocess as _subprocess
 
     gremlin_id = "test-gr-id"
     monkeypatch.setenv("GREMLINS_SANDBOX_ROOT", str(tmp_path))
     (tmp_path / "scratch" / gremlin_id / "artifacts").mkdir(parents=True)
 
-    dot_gremlins = tmp_path / ".gremlins"
-    dot_gremlins.mkdir()
-    (dot_gremlins / "env").write_text(
-        "export GREMLIN_ENV_TEST_SENTINEL=from_env_file\n"
-    )
-
     monkeypatch.chdir(tmp_path)
     _common_patches(monkeypatch)
+
+    # Create a pipeline YAML with bootstrap.env set.
+    pipeline_yaml = tmp_path / ".gremlins" / "test-env.yaml"
+    pipeline_yaml.parent.mkdir(exist_ok=True)
+    pipeline_yaml.write_text(
+        "default_client: 'xai:grok-4'\n"
+        "base_ref: current\n"
+        "bootstrap:\n"
+        "  env: |\n"
+        "    export GREMLIN_ENV_TEST_SENTINEL=from_env_file\n"
+        "stages:\n"
+        "  - { type: gremlins:plan, prompt: [gremlins:plan.md] }\n"
+        "  - { type: gremlins:implement, prompt: [gremlins:implement_local.md] }\n"
+        "  - { name: done, type: exec, options: { cmds: ['echo done'] } }\n"
+    )
 
     captured_envs: list[dict] = []
 
@@ -273,7 +282,7 @@ def test_local_main_env_file_vars_reach_verify(tmp_path, monkeypatch):
     monkeypatch.delenv("GREMLIN_ENV_TEST_SENTINEL", raising=False)
     result = asyncio.run(
         run_pipeline(
-            _local_pipeline_path(tmp_path),
+            pipeline_yaml,
             argv=[],
             gremlin_id=gremlin_id,
             client=client,
@@ -286,20 +295,20 @@ def test_local_main_env_file_vars_reach_verify(tmp_path, monkeypatch):
 
 
 def test_local_main_env_file_sourced_with_overlay_dir_set(tmp_path, monkeypatch):
-    """Env vars from .gremlins/env are loaded even when GREMLINS_OVERLAY_DIR points to an unstaged path.
-
-    Regression: stage_gremlins_overlay used paths.project_overlay_dir() as its source, which
-    respects GREMLINS_OVERLAY_DIR. When the launcher pre-sets that to state_dir/.gremlins (before
-    staging), the source path didn't exist yet, the copy was skipped, and the env file was silently
-    ignored.
-    """
+    """Env vars from bootstrap.env are loaded even when GREMLINS_OVERLAY_DIR is set."""
     import subprocess as _subprocess
 
     proj_dir = tmp_path / "proj"
     proj_dir.mkdir()
     (proj_dir / ".gremlins").mkdir()
-    (proj_dir / ".gremlins" / "env").write_text(
-        "export GREMLIN_ENV_TEST_SENTINEL=from_env_file\n"
+    pipeline_yaml = proj_dir / ".gremlins" / "test-overlay.yaml"
+    pipeline_yaml.write_text(
+        "default_client: 'xai:grok-4'\n"
+        "bootstrap:\n"
+        "  env: |\n"
+        "    export GREMLIN_ENV_TEST_SENTINEL=from_env_file\n"
+        "stages:\n"
+        "  - { name: done, type: exec, options: { cmds: ['echo done'] } }\n"
     )
 
     monkeypatch.setenv("GREMLINS_SANDBOX_ROOT", str(tmp_path))
@@ -311,8 +320,6 @@ def test_local_main_env_file_sourced_with_overlay_dir_set(tmp_path, monkeypatch)
     artifact_dir = tmp_path / "scratch" / gremlin_id / "artifacts"
     artifact_dir.mkdir(parents=True)
 
-    # Simulate the launcher: GREMLINS_OVERLAY_DIR points to state_dir/.gremlins, which
-    # does not yet exist when run_pipeline starts.
     monkeypatch.setenv("GREMLINS_OVERLAY_DIR", str(state_dir / ".gremlins"))
 
     monkeypatch.chdir(proj_dir)
@@ -339,7 +346,7 @@ def test_local_main_env_file_sourced_with_overlay_dir_set(tmp_path, monkeypatch)
     monkeypatch.delenv("GREMLIN_ENV_TEST_SENTINEL", raising=False)
     result = asyncio.run(
         run_pipeline(
-            _local_pipeline_path(proj_dir),
+            pipeline_yaml,
             argv=[],
             gremlin_id=gremlin_id,
             client=client,
