@@ -24,10 +24,11 @@ def child_state(
         else parent.client
     )
     logger.debug(
-        "child_state: parent=%s child=%s client=%s fan_out=%s child_id=%s",
+        "child_state: parent=%s child=%s client=%s:%s fan_out=%s child_id=%s",
         id(parent),
         child.name,
-        client,
+        client.provider,
+        client.model,
         fan_out,
         child_id,
     )

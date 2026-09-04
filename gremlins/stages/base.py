@@ -66,7 +66,7 @@ class Stage:
         result = _VAR_SUB.sub(lambda m: subs.get(m.group(1), m.group(0)), text)
         if result != text:
             logger.debug(
-                "stage %s: substituted %d variables in text (len=%d)",
+                "stage %s: resolved substitutions with %d candidates (text len=%d)",
                 self.name,
                 len(subs),
                 len(text),
@@ -89,11 +89,15 @@ class Stage:
         client = get_client_from_dict(d)
         stage.client = client
         stage.client_explicit = client is not None
+        if client is not None:
+            client_label = f"{client.provider}:{client.model}"
+        else:
+            client_label = "None"
         logger.debug(
             "constructed stage %r (type=%s, client=%s, client_explicit=%s)",
             stage.name,
             stage.type or "?",
-            client,
+            client_label,
             client is not None,
         )
         return stage

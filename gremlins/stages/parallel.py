@@ -407,7 +407,7 @@ class _ParallelExecutor:
             self._group_name,
             len(active),
             len(self._child_runners),
-            self._sem._value if self._sem else "unlimited",
+            self._parallel_stage.max_concurrent or "unlimited",
             self._cancel_on_bail,
         )
 
