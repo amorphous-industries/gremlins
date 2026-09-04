@@ -52,7 +52,7 @@ ignore = ["E501"]
 ban-relative-imports = "all"
 
 [tool.pyright]
-typeCheckingMode = "basic"
+typeCheckingMode = "strict"
 include = [
     "gremlins",
 ]
