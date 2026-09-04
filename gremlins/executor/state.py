@@ -505,10 +505,20 @@ class State:
                 return
             try:
                 porcelain = _git_mod.status_porcelain(cwd=cwd)
+                git_log = _git_mod.log_oneline("-5", cwd=cwd)
                 if porcelain:
-                    logger.info("git status [%s]:\n%s", msg, porcelain.rstrip())
+                    logger.info(
+                        "git status [%s]:\n%s\nrecent commits:\n%s",
+                        msg,
+                        porcelain.rstrip(),
+                        git_log,
+                    )
                 else:
-                    logger.info("git status [%s]: (clean)", msg)
+                    logger.info(
+                        "git status [%s]: (clean)\nrecent commits:\n%s",
+                        msg,
+                        git_log,
+                    )
             except Exception:
                 pass
 
