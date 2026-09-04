@@ -20,6 +20,7 @@ from _gremlins_core.config import project_root, scratch_root, state_root
 
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.stages.constants import FRAMEWORK_KEYS
+from gremlins.utils import git as _git_mod
 from gremlins.utils.state_file import locked_update
 
 if TYPE_CHECKING:
@@ -499,6 +500,28 @@ class State:
                 base_state, data=fresh_handle, current_scope=scope_list
             )
 
+        def _log_git_status(msg: str, cwd: str) -> None:
+            if not logger.isEnabledFor(logging.INFO):
+                return
+            try:
+                porcelain = _git_mod.status_porcelain(cwd=cwd)
+                git_log = _git_mod.log_oneline("-5", cwd=cwd)
+                if porcelain:
+                    logger.info(
+                        "git status [%s]:\n%s\nrecent commits:\n%s",
+                        msg,
+                        porcelain.rstrip(),
+                        git_log,
+                    )
+                else:
+                    logger.info(
+                        "git status [%s]: (clean)\nrecent commits:\n%s",
+                        msg,
+                        git_log,
+                    )
+            except Exception:
+                pass
+
         async def _run_async() -> Any:
             if entry.skip_if_exists and base_state.artifacts.verified(
                 entry.skip_if_exists
@@ -508,7 +531,12 @@ class State:
             prepared_state = _prepare()
             child_gremlin.state = prepared_state
             child_gremlin.registry = prepared_state.artifacts
-            return await entry.run(child_gremlin)
+            _log_git_status(f"entering {entry.name}", base_state.cwd)
+            try:
+                result = await entry.run(child_gremlin)
+                return result
+            finally:
+                _log_git_status(f"exiting {entry.name}", base_state.cwd)
 
         return _run_async
 
