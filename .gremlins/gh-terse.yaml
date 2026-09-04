@@ -53,9 +53,8 @@ stage-definitions:
         type: exec
         options:
           cmds:
-            - make autoformat || true
             - git add -A
-            - git diff --cached --quiet || git commit -m "implement plan"
+            - git diff --cached --quiet || git commit -m "fix checks"
 
 stages:
   - { type: gremlins:plan-gh, prompt: [code-style, terse, gremlins:plan_gh.md] }
