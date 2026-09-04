@@ -28,8 +28,9 @@ bootstrap:
 stages:
   - name: chain
     type: loop
+    stop_when_exists: done
     options:
-      max_iterations: 30
+      max_iterations: 10
     body:
       - name: detach-prior-pr
         type: exec
