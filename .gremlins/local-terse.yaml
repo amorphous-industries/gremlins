@@ -15,6 +15,17 @@ bootstrap:
   cmds:
     - uv venv .venv
     - uv pip install -e ".[dev]"
+  env: |
+    export GREMLINS_OPENAI_AGENTS_MAX_TURNS='1000'
+    unset VIRTUAL_ENV UV_PYTHON UV_PROJECT_ENVIRONMENT UV_SYSTEM_PYTHON PYTHONPATH
+    export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-${GREMLINS_PROJECT_ROOT}/.cargo-gremlin-target}"
+    if command -v sccache &>/dev/null; then
+        export RUSTC_WRAPPER="${RUSTC_WRAPPER:-sccache}"
+    fi
+    SECRET_ENV="${GREMLINS_PROJECT_ROOT}/.gremlins/secret_env"
+    if [ -f "$SECRET_ENV" ]; then
+        source "$SECRET_ENV"
+    fi
 
 prompts:
   code-style: gremlins:code_style.md
