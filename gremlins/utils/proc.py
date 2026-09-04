@@ -107,6 +107,25 @@ async def run_async(
     )
 
 
+def _capture_process_tree(pid: int) -> None:
+    """Log child PIDs of the given process before killing it."""
+    try:
+        result = subprocess.run(
+            ["ps", "-o", "pid,ppid,command", "--ppid", str(pid)],
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if result.stdout.strip():
+            logger.warning(
+                "run_shell_async: pid=%d child processes:\n%s",
+                pid,
+                result.stdout.rstrip(),
+            )
+    except Exception:
+        pass
+
+
 async def run_shell_async(
     cmd: str,
     *,
@@ -116,6 +135,19 @@ async def run_shell_async(
 ) -> subprocess.CompletedProcess[str]:
     _t0 = time.monotonic()
     cwd_str = os.fspath(cwd) if cwd else None
+    _warn_at = timeout * 0.8 if timeout else None
+
+    async def _timeout_monitor() -> None:
+        if _warn_at is None:
+            return
+        await asyncio.sleep(_warn_at)
+        logger.warning(
+            "run_shell_async: pid=%d approaching timeout (%.1fs elapsed of %.1fs)",
+            proc.pid,
+            time.monotonic() - _t0,
+            timeout,
+        )
+
     logger.debug(
         "run_shell_async: starting%s%s",
         f" cwd={cwd_str}" if cwd_str else "",
@@ -135,21 +167,40 @@ async def run_shell_async(
         cmd.replace("\n", "\\n")[:200],
     )
 
-    async def _drain(stream: asyncio.StreamReader) -> bytes:
+    async def _drain(stream: asyncio.StreamReader, label: str) -> bytes:
         """Read stream until EOF. Continuous pumping avoids pipe-buffer deadlock
         where a burst of output fills the kernel pipe buffer before the event loop
         can schedule the read handler."""
         chunks: list[bytes] = []
+        buf = b""
         while True:
             chunk = await stream.read(65536)
             if not chunk:
+                if buf and logger.isEnabledFor(logging.DEBUG):
+                    logger.debug(
+                        "run_shell_async: pid=%d %s: %s",
+                        proc.pid,
+                        label,
+                        buf.decode("utf-8", "replace").rstrip(),
+                    )
                 break
             chunks.append(chunk)
+            if logger.isEnabledFor(logging.DEBUG):
+                buf += chunk
+                while b"\n" in buf:
+                    line, buf = buf.split(b"\n", 1)
+                    logger.debug(
+                        "run_shell_async: pid=%d %s: %s",
+                        proc.pid,
+                        label,
+                        line.decode("utf-8", "replace").rstrip(),
+                    )
         return b"".join(chunks)
 
-    stdout_task = asyncio.create_task(_drain(proc.stdout))
-    stderr_task = asyncio.create_task(_drain(proc.stderr))
+    stdout_task = asyncio.create_task(_drain(proc.stdout, "stdout"))
+    stderr_task = asyncio.create_task(_drain(proc.stderr, "stderr"))
     proc_task = asyncio.create_task(proc.wait())
+    monitor_task = asyncio.create_task(_timeout_monitor())
 
     try:
         await asyncio.wait_for(
@@ -160,6 +211,7 @@ async def run_shell_async(
         stderr_b = stderr_task.result()
     except TimeoutError:
         elapsed = time.monotonic() - _t0
+        _capture_process_tree(proc.pid)
         try:
             os.killpg(proc.pid, signal.SIGKILL)
         except ProcessLookupError:
@@ -191,6 +243,7 @@ async def run_shell_async(
         )
     except asyncio.CancelledError:
         elapsed = time.monotonic() - _t0
+        _capture_process_tree(proc.pid)
         try:
             os.killpg(proc.pid, signal.SIGKILL)
         except ProcessLookupError:
@@ -221,6 +274,8 @@ async def run_shell_async(
             f" timeout={timeout}s" if timeout is not None else "",
         )
         raise
+    finally:
+        monitor_task.cancel()
     elapsed = time.monotonic() - _t0
     assert proc.returncode is not None
     logger.debug(
