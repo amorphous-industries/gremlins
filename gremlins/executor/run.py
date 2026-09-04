@@ -243,9 +243,12 @@ async def run_pipeline(
     if env_script:
         _base = dict(os.environ)
         _base.update(_system)
-        _env = source_env_string(
-            env_script, base_env=_base, cwd=pathlib.Path(_project_root)
-        )
+        try:
+            _env = source_env_string(
+                env_script, base_env=_base, cwd=pathlib.Path(_project_root)
+            )
+        except RuntimeError as exc:
+            die(str(exc))
     else:
         _env = dict(os.environ)
         _env.update(_system)
@@ -346,11 +349,6 @@ async def run_pipeline(
         gremlin.state.data.patch(total_cost_usd=total_cost)
 
     logger.info("done. artifacts in: %s", artifact_dir)
-    if total_cost > 0:
-        logger.info("total cost: $%.4f", total_cost)
-
-    return 0
-r)
     if total_cost > 0:
         logger.info("total cost: $%.4f", total_cost)
 

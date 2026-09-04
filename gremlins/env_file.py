@@ -99,8 +99,6 @@ def source_env_string(
     script: str, base_env: dict[str, str], *, cwd: pathlib.Path | None = None
 ) -> dict[str, str]:
     """Source a bash script string, return the resulting environment dict."""
-    import tempfile
-
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".env.sh", delete=False, encoding="utf-8"
     ) as tf:
