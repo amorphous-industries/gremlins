@@ -504,9 +504,7 @@ class State:
             try:
                 porcelain = _git_mod.status_porcelain(cwd=cwd)
                 if porcelain:
-                    logger.info(
-                        "git status [%s]:\n%s", msg, porcelain.rstrip()
-                    )
+                    logger.info("git status [%s]:\n%s", msg, porcelain.rstrip())
             except Exception:
                 pass
 
