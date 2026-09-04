@@ -391,7 +391,9 @@ class _ParallelExecutor:
         self._set_stage(self._group_name)
         if not self._child_runners:
             if logger.isEnabledFor(logging.DEBUG):
-                logger.debug("parallel %s: no child runners to execute", self._group_name)
+                logger.debug(
+                    "parallel %s: no child runners to execute", self._group_name
+                )
             return
 
         self._group_state.hydrate()
