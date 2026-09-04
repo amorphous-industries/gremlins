@@ -246,7 +246,7 @@ def test_local_main_env_file_vars_reach_verify(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     _common_patches(monkeypatch)
 
-    # Create a copy of local.yaml with bootstrap.env set.
+    # Create a pipeline YAML with bootstrap.env set.
     pipeline_yaml = tmp_path / ".gremlins" / "test-env.yaml"
     pipeline_yaml.parent.mkdir(exist_ok=True)
     pipeline_yaml.write_text(

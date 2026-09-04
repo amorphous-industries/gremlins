@@ -19,7 +19,6 @@ from typing import Any
 
 from _gremlins_core.clients import RustClient as Client
 from _gremlins_core.config import (
-    get_config,
     project_root,
     scratch_root,
     state_root,
@@ -30,8 +29,6 @@ from gremlins.env_file import source_env_string
 from gremlins.errors import die
 from gremlins.executor.gremlin import Gremlin
 from gremlins.logging_setup import configure_logging
-from gremlins.pipeline import Pipeline as _PipelineData
-from gremlins.pipeline.discovery import resolve_pipeline_path
 from gremlins.protocols import StageProtocol
 from gremlins.stages.outcome import Bail
 from gremlins.utils.git import (
@@ -40,7 +37,6 @@ from gremlins.utils.git import (
     in_git_repo,
     stage_gremlins_overlay,
 )
-from gremlins.utils.yaml_io import YamlLoadError as _YamlLoadError
 
 logger = logging.getLogger(__name__)
 
@@ -195,31 +191,6 @@ async def run_pipeline(
 
     fetch_worktree = False
 
-    project_dir = (
-        pathlib.Path(_stored_project_root)
-        if _stored_project_root
-        else pathlib.Path(project_root())
-    )
-    # Fall back to global config's default-client when --client is absent, so
-    # project-overlay pipelines that omit default_client still work.
-    _effective_client_override: str | None = args.client
-    if _effective_client_override is None:
-        try:
-            _global_client = get_config().default_client
-            if _global_client:
-                _effective_client_override = _global_client
-        except Exception:
-            logger.warning(
-                "failed to read default-client from global config", exc_info=True
-            )
-    try:
-        _pipeline_preview = _PipelineData.from_yaml(
-            resolve_pipeline_path(str(pipeline_path), project_dir),
-            default_client_override=_effective_client_override,
-        )
-    except (FileNotFoundError, _YamlLoadError, ValueError) as exc:
-        die(str(exc))
-    logger.info("artifact: %s", artifact_dir)
     try:
         gremlin = Gremlin.initialize_with_runtime(
             gremlin_id=gremlin_id,
@@ -242,6 +213,7 @@ async def run_pipeline(
     except ValueError as exc:
         die(str(exc))
 
+    logger.info("artifact: %s", artifact_dir)
     stage_gremlins_overlay(str(_project_root), state_dir)
 
     # --- env isolation ---
@@ -374,6 +346,11 @@ async def run_pipeline(
         gremlin.state.data.patch(total_cost_usd=total_cost)
 
     logger.info("done. artifacts in: %s", artifact_dir)
+    if total_cost > 0:
+        logger.info("total cost: $%.4f", total_cost)
+
+    return 0
+r)
     if total_cost > 0:
         logger.info("total cost: $%.4f", total_cost)
 

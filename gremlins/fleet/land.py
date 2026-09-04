@@ -1018,15 +1018,18 @@ def do_land(
     project_root = str(raw) if raw else ""
     pipeline_path = str(state.get("pipeline_path") or "")
     if pipeline_path and project_root:
+        from gremlins.pipeline.bootstrap import Bootstrap
         from gremlins.pipeline.discovery import resolve_pipeline_path
-        from gremlins.utils.yaml_io import load_yaml_file
+        from gremlins.utils.yaml_io import load_yaml_file, YamlLoadError
 
         project_dir = pathlib.Path(project_root)
         try:
             p = resolve_pipeline_path(pipeline_path, project_dir)
             raw_yaml = load_yaml_file(p)
-            env_script = (raw_yaml.get("bootstrap") or {}).get("env") or ""
-        except Exception:
+            bootstrap = Bootstrap.from_yaml(raw_yaml.get("bootstrap"))
+            env_script = bootstrap.env
+        except (FileNotFoundError, YamlLoadError, ValueError, OSError) as exc:
+            print(f"warning: could not source bootstrap env: {exc}", flush=True)
             env_script = ""
     else:
         env_script = ""
@@ -1036,7 +1039,7 @@ def do_land(
 
         try:
             env_vars = source_env_string(
-                str(env_script),
+                env_script,
                 base_env=dict(os.environ),
                 cwd=pathlib.Path(project_root),
             )

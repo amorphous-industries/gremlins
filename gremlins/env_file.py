@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import pathlib
 import subprocess
+import tempfile
 
 # Variables set by bash itself that are not meaningful to propagate.
 _BASH_INTERNALS = frozenset(
