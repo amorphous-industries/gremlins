@@ -5,7 +5,7 @@ MAKEFLAGS += -j$(shell sysctl -n hw.ncpu 2>/dev/null || nproc) --output-sync=lin
 TEST_FILES := $(wildcard tests/test_*.py)
 
 .PHONY: lint format format-write autoformat typecheck test check \
-        rust-test rust-fmt rust-fmt-check rust-clippy build dev install release \
+        rust-test rust-fmt rust-fmt-check rust-clippy install release \
         $(TEST_FILES)
 
 lint:
@@ -45,13 +45,7 @@ rust-clippy:
 
 # --- Build ---
 
-build: ## Compile the native extension (no install)
-	cargo build -p gremlins-pyext
-
-dev: ## Build and install the native extension in dev mode (may skip if purely transitive deps changed)
-	maturin develop
-
-install: build ## Build + install the native extension (always fresh)
+install: ## Build and install the native extension
 	maturin develop
 
 release: ## Build and install the native extension in release mode
