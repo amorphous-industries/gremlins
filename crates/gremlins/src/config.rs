@@ -861,11 +861,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let config_dir = dir.path().join("config");
         std::fs::create_dir_all(&config_dir).unwrap();
-        std::fs::write(
-            config_dir.join("api_keys.json"),
-            r#"{"openai": ""}"#,
-        )
-        .unwrap();
+        std::fs::write(config_dir.join("api_keys.json"), r#"{"openai": ""}"#).unwrap();
         std::env::set_var("GREMLINS_SANDBOX_ROOT", dir.path());
         let keys = ApiKeys::load();
         assert!(keys.get("openai").is_none());
@@ -879,11 +875,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let config_dir = dir.path().join("config");
         std::fs::create_dir_all(&config_dir).unwrap();
-        std::fs::write(
-            config_dir.join("api_keys.json"),
-            r#"{"openai": 42}"#,
-        )
-        .unwrap();
+        std::fs::write(config_dir.join("api_keys.json"), r#"{"openai": 42}"#).unwrap();
         std::env::set_var("GREMLINS_SANDBOX_ROOT", dir.path());
         let keys = ApiKeys::load();
         assert!(keys.get("openai").is_none());
@@ -897,11 +889,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let config_dir = dir.path().join("config");
         std::fs::create_dir_all(&config_dir).unwrap();
-        std::fs::write(
-            config_dir.join("api_keys.json"),
-            "{bad",
-        )
-        .unwrap();
+        std::fs::write(config_dir.join("api_keys.json"), "{bad").unwrap();
         std::env::set_var("GREMLINS_SANDBOX_ROOT", dir.path());
         let keys = ApiKeys::load();
         assert!(keys.get("openai").is_none());
@@ -915,11 +903,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let config_dir = dir.path().join("config");
         std::fs::create_dir_all(&config_dir).unwrap();
-        std::fs::write(
-            config_dir.join("api_keys.json"),
-            "[1, 2, 3]",
-        )
-        .unwrap();
+        std::fs::write(config_dir.join("api_keys.json"), "[1, 2, 3]").unwrap();
         std::env::set_var("GREMLINS_SANDBOX_ROOT", dir.path());
         let keys = ApiKeys::load();
         assert!(keys.get("openai").is_none());
@@ -933,11 +917,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let config_dir = dir.path().join("config");
         std::fs::create_dir_all(&config_dir).unwrap();
-        std::fs::write(
-            config_dir.join("api_keys.json"),
-            r#"{"foo": "bar"}"#,
-        )
-        .unwrap();
+        std::fs::write(config_dir.join("api_keys.json"), r#"{"foo": "bar"}"#).unwrap();
         std::env::set_var("GREMLINS_SANDBOX_ROOT", dir.path());
         let keys = ApiKeys::load();
         assert!(keys.get("openai").is_none());
