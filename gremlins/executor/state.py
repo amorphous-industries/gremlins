@@ -501,10 +501,14 @@ class State:
             )
 
         def _log_git_status(msg: str, cwd: str) -> None:
+            if not logger.isEnabledFor(logging.INFO):
+                return
             try:
                 porcelain = _git_mod.status_porcelain(cwd=cwd)
                 if porcelain:
                     logger.info("git status [%s]:\n%s", msg, porcelain.rstrip())
+                else:
+                    logger.info("git status [%s]: (clean)", msg)
             except Exception:
                 pass
 
@@ -518,9 +522,11 @@ class State:
             child_gremlin.state = prepared_state
             child_gremlin.registry = prepared_state.artifacts
             _log_git_status(f"entering {entry.name}", base_state.cwd)
-            result = await entry.run(child_gremlin)
-            _log_git_status(f"exiting {entry.name}", base_state.cwd)
-            return result
+            try:
+                result = await entry.run(child_gremlin)
+                return result
+            finally:
+                _log_git_status(f"exiting {entry.name}", base_state.cwd)
 
         return _run_async
 
