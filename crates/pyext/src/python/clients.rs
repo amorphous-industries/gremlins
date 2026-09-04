@@ -11,7 +11,6 @@ use gremlins::clients::cmd_backend::CmdBackend;
 use gremlins::clients::openai_backend::{OpenAiBackend, OpenAiProvider};
 use gremlins::clients::protocol::CompletedRun;
 use gremlins::config::ApiKeys;
-use log::warn;
 use rig_core::providers::openai;
 
 /// Python-exposed RustClient.
@@ -188,13 +187,7 @@ fn resolve_api_key(kind: OpenAiProvider) -> Option<String> {
             return Some(key);
         }
     }
-    match ApiKeys::load() {
-        Ok(keys) => keys.get(kind.name()).map(|s| s.to_string()),
-        Err(e) => {
-            warn!("failed to load api_keys.json: {e}");
-            None
-        }
-    }
+    ApiKeys::load().get(kind.name()).map(|s| s.to_string())
 }
 
 fn build_openai_backend(
