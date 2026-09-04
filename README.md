@@ -395,7 +395,7 @@ bootstrap:
 
 The `gremlins:bind_artifact` DSL resolves a source value (GitHub issue ref, filepath, or inline text) and binds it as an artifact in the registry. GitHub issue refs (`#N` or `owner/repo#N`) are downloaded via `gh issue view`.
 
-A project-local `.gremlins/bootstrap.yaml` (list of strings) is merged into `bootstrap.cmds` at expansion time, prepended before any pipeline-declared `cmds`.
+> **Note:** Per-worktree bootstrap commands now live exclusively in the pipeline's `bootstrap.cmds`. The old `.gremlins/bootstrap.yaml` overlay file is no longer read — move any entries there into the `bootstrap.cmds` block of your pipeline YAML.
 
 ### Land block
 

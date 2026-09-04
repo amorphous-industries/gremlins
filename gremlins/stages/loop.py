@@ -187,12 +187,6 @@ class LoopStage(Stage):
                     )
                 return Done()
 
-            logger.debug(
-                "loop %s: iteration %d complete, not yet stopping",
-                self.name,
-                iteration,
-            )
-
             if iteration == self._max_iterations:
                 gremlin.state.record_bail(
                     f"loop exhausted {self._max_iterations} iterations"
@@ -200,11 +194,6 @@ class LoopStage(Stage):
                 raise Bail(f"loop exhausted {self._max_iterations} iterations")
 
             if self._interval is not None:
-                logger.debug(
-                    "loop %s: sleeping %.1fs before next iteration",
-                    self.name,
-                    self._interval,
-                )
                 await asyncio.sleep(self._interval)
 
         # All loop paths above either return Done() or raise Bail.

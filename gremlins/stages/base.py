@@ -12,9 +12,9 @@ from gremlins.stages.outcome import Outcome
 if TYPE_CHECKING:
     from gremlins.executor.gremlin import Gremlin, State
 
-logger = logging.getLogger(__name__)
-
 _VAR_SUB = re.compile(r"(?<!\$)\{([-\w]+)\}")
+
+logger = logging.getLogger(__name__)
 
 
 def get_client_from_dict(d: dict[str, Any]) -> Client | None:
@@ -90,17 +90,7 @@ class Stage:
         client = get_client_from_dict(d)
         stage.client = client
         stage.client_explicit = client is not None
-        if client is not None:
-            client_label = f"{client.provider}:{client.model}"
-        else:
-            client_label = "None"
-        logger.debug(
-            "constructed stage %r (type=%s, client=%s, client_explicit=%s)",
-            stage.name,
-            stage.type or "?",
-            client_label,
-            client is not None,
-        )
+
         return stage
 
     @classmethod
@@ -108,5 +98,4 @@ class Stage:
         return []
 
     async def run(self, gremlin: Gremlin) -> Outcome:  # noqa: ARG002
-        logger.debug("stage %s: abstract run() invoked — not overridden", self.name)
         raise NotImplementedError

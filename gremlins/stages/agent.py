@@ -14,10 +14,10 @@ from gremlins.stages.base import Stage, get_client_from_dict
 from gremlins.stages.constants import FRAMEWORK_KEYS
 from gremlins.stages.outcome import Bail, Done, Outcome
 
+logger = logging.getLogger(__name__)
+
 if TYPE_CHECKING:
     from gremlins.executor.gremlin import Gremlin
-
-logger = logging.getLogger(__name__)
 
 
 class Agent(Stage):
@@ -131,12 +131,6 @@ class Agent(Stage):
         except ValueError as exc:
             raise Bail(f"agent {self.name}: {exc}") from exc
 
-        logger.debug(
-            "agent %s: resolved %d interpolation keys",
-            self.name,
-            len(resolved),
-        )
-
         resolved_bindings = {
             self.substitute_vars(k, state, resolved): self.substitute_vars(
                 v, state, resolved
@@ -175,12 +169,6 @@ class Agent(Stage):
             if state.artifacts.produced(key):
                 state.artifacts.unbind(key)
             state.artifacts.bind(key, Uri.parse(uri_str))
-            logger.debug(
-                "agent %s: bound artifact %s -> %s",
-                self.name,
-                key,
-                uri_str,
-            )
 
         ad = state.artifact_dir
 

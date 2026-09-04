@@ -49,7 +49,6 @@ def _check_bail(completed: CompletedRun) -> None:
     )
     m = _BAIL_RE.match(last_line)
     if m:
-        logger.debug("bail detected in agent output: %s", m.group(1).strip())
         raise Bail(m.group(1).strip())
 
 
@@ -63,13 +62,6 @@ async def run_agent(
     **kw: Any,
 ) -> CompletedRun:
     resolved_model = model or state.client.model
-    logger.debug(
-        "run_agent: label=%s model=%s prompt_len=%d cwd=%s",
-        label,
-        resolved_model,
-        len(prompt),
-        state.worktree,
-    )
     completed = await state.client.run(
         prompt,
         label=label,
