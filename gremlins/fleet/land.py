@@ -11,14 +11,12 @@ import time
 from typing import Any, cast
 
 from _gremlins_core.clients import RustClient as Client
-from _gremlins_core.config import overlay_dirname
 from _gremlins_core.config import project_root as _project_root_fn
 from _gremlins_core.config import scratch_root as _scratch_root_fn
 from _gremlins_core.config import state_root as _state_root_fn
 
 import gremlins.utils.git as _git
 from gremlins.artifacts.registry import ArtifactRegistry, MissingArtifact
-from gremlins.env_file import load_env_file
 from gremlins.fleet.resolve import resolve_gremlin
 from gremlins.fleet.state import (
     liveness_of_state_file,
@@ -1015,18 +1013,36 @@ def do_land(
 
     shape = landable_shape(state)
 
-    # Source the project overlay's .gremlins/env (loaded during pipeline bootstrap)
-    # so secrets like OPENROUTER_API_KEY are available for the client.
+    # Source env from the persisted pipeline's bootstrap block.
     raw: object | None = state.get("project_root")
     project_root = str(raw) if raw else ""
-    if project_root and os.path.isdir(project_root):
-        env_file = pathlib.Path(project_root) / overlay_dirname() / "env"
-        if env_file.is_file():
-            try:
-                env_vars = load_env_file(env_file, cwd=pathlib.Path(project_root))
-                os.environ.update(env_vars)
-            except Exception as exc:
-                print(f"warning: could not source {env_file}: {exc}", flush=True)
+    pipeline_path = str(state.get("pipeline_path") or "")
+    if pipeline_path and project_root:
+        from gremlins.pipeline.discovery import resolve_pipeline_path
+        from gremlins.utils.yaml_io import load_yaml_file
+
+        project_dir = pathlib.Path(project_root)
+        try:
+            p = resolve_pipeline_path(pipeline_path, project_dir)
+            raw_yaml = load_yaml_file(p)
+            env_script = (raw_yaml.get("bootstrap") or {}).get("env") or ""
+        except Exception:
+            env_script = ""
+    else:
+        env_script = ""
+
+    if env_script:
+        from gremlins.env_file import source_env_string
+
+        try:
+            env_vars = source_env_string(
+                str(env_script),
+                base_env=dict(os.environ),
+                cwd=pathlib.Path(project_root),
+            )
+            os.environ.update(env_vars)
+        except Exception as exc:
+            print(f"warning: could not source bootstrap env: {exc}", flush=True)
 
     # Resolve the model client this gremlin used so commit-message synthesis
     # goes through the same backend as the pipeline stages.

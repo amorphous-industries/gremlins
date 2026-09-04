@@ -63,7 +63,7 @@ def load_env_file_isolated(
 
     `base_env` is the environment the bash subprocess receives.
     The caller constructs it — typically the full parent env plus system vars,
-    so `.gremlins/env` has complete control over what to keep or override.
+    so the script has complete control over what to keep or override.
     The caller re-injects system vars afterward so users cannot tamper.
     """
     # Strip BASH_ENV so bash doesn't auto-source an unrelated file.
@@ -92,3 +92,26 @@ def load_env_file_isolated(
     for key in _BASH_INTERNALS:
         env.pop(key, None)
     return env
+
+
+def source_env_string(
+    script: str, base_env: dict[str, str], *, cwd: pathlib.Path | None = None
+) -> dict[str, str]:
+    """Source a bash script string, return the resulting environment dict."""
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".env.sh", delete=False, encoding="utf-8"
+    ) as tf:
+        tf.write(script)
+        tf.flush()
+        temp_path = tf.name
+    try:
+        return load_env_file_isolated(
+            pathlib.Path(temp_path), base_env=base_env, cwd=cwd
+        )
+    finally:
+        try:
+            os.unlink(temp_path)
+        except OSError:
+            pass

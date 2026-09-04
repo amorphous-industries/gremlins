@@ -20,14 +20,13 @@ from typing import Any
 from _gremlins_core.clients import RustClient as Client
 from _gremlins_core.config import (
     get_config,
-    project_overlay_dir,
     project_root,
     scratch_root,
     state_root,
 )
 
 from gremlins.artifacts.registry import ArtifactRegistry
-from gremlins.env_file import load_env_file_isolated
+from gremlins.env_file import source_env_string
 from gremlins.errors import die
 from gremlins.executor.gremlin import Gremlin
 from gremlins.logging_setup import configure_logging
@@ -247,7 +246,7 @@ async def run_pipeline(
 
     # --- env isolation ---
     # Build the system vars table. These are available during
-    # .gremlins/env sourcing and forcibly re-injected afterward.
+    # bootstrap.env sourcing and forcibly re-injected afterward.
     _system = {
         k: v
         for k, v in {
@@ -266,23 +265,18 @@ async def run_pipeline(
         if v is not None
     }
 
-    # Base env: full parent environment so .gremlins/env has complete
-    # control — it can forward what it wants, override, or unset.
-    # System vars go on top (available during sourcing) but are
-    # re-injected last so users cannot tamper with them.
-    _base = dict(os.environ)
-    _base.update(_system)
-
-    _env_file = pathlib.Path(project_overlay_dir(str(_project_root))) / "env"
-    if _env_file.is_file():
-        try:
-            _env = load_env_file_isolated(
-                _env_file, base_env=_base, cwd=pathlib.Path(_project_root)
-            )
-        except RuntimeError as exc:
-            die(str(exc))
+    # Source bootstrap.env inline. Write to a temp file so bash's `source`
+    # builtin works.
+    env_script = gremlin.pipeline_data.bootstrap.env.strip()
+    if env_script:
+        _base = dict(os.environ)
+        _base.update(_system)
+        _env = source_env_string(
+            env_script, base_env=_base, cwd=pathlib.Path(_project_root)
+        )
     else:
-        _env = dict(_base)
+        _env = dict(os.environ)
+        _env.update(_system)
 
     # Clear os.environ entirely, then apply the sourced env followed
     # by system vars. System vars go last so users cannot override them.
