@@ -178,8 +178,6 @@ def _resolve_inputs(
         else:
             project_root = _project_root_fn()
 
-    assert isinstance(project_root, str), "project_root must be resolved to a string"
-
     resolved_gremlin_id = _resolve_gremlin_id(slug, gremlin_id)
 
     resolved_pipeline_args, pipeline_path = resolve_pipeline(

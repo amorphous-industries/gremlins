@@ -67,3 +67,4 @@ reportUnknownMemberType = false
 reportUnknownParameterType = false
 reportUnknownArgumentType = false
 reportAttributeAccessIssue = false
+reportArgumentType = false
