@@ -386,25 +386,17 @@ pub fn scratch_root(gremlin_id: Option<&str>) -> PathBuf {
 // ---------------------------------------------------------------------------
 
 /// Parsed content of api_keys.json.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct ApiKeys {
     keys: HashMap<String, String>,
 }
 
 impl ApiKeys {
-    /// Load from `user_config_root(None) / "api_keys.json"`.
-    pub fn load() -> Self {
-        let path = resolve_user_config_root(None).join("api_keys.json");
-        match parse_api_keys(&path) {
-            Ok(keys) => ApiKeys { keys },
-            Err(e) => {
-                if !matches!(e, ApiKeysError::Io(ref err) if err.kind() == std::io::ErrorKind::NotFound)
-                {
-                    warn!("failed to load api_keys.json: {e}");
-                }
-                ApiKeys::default()
-            }
-        }
+    /// Load from `user_config_root() / "api_keys.json"`.
+    pub fn load() -> Result<Self, ApiKeysError> {
+        let path = user_config_root().join("api_keys.json");
+        let keys = parse_api_keys(&path)?;
+        Ok(ApiKeys { keys })
     }
 
     /// Get the API key for a provider name (e.g. "openai", "xai").
@@ -432,7 +424,7 @@ fn parse_api_keys(path: &Path) -> Result<HashMap<String, String>, ApiKeysError> 
 }
 
 #[derive(Debug, thiserror::Error)]
-enum ApiKeysError {
+pub enum ApiKeysError {
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
     #[error("JSON parse error: {0}")]
@@ -830,8 +822,9 @@ mod tests {
         clear_sandbox_env();
         let dir = tempfile::tempdir().unwrap();
         std::env::set_var("GREMLINS_SANDBOX_ROOT", dir.path());
-        let keys = ApiKeys::load();
-        assert!(keys.get("openai").is_none());
+        let result = ApiKeys::load();
+        assert!(result.is_err());
+        assert!(matches!(result, Err(ApiKeysError::Io(ref e)) if e.kind() == std::io::ErrorKind::NotFound));
         clear_sandbox_env();
     }
 
@@ -848,7 +841,7 @@ mod tests {
         )
         .unwrap();
         std::env::set_var("GREMLINS_SANDBOX_ROOT", dir.path());
-        let keys = ApiKeys::load();
+        let keys = ApiKeys::load().unwrap();
         assert_eq!(keys.get("openai"), Some("sk-test"));
         assert_eq!(keys.get("xai"), Some("xai-test"));
         clear_sandbox_env();
@@ -863,7 +856,7 @@ mod tests {
         std::fs::create_dir_all(&config_dir).unwrap();
         std::fs::write(config_dir.join("api_keys.json"), r#"{"openai": ""}"#).unwrap();
         std::env::set_var("GREMLINS_SANDBOX_ROOT", dir.path());
-        let keys = ApiKeys::load();
+        let keys = ApiKeys::load().unwrap();
         assert!(keys.get("openai").is_none());
         clear_sandbox_env();
     }
@@ -877,7 +870,7 @@ mod tests {
         std::fs::create_dir_all(&config_dir).unwrap();
         std::fs::write(config_dir.join("api_keys.json"), r#"{"openai": 42}"#).unwrap();
         std::env::set_var("GREMLINS_SANDBOX_ROOT", dir.path());
-        let keys = ApiKeys::load();
+        let keys = ApiKeys::load().unwrap();
         assert!(keys.get("openai").is_none());
         clear_sandbox_env();
     }
@@ -891,8 +884,8 @@ mod tests {
         std::fs::create_dir_all(&config_dir).unwrap();
         std::fs::write(config_dir.join("api_keys.json"), "{bad").unwrap();
         std::env::set_var("GREMLINS_SANDBOX_ROOT", dir.path());
-        let keys = ApiKeys::load();
-        assert!(keys.get("openai").is_none());
+        let result = ApiKeys::load();
+        assert!(result.is_err());
         clear_sandbox_env();
     }
 
@@ -905,8 +898,8 @@ mod tests {
         std::fs::create_dir_all(&config_dir).unwrap();
         std::fs::write(config_dir.join("api_keys.json"), "[1, 2, 3]").unwrap();
         std::env::set_var("GREMLINS_SANDBOX_ROOT", dir.path());
-        let keys = ApiKeys::load();
-        assert!(keys.get("openai").is_none());
+        let result = ApiKeys::load();
+        assert!(result.is_err());
         clear_sandbox_env();
     }
 
@@ -919,26 +912,8 @@ mod tests {
         std::fs::create_dir_all(&config_dir).unwrap();
         std::fs::write(config_dir.join("api_keys.json"), r#"{"foo": "bar"}"#).unwrap();
         std::env::set_var("GREMLINS_SANDBOX_ROOT", dir.path());
-        let keys = ApiKeys::load();
+        let keys = ApiKeys::load().unwrap();
         assert!(keys.get("openai").is_none());
-        clear_sandbox_env();
-    }
-
-    #[test]
-    fn test_api_keys_sandbox_respected() {
-        let _guard = ENV_MUTEX.lock().unwrap();
-        clear_sandbox_env();
-        let dir = tempfile::tempdir().unwrap();
-        let config_dir = dir.path().join("config");
-        std::fs::create_dir_all(&config_dir).unwrap();
-        std::fs::write(
-            config_dir.join("api_keys.json"),
-            r#"{"openai": "sk-sandbox"}"#,
-        )
-        .unwrap();
-        std::env::set_var("GREMLINS_SANDBOX_ROOT", dir.path());
-        let keys = ApiKeys::load();
-        assert_eq!(keys.get("openai"), Some("sk-sandbox"));
         clear_sandbox_env();
     }
 }
