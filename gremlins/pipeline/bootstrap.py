@@ -9,9 +9,7 @@ from collections.abc import Mapping
 from typing import Any, cast
 
 _BOOTSTRAP_KEYS = frozenset({"source", "launch_cmds", "cmds", "cli_out", "env"})
-_MAPPING_ERROR = (
-    "'bootstrap' must be a mapping with optional source:/launch_cmds:/cmds:/cli_out:/env:"
-)
+_MAPPING_ERROR = "'bootstrap' must be a mapping with optional source:/launch_cmds:/cmds:/cli_out:/env:"
 _VALID_SOURCE_TYPES = frozenset({"filepath", "string"})
 
 
