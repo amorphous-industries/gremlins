@@ -5,6 +5,9 @@ use std::sync::{Arc, Mutex};
 use log::warn;
 use serde_json::Value;
 
+/// Default name of the project-local overlay directory.
+pub const OVERLAY_DIRNAME: &str = ".gremlins";
+
 // ---------------------------------------------------------------------------
 // Path overrides from config.json "paths" section
 // ---------------------------------------------------------------------------
@@ -102,6 +105,10 @@ impl Config {
 
     pub fn path_overrides(&self) -> &PathOverrides {
         &self.path_overrides
+    }
+
+    pub fn overlay_dirname(&self) -> &'static str {
+        OVERLAY_DIRNAME
     }
 }
 
@@ -309,7 +316,7 @@ pub fn resolve_project_overlay_dir(
             return p.clone();
         }
     }
-    project_root.join(".gremlins")
+    project_root.join(OVERLAY_DIRNAME)
 }
 
 pub fn resolve_scratch_root(
@@ -358,6 +365,10 @@ pub fn user_config_root() -> PathBuf {
 pub fn project_root() -> PathBuf {
     let overrides = get_global().map(|c| c.path_overrides().clone());
     resolve_project_root(overrides.as_ref())
+}
+
+pub fn overlay_dirname() -> &'static str {
+    OVERLAY_DIRNAME
 }
 
 pub fn project_overlay_dir(project_root: &Path) -> PathBuf {

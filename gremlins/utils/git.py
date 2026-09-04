@@ -16,9 +16,8 @@ import pathlib
 import secrets
 import shutil
 
-from _gremlins_core.config import work_root
+from _gremlins_core.config import overlay_dirname, work_root
 
-from gremlins import OVERLAY_DIRNAME
 from gremlins.utils import proc
 
 
@@ -328,8 +327,9 @@ def remove_worktree(project_root: str, workdir: str) -> None:
 
 
 def stage_gremlins_overlay(project_root: str, state_dir: os.PathLike[str]) -> None:
-    src = pathlib.Path(project_root) / OVERLAY_DIRNAME
-    dst = pathlib.Path(state_dir) / OVERLAY_DIRNAME
+    dirname = overlay_dirname()
+    src = pathlib.Path(project_root) / dirname
+    dst = pathlib.Path(state_dir) / dirname
     if src.is_dir() and src.resolve() != dst.resolve():
         shutil.copytree(src, dst, dirs_exist_ok=True)
 
