@@ -1,69 +1,13 @@
-# ---- .gremlins/env ----
-#
-# This file is the **sole** source of environment variables for gremlin runs.
-# It inherits the full calling environment; whatever it sets, unsets, or
-# leaves unchanged is what the pipeline sees. System vars (GREMLINS_PROJECT_ROOT,
-# GREMLINS_GREMLIN_ID, etc.) are available during sourcing and re-injected
-# afterward — do not try to override them.
-
-
-# ---- Project config ---------------------------------------------------------
-
 export GREMLINS_OPENAI_AGENTS_MAX_TURNS='1000'
-
-
-# ---- Virtual environment selection ------------------------------------------
-#
-# Each gremlin worktree builds its own venv at <worktree>/.venv during
-# bootstrap (`uv venv .venv`). uv then auto-discovers that `.venv` when a
-# later `uv pip install` runs in the same directory — no `--python` needed.
-#
-# The one thing that can defeat discovery is a venv inherited from the
-# caller's environment. VIRTUAL_ENV is uv's "active environment" (the env-var
-# form of `--active`); UV_PYTHON is the env-var form of `--python`. Both take
-# precedence over `.venv` discovery. UV_PROJECT_ENVIRONMENT pins the venv for
-# `uv sync`/`uv run`, and UV_SYSTEM_PYTHON forces the system interpreter.
-# Clear all four so the worktree venv always wins, no matter where the gremlin
-# was launched from.
-#
-# PYTHONPATH is not a venv selector, but it is the same class of inherited
-# leak: its entries are prepended to sys.path and shadow the editable install
-# in the worktree venv (a stale PYTHONPATH pointing at another checkout would
-# make pytest/pyright run against the wrong source tree). The Makefile clears
-# it for `make test`/`make typecheck`, but that only covers those targets and
-# only when someone invokes make; clearing it here covers every gremlin run,
-# including direct `.venv/bin/python -m pytest` invocations.
-#
-# We intentionally do NOT set VIRTUAL_ENV here: the venv path is per-worktree,
-# and parallel children inherit os.environ without re-sourcing this file, so a
-# single path would point every child at the wrong worktree. The bootstrap
-# (which runs in each worktree with GREMLINS_BOOTSTRAP_CWD set) is where the
-# venv is created and discovered.
-
 unset VIRTUAL_ENV UV_PYTHON UV_PROJECT_ENVIRONMENT UV_SYSTEM_PYTHON PYTHONPATH
-
-
-# ---- Rust build cache -------------------------------------------------------
-#
-# Gremlin worktrees live in temp dirs, so cargo builds from scratch every
-# verify iteration without this. Two complementary strategies:
-#
-# a) CARGO_TARGET_DIR — persistent location so cargo's incremental
-#    compilation survives across loop iterations. Also avoids filling
-#    the tmpdir with 1 GB+.
-# b) sccache (brew install sccache) — content-hash-based compiler cache
-#    that spans different git states, so changing source doesn't lose
-#    the cache.
-
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-${GREMLINS_PROJECT_ROOT}/.cargo-gremlin-target}"
 if command -v sccache &>/dev/null; then
     export RUSTC_WRAPPER="${RUSTC_WRAPPER:-sccache}"
 fi
-
-
-# ---- Secrets (untracked file) -----------------------------------------------
-
 SECRET_ENV="${GREMLINS_PROJECT_ROOT}/.gremlins/secret_env"
 if [ -f "$SECRET_ENV" ]; then
     source "$SECRET_ENV"
 fi
+export VIRTUAL_ENV="${GREMLINS_WORKTREE_PATH}/.venv"
+export UV_PROJECT_ENVIRONMENT="${GREMLINS_WORKTREE_PATH}/.venv"
+export PATH="${GREMLINS_WORKTREE_PATH}/.venv/bin:${PATH}"

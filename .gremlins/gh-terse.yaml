@@ -37,6 +37,7 @@ stage-definitions:
       - name: format
         type: exec
         options:
+          timeout: 300
           cmds:
             - make autoformat || true
             - git add -A
