@@ -34,6 +34,14 @@ pub enum OpenAiProvider {
 }
 
 impl OpenAiProvider {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::OpenAi => "openai",
+            Self::Xai => "xai",
+            Self::OpenRouter => "openrouter",
+        }
+    }
+
     pub fn api_key_env(self) -> &'static str {
         match self {
             Self::OpenAi => "OPENAI_API_KEY",
@@ -928,6 +936,9 @@ mod tests {
 
     #[test]
     fn provider_identity() {
+        assert_eq!(OpenAiProvider::OpenAi.name(), "openai");
+        assert_eq!(OpenAiProvider::Xai.name(), "xai");
+        assert_eq!(OpenAiProvider::OpenRouter.name(), "openrouter");
         assert_eq!(OpenAiProvider::OpenAi.api_key_env(), "OPENAI_API_KEY");
         assert_eq!(OpenAiProvider::Xai.api_key_env(), "XAI_API_KEY");
         assert_eq!(
