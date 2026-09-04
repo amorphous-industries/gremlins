@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import pathlib
 import secrets
 from typing import TYPE_CHECKING, Any, cast
@@ -12,6 +13,8 @@ from gremlins.stages.agent_runner import run_agent
 from gremlins.stages.base import Stage, get_client_from_dict
 from gremlins.stages.constants import FRAMEWORK_KEYS
 from gremlins.stages.outcome import Bail, Done, Outcome
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from gremlins.executor.gremlin import Gremlin
