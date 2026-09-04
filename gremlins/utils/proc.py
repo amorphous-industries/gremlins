@@ -135,7 +135,7 @@ async def run_shell_async(
         cmd.replace("\n", "\\n")[:200],
     )
     async def _drain(stream: asyncio.StreamReader) -> bytes:
-        """Read stream until EOF. Continous pumping avoids pipe-buffer deadlock
+        """Read stream until EOF. Continuous pumping avoids pipe-buffer deadlock
         where a burst of output fills the kernel pipe buffer before the event loop
         can schedule the read handler."""
         chunks: list[bytes] = []
@@ -171,6 +171,11 @@ async def run_shell_async(
             stderr_b = await asyncio.wait_for(stderr_task, timeout=5.0)
         except (TimeoutError, asyncio.CancelledError):
             stderr_b = b""
+        # Reap the killed process so it doesn't remain as a zombie.
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=2.0)
+        except (TimeoutError, asyncio.CancelledError):
+            pass
         logger.warning(
             "run_shell_async: pid=%d timed out after %.2fs (timeout=%s)",
             proc.pid,
@@ -189,10 +194,14 @@ async def run_shell_async(
             os.killpg(proc.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
-        stdout_task.cancel()
-        stderr_task.cancel()
-        proc_task.cancel()
+        # Reap the killed process so it doesn't remain as a zombie.
+        # (The gather already cancelled proc_task, so we call proc.wait() directly.)
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=2.0)
+        except (TimeoutError, asyncio.CancelledError):
+            pass
         # Collect whatever the drain tasks managed to read before cancellation.
+        # The gather already cancelled pending tasks, so no need for explicit .cancel().
         stdout_b = stdout_task.result() if stdout_task.done() and not stdout_task.cancelled() else b""
         stderr_b = stderr_task.result() if stderr_task.done() and not stderr_task.cancelled() else b""
         logger.warning(

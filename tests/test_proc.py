@@ -67,6 +67,44 @@ def test_run_shell_async_timeout_kills_process():
     assert r.returncode == 124
 
 
+def test_run_shell_async_large_stdout_burst():
+    # Generate > pipe buffer (typically 16KB) to verify the drain loop prevents
+    # deadlock. The old communicate()-based code would hang here.
+    size = 128 * 1024  # 128KB
+    r = run(
+        proc.run_shell_async(
+            f"python3 -c \"import sys; sys.stdout.write('x' * {size}); sys.stdout.flush()\""
+        )
+    )
+    assert r.returncode == 0
+    assert len(r.stdout) == size
+
+
+def test_run_shell_async_large_stderr_burst():
+    # Generate large stderr to exercise the stderr drain path.
+    size = 128 * 1024
+    r = run(
+        proc.run_shell_async(
+            f"python3 -c \"import sys; sys.stderr.write('x' * {size}); sys.stderr.flush()\""
+        )
+    )
+    assert r.returncode == 0
+    assert len(r.stderr) == size
+
+
+def test_run_shell_async_large_both_streams():
+    # Simultaneous large output on both streams.
+    size = 64 * 1024  # 64KB each = 128KB total
+    r = run(
+        proc.run_shell_async(
+            f"python3 -c \"import sys; sys.stdout.write('x' * {size}); sys.stderr.write('y' * {size}); sys.stdout.flush(); sys.stderr.flush()\""
+        )
+    )
+    assert r.returncode == 0
+    assert len(r.stdout) == size
+    assert len(r.stderr) == size
+
+
 def test_run_async_timeout_kills_grandchildren():
     # Shell forks a grandchild that inherits the pipe write end. Without killpg,
     # the grandchild keeps the pipe open after the parent exits and communicate()
