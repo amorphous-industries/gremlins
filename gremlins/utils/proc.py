@@ -173,10 +173,11 @@ async def run_shell_async(
         can schedule the read handler."""
         chunks: list[bytes] = []
         buf = b""
+        debug_enabled = logger.isEnabledFor(logging.DEBUG)
         while True:
             chunk = await stream.read(65536)
             if not chunk:
-                if buf and logger.isEnabledFor(logging.DEBUG):
+                if buf and debug_enabled:
                     logger.debug(
                         "run_shell_async: pid=%d %s: %s",
                         proc.pid,
@@ -185,7 +186,7 @@ async def run_shell_async(
                     )
                 break
             chunks.append(chunk)
-            if logger.isEnabledFor(logging.DEBUG):
+            if debug_enabled:
                 buf += chunk
                 while b"\n" in buf:
                     line, buf = buf.split(b"\n", 1)
@@ -211,7 +212,7 @@ async def run_shell_async(
         stderr_b = stderr_task.result()
     except TimeoutError:
         elapsed = time.monotonic() - _t0
-        _capture_process_tree(proc.pid)
+        await asyncio.to_thread(_capture_process_tree, proc.pid)
         try:
             os.killpg(proc.pid, signal.SIGKILL)
         except ProcessLookupError:
@@ -243,7 +244,7 @@ async def run_shell_async(
         )
     except asyncio.CancelledError:
         elapsed = time.monotonic() - _t0
-        _capture_process_tree(proc.pid)
+        await asyncio.to_thread(_capture_process_tree, proc.pid)
         try:
             os.killpg(proc.pid, signal.SIGKILL)
         except ProcessLookupError:
@@ -276,6 +277,10 @@ async def run_shell_async(
         raise
     finally:
         monitor_task.cancel()
+        try:
+            await monitor_task
+        except asyncio.CancelledError:
+            pass
     elapsed = time.monotonic() - _t0
     assert proc.returncode is not None
     logger.debug(
