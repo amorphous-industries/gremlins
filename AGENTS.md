@@ -55,7 +55,7 @@ README.md                    Dev install + CLI usage
 ```sh
 uv venv && source .venv/bin/activate
 uv pip install -e ".[dev]"
-make dev           # build + install the Rust native extension (maturin develop)
+make install          # build + install the Rust native extension (maturin develop)
 make -j8 test      # runs pytest per-file in parallel (Makefile splits the suite)
 make check         # ruff lint + ruff format check + pyright + clippy + rustfmt
 ```
@@ -67,8 +67,6 @@ make check         # ruff lint + ruff format check + pyright + clippy + rustfmt
 The `Makefile` sets `MAKEFLAGS += -j$(shell sysctl -n hw.ncpu 2>/dev/null || nproc)` automatically, so `make test` is already parallel without explicit `-j`. Passing `-j8` or `-j$(nproc)` still works as an override.
 
 `make check` now includes Rust checks (clippy + rustfmt) alongside the Python checks.
-
-`make dev` is an alias for `cd crates/gremlins-core && maturin develop`.
 
 ## Project-wide conventions
 

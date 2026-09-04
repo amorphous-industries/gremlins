@@ -23,36 +23,17 @@ parallelism, dependency ordering, and ensures the native extension is built.
 
 | Recipe | What it does | When to use |
 |---|---|---|
-| `make build` | Compile the native extension crate (`cargo build -p gremlins-pyext`). | Check compilation after Rust-only changes. |
-| `make install` | `build` + `maturin develop` — always produces a fresh `.so` in the venv. | **After any Rust change** — this is the safe one-shot. |
-| `make dev` | `maturin develop` (may skip build if only transitive deps changed). | Quick install when the pyext crate itself was changed. |
+| `make install` | `maturin develop` — compiles and installs a fresh `.so` in the venv. | **After any Rust change** — this is the one-shot. |
 | `make release` | `maturin develop --release` (optimized build). | For production installs. |
 | `make check` | Lint + format-check + pyright + rustfmt + clippy. | Before commit. |
 | `make test` | `install` + Rust tests + all Python tests. | Before PR / final verify. |
 | `make autoformat` | Auto-fix Python and Rust formatting issues. | After messy edits. |
 
-### Critical: rust build freshness
+### Building the native extension
 
-**`maturin develop` can skip the Rust build when changes affect only the
-`gremlins` crate (a transitive dependency of the pyext), leaving a stale `.so`
-in the venv.**
-
-The `make test` and `make install` targets solve this by running `cargo build -p gremlins-pyext`
-before `maturin develop`, guaranteeing a fresh `.so`:
-
-```bash
-make install   # build + install, always fresh
-make test      # build + install + run all tests, always fresh
-```
-
-Avoid depending on bare `make dev` when you've changed anything in `crates/` —
-it delegates to `maturin develop` which may audit-skip.
-
-For a full clean:
-
-```bash
-cargo clean -p gremlins-pyext && make install
-```
+`make install` runs `maturin develop` directly, which compiles the crate and
+installs the `.so` into the venv in one step. There is no separate `build` or
+`dev` target — `maturin develop` handles the full build internally.
 
 ### Running tests
 
@@ -72,13 +53,16 @@ For a single test file:
 make tests/test_active_children.py
 ```
 
-This triggers `install` (always rebuilds + installs a fresh extension) then runs just that file.
+This triggers `install` (rebuild + install) then runs just that file.
 
 **Never use `uv run pytest`** — the venv is the test target, not whatever
 `uv run` resolves.
 
-**Never use bare `make dev` after Rust changes to `crates/gremlins/`** —
-the stale `.so` trap. Use `make install` instead.
+For a full clean:
+
+```bash
+cargo clean -p gremlins-pyext && make install
+```
 
 ### Check before you think you're done
 
@@ -87,7 +71,7 @@ make check      # passes fast, but doesn't run tests
 make test       # full verification (slower)
 ```
 
-`make check` does **not** depend on `dev`, so if the `.so` is stale it will
+`make check` does **not** depend on `install`, so if the `.so` is stale it will
 pass even when tests would fail. Always run `make test` (or at least
 `make install`) after Rust changes.
 

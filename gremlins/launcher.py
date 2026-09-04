@@ -180,9 +180,6 @@ def _resolve_inputs(
 
     resolved_gremlin_id = _resolve_gremlin_id(slug, gremlin_id)
 
-    # Without stubs, pyright sees _project_root_fn() as Unknown. Narrow explicitly.
-    project_root = cast(str, project_root)
-
     resolved_pipeline_args, pipeline_path = resolve_pipeline(
         kind, pipeline_args, project_root
     )

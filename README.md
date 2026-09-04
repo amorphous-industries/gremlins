@@ -68,17 +68,17 @@ A provider also requires either its API key (`OPENAI_API_KEY`, `XAI_API_KEY`,
 uv venv
 source .venv/bin/activate  # or `.venv\Scripts\activate` on Windows
 uv pip install -e ".[dev]"
-make dev                    # build + install the Rust native extension
+make install               # build + install the Rust native extension
 ```
 
-Run `uv pip install -e ".[dev]"` **before** `make dev` — the dev extra installs `maturin`, which `make dev` requires.
+Run `uv pip install -e ".[dev]"` **before** `make install` — the dev extra installs `maturin`, which `make install` requires.
 
 ## Make targets
 
 | Target | What it runs |
 |---|---|
-| `make dev` | `maturin develop` |
-| `make install` | `maturin develop --release` |
+| `make install` | `maturin develop` |
+| `make release` | `maturin develop --release` |
 | `make test` | `cargo test -p gremlins --lib && cargo test -p gremlins-pyext --lib`, then each `tests/test_*.py` via pytest |
 | `make lint` | `ruff check .` |
 | `make format` | `ruff format --check .` |
