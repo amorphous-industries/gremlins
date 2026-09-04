@@ -151,12 +151,6 @@ class Exec(Stage):
         shell_rc = 0
         raw_timeout = self.options.get("timeout")
         timeout: float | None = float(raw_timeout) if raw_timeout is not None else None
-        logger.debug(
-            "exec %s: timeout=%s, bail_key_in_bind=%s",
-            self.name,
-            timeout,
-            _BAIL_KEY in self.bind_map,
-        )
         if cmds:
             joined = " && ".join(cmds)
             _cmd_summary = " && ".join(c.replace("\n", "\\n") for c in raw_cmds)
@@ -211,11 +205,6 @@ class Exec(Stage):
                     )
                 if _BAIL_KEY in self.bind_map:
                     bail_triggered = True
-                    logger.debug(
-                        "exec %s: bail key in bind_map, marking bail_triggered=True (rc=%d)",
-                        self.name,
-                        shell_rc,
-                    )
                 else:
                     raise Bail(f"exec {self.name}: exited {shell_rc}")
 
@@ -225,10 +214,6 @@ class Exec(Stage):
             if optional:
                 key = key[:-1]
             if key == _BAIL_KEY and not bail_triggered:
-                logger.debug(
-                    "exec %s: skipping bail bind (bail not triggered)",
-                    self.name,
-                )
                 continue
             try:
                 uri_str = self.substitute_vars(
@@ -236,11 +221,6 @@ class Exec(Stage):
                 )
             except MissingArtifact:
                 if optional:
-                    logger.debug(
-                        "exec %s: skipped optional bind %s (missing artifact)",
-                        self.name,
-                        key,
-                    )
                     continue
                 raise
             if Uri.is_range(uri_str):

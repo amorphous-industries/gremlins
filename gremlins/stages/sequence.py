@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING, Any, cast
 
 from gremlins.stages.base import Stage, get_client_from_dict
@@ -11,8 +10,6 @@ from gremlins.stages.outcome import Done, Outcome
 
 if TYPE_CHECKING:
     from gremlins.executor.gremlin import Gremlin
-
-logger = logging.getLogger(__name__)
 
 
 class SequenceStage(Stage):
@@ -77,11 +74,6 @@ class SequenceStage(Stage):
             )
             try:
                 await runner()
-                logger.debug(
-                    "sequence %s: child %s completed successfully",
-                    self.name,
-                    child.name,
-                )
             finally:
                 state.data.patch(_delete=("active_children",))
             state.mark_done(key, child.name)
