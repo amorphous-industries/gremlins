@@ -376,7 +376,11 @@ class Gremlin:
             "worktree": self.worktree_dir,
             "worktree_parent": self.worktree_parent,
             "artifacts": self.registry,
-            "base_ref": self.base_ref,
+            "base_ref": (
+                self.pipeline_data.base_ref
+                if self.pipeline_data and self.pipeline_data.base_ref != "current"
+                else self.base_ref
+            ),
         }
 
     def _collect_stages(
