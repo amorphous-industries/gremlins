@@ -28,16 +28,33 @@ def _read_log_tail(log_path: pathlib.Path) -> str:
     if not log_path.is_file():
         return "(no log file)"
 
-    size = log_path.stat().st_size
+    try:
+        size = log_path.stat().st_size
+    except OSError:
+        return "(log unreadable)"
+
     if size == 0:
         return "(empty log)"
 
     if size <= _LOG_MAX_BYTES:
-        return log_path.read_text(encoding="utf-8", errors="replace")
+        try:
+            return log_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return "(log unreadable)"
 
-    with open(log_path, "rb") as f:
-        f.seek(-_LOG_MAX_BYTES, os.SEEK_END)
-        chunk = f.read(_LOG_MAX_BYTES)
+    try:
+        with open(log_path, "rb") as f:
+            f.seek(-_LOG_MAX_BYTES, os.SEEK_END)
+            chunk = f.read(_LOG_MAX_BYTES)
+    except OSError:
+        # Log may have been truncated/rotated between stat and seek —
+        # fall back to reading from the start.
+        try:
+            with open(log_path, "rb") as f:
+                chunk = f.read(_LOG_MAX_BYTES)
+        except OSError:
+            return "(log unreadable)"
+
     text = chunk.decode("utf-8", errors="replace")
     # Drop the partial first line if we started mid-line.
     if text.startswith("\n"):
@@ -71,11 +88,25 @@ def _read_artifact_listing(wdir: str) -> str:
     parts: list[str] = []
     for fpath in entries:
         try:
-            content = fpath.read_text(encoding="utf-8", errors="replace")
-        except Exception:
+            size = fpath.stat().st_size
+        except OSError:
             content = "(binary or unreadable)"
-        if len(content) > _ARTIFACT_MAX_SIZE:
-            content = content[:_ARTIFACT_MAX_SIZE] + "\n... [truncated]"
+        else:
+            if size > _ARTIFACT_MAX_SIZE:
+                try:
+                    with open(fpath, "rb") as f:
+                        content = f.read(_ARTIFACT_MAX_SIZE).decode(
+                            "utf-8", errors="replace"
+                        )
+                except OSError:
+                    content = "(binary or unreadable)"
+                else:
+                    content += "\n... [truncated]"
+            else:
+                try:
+                    content = fpath.read_text(encoding="utf-8", errors="replace")
+                except OSError:
+                    content = "(binary or unreadable)"
         parts.append(f"### {fpath.name}\n\n```\n{content}\n```")
 
     result = "\n\n".join(parts)
@@ -96,8 +127,11 @@ def _resolve_client(client_spec: str | None, state: dict[str, Any]) -> Client:
     if state_client:
         try:
             return Client.parse(state_client)
-        except ValueError:
-            pass
+        except Exception as exc:
+            raise ValueError(
+                f"cannot parse client {state_client!r} from state.json ({exc}) — "
+                "pass --client SPEC to override it"
+            ) from exc
 
     global_client = get_config().default_client
     if global_client:
