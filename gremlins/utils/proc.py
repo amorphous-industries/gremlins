@@ -134,6 +134,7 @@ async def run_shell_async(
         proc.pid,
         cmd.replace("\n", "\\n")[:200],
     )
+
     async def _drain(stream: asyncio.StreamReader) -> bytes:
         """Read stream until EOF. Continuous pumping avoids pipe-buffer deadlock
         where a burst of output fills the kernel pipe buffer before the event loop
@@ -202,8 +203,16 @@ async def run_shell_async(
             pass
         # Collect whatever the drain tasks managed to read before cancellation.
         # The gather already cancelled pending tasks, so no need for explicit .cancel().
-        stdout_b = stdout_task.result() if stdout_task.done() and not stdout_task.cancelled() else b""
-        stderr_b = stderr_task.result() if stderr_task.done() and not stderr_task.cancelled() else b""
+        stdout_b = (
+            stdout_task.result()
+            if stdout_task.done() and not stdout_task.cancelled()
+            else b""
+        )
+        stderr_b = (
+            stderr_task.result()
+            if stderr_task.done() and not stderr_task.cancelled()
+            else b""
+        )
         logger.warning(
             "run_shell_async: pid=%d cancelled after %.2fs%s%s",
             proc.pid,
