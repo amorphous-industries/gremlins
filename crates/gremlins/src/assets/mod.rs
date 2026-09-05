@@ -9,11 +9,12 @@ pub static PIPELINES: Map<&'static str, &'static str> = phf_map! {
     "pr-extend" => include_str!("../../../../gremlins/pipelines/pr-extend.yaml"),
 };
 
-/// Compile-time map: pipeline name → source file path (for `resolve_pipeline_name`).
+/// Compile-time map: pipeline name → source file name (for `resolve_pipeline_name`).
+/// Joined with a runtime-discovered `bundled_pipelines_dir` to produce the full path.
 pub static PIPELINE_PATHS: Map<&'static str, &'static str> = phf_map! {
-    "boss"      => "../gremlins/pipelines/boss.yaml",
-    "gh"        => "../gremlins/pipelines/gh.yaml",
-    "gh-terse"  => "../gremlins/pipelines/gh-terse.yaml",
-    "local"     => "../gremlins/pipelines/local.yaml",
-    "pr-extend" => "../gremlins/pipelines/pr-extend.yaml",
+    "boss"      => "boss.yaml",
+    "gh"        => "gh.yaml",
+    "gh-terse"  => "gh-terse.yaml",
+    "local"     => "local.yaml",
+    "pr-extend" => "pr-extend.yaml",
 };

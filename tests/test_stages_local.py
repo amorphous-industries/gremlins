@@ -10,6 +10,7 @@ from conftest import MINIMAL_EVENTS, MockGremlin, ReviewCreatingClient
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.executor.state import StateData, build_state
 from gremlins.pipeline import Pipeline
+from gremlins.pipelines import BUNDLED_PIPELINE_DIR
 from gremlins.stages.agent import Agent
 
 if TYPE_CHECKING:
@@ -21,7 +22,7 @@ _BUNDLED_PROMPTS = (
 
 
 def test_local_yaml_loads_and_validates(tmp_path):
-    pipeline = Pipeline.from_yaml(resolve_pipeline_path("local", tmp_path))
+    pipeline = Pipeline.from_yaml(resolve_pipeline_path("local", tmp_path, BUNDLED_PIPELINE_DIR))
     assert len(pipeline.stages) == 10
     names = [s.name for s in pipeline.stages]
     assert names == [

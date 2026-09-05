@@ -47,7 +47,7 @@ The LLM client backend. Python `gremlins/clients/__init__.py` imports
 
 ### `_gremlins_core.discovery.*`
 
-The Rust discovery module (`crates/gremlins/src/core/discovery.rs` + PyO3
+The Rust discovery module (`crates/gremlins/src/core/discovery/mod.rs` + PyO3
 wrapper at `crates/pyext/src/python/discovery.rs`) is now **active**.
 All Python call sites import `list_pipelines`, `resolve_pipeline_name`, and
 `resolve_pipeline_path` from `_gremlins_core.discovery`. The Python
@@ -115,8 +115,8 @@ The Python `gremlins/pipeline/discovery.py` has been deleted.
 | `gremlins/pipeline/discovery.py` | ~~Pure Python `list_pipelines`, `resolve_pipeline_name`, `resolve_pipeline_path` — **active**~~ **deleted** — replaced by `_gremlins_core.discovery.*` |
 | `gremlins/pipeline/preprocess.py` | Python `expand_pipeline` — **active** |
 | `gremlins/pipeline/loader.py` | Pure Python `parse_stage`, `parse_stages`, `fill_names`, `check_duplicate_producers` — **active** (Rust equivalents at `_gremlins_core.schemas.*` exist but are **not wired** into any Python call site) |
-| `crates/pyext/src/python/discovery.rs` | Rust `list_pipelines`, `resolve_pipeline_name`, `resolve_pipeline_path` (wraps `crates/gremlins/src/core/discovery.rs`) — **active** |
-| `crates/gremlins/src/core/discovery.rs` | Rust discovery implementation — **active** |
+| `crates/pyext/src/python/discovery.rs` | Rust `list_pipelines`, `resolve_pipeline_name`, `resolve_pipeline_path` (wraps `crates/gremlins/src/core/discovery/mod.rs`) — **active** |
+| `crates/gremlins/src/core/discovery/mod.rs` | Rust discovery implementation — **active** |
 | `crates/pyext/src/schemas/loader.rs` | Rust `parse_stage`, `parse_stages`, `fill_names`, `check_duplicate_producers` — **NOT yet active** (parallel implementations; Python originals in `gremlins/pipeline/loader.py` are the active ones) |
 | `crates/pyext/src/schemas/preprocess.rs` | Rust `expand_pipeline` — **NOT yet active** |
 | `crates/pyext/src/lib.rs` | `#[pymodule]` — registers all `_gremlins_core.*` submodules |

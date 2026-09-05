@@ -9,6 +9,6 @@ pub enum DiscoveryError {
     #[error("pipeline file not found: {path}")]
     File { path: PathBuf },
 
-    #[error("pipeline {name:?} not found in {dirs}")]
+    #[error("pipeline {name:?} not found in {dirs} or bundled pipelines")]
     Path { name: String, dirs: String },
 }

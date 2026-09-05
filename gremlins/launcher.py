@@ -30,6 +30,7 @@ from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.executor.gremlin import Gremlin, validate_gremlin_id, write_initial_state
 from gremlins.pipeline import Pipeline as _PipelineData
 from gremlins.pipeline.bootstrap import validate_source_values
+from gremlins.pipelines import BUNDLED_PIPELINE_DIR
 from gremlins.utils import git as _git_mod
 from gremlins.utils import proc
 from gremlins.utils.spawn_logged_process import (
@@ -91,7 +92,7 @@ class _Inputs:
 
 def _reject_pipeline_collision(gremlin_id: str) -> None:
     pipeline_names = {
-        name for name, _ in list_pipelines(pathlib.Path(_project_root_fn()))
+        name for name, _ in list_pipelines(pathlib.Path(_project_root_fn()), BUNDLED_PIPELINE_DIR)
     }
     if gremlin_id in pipeline_names:
         raise ValueError(
@@ -186,7 +187,7 @@ def _resolve_inputs(
 
     try:
         loaded_pipeline = _PipelineData.from_yaml(
-            resolve_pipeline_path(pipeline_path, pathlib.Path(project_root))
+            resolve_pipeline_path(pipeline_path, pathlib.Path(project_root), BUNDLED_PIPELINE_DIR)
         )
     except (FileNotFoundError, OSError, ValueError):
         pass
@@ -270,13 +271,14 @@ def _append_graft(
     from _gremlins_core.schemas import fill_names
 
     from gremlins.pipeline.preprocess import expand_pipeline
+    from gremlins.pipelines import BUNDLED_PIPELINE_DIR
     from gremlins.utils.yaml_io import dump_yaml_text, load_yaml_file
 
     hermetic = state_dir / "pipeline.yaml"
     if not hermetic.is_file():
         raise RuntimeError(f"no persisted pipeline.yaml in {state_dir} — cannot graft")
 
-    graft_path = resolve_pipeline_name(graft_pipeline_name, pathlib.Path(project_root))
+    graft_path = resolve_pipeline_name(graft_pipeline_name, pathlib.Path(project_root), BUNDLED_PIPELINE_DIR)
     expanded = expand_pipeline(graft_path, pathlib.Path(project_root))
     graft_stages = list(expanded.get("stages") or [])
     if not graft_stages:

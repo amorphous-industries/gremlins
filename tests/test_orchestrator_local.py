@@ -13,11 +13,12 @@ from conftest import common_local_patches as _common_patches
 
 from gremlins.executor.run import run_pipeline
 from gremlins.pipeline import Pipeline
+from gremlins.pipelines import BUNDLED_PIPELINE_DIR
 from tests.fake_client import FakeClient
 
 
 def _local_pipeline_path(cwd):
-    return resolve_pipeline_path("local", cwd)
+    return resolve_pipeline_path("local", cwd, BUNDLED_PIPELINE_DIR)
 
 
 # ---------------------------------------------------------------------------
@@ -186,7 +187,7 @@ def test_local_main_injected_client_model(tmp_path, monkeypatch):
 
 
 def test_local_pipeline_stage_names(tmp_path):
-    pipeline = Pipeline.from_yaml(resolve_pipeline_path("local", tmp_path))
+    pipeline = Pipeline.from_yaml(resolve_pipeline_path("local", tmp_path, BUNDLED_PIPELINE_DIR))
     names = [s.name for s in pipeline.stages]
     assert names == [
         "plan",

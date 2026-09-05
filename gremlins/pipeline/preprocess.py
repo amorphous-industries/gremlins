@@ -7,6 +7,7 @@ from typing import Any, cast
 from _gremlins_core.discovery import resolve_pipeline_name
 
 from gremlins.pipeline import GREMLINS_PREFIX
+from gremlins.pipelines import BUNDLED_PIPELINE_DIR
 from gremlins.prompts import BUNDLED_PROMPT_DIR
 from gremlins.recipes import BUNDLED_STAGE_DEF_DIR
 from gremlins.utils.yaml_io import load_yaml_file
@@ -115,7 +116,7 @@ def _expand_entry(
         name = entry["include"]
         if not isinstance(name, str) or not name:
             raise ValueError("include: value must be a non-empty string")
-        included_path = resolve_pipeline_name(name, project_root)
+        included_path = resolve_pipeline_name(name, project_root, BUNDLED_PIPELINE_DIR)
         included = _expand(included_path, project_root, chain)
         return cast(list[dict[str, Any]], included.get("stages") or [])
 
@@ -163,7 +164,7 @@ def _expand_entry(
                 seen_defs,
             )
         try:
-            included_path = resolve_pipeline_name(stage_type, project_root)
+            included_path = resolve_pipeline_name(stage_type, project_root, BUNDLED_PIPELINE_DIR)
         except FileNotFoundError:
             pass
         else:
