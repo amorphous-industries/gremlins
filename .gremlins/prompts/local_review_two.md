@@ -2,6 +2,8 @@
 
 Review the changes on the current branch against `{base_ref}` and output findings as text.
 
+Do not re-read files. If you cannot come to a conclusion, indicate that you are unsure and explain why, and finish the review.
+
 **Do not run any tests, checks, linters, or build commands.** This is a code review only.
 
 The plan for this change is:
