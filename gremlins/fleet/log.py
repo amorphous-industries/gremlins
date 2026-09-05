@@ -6,10 +6,10 @@ import sys
 from gremlins.fleet.resolve import resolve_gremlin
 
 
-def do_log(target: str) -> bool:
-    """Tail the gremlin's log file. Execs ``tail -F`` so Ctrl-C handling and
-    rotation/truncation behavior are whatever tail provides — the wrapper just
-    resolves the id and prints the path."""
+def do_log(target: str, *, full: bool = False) -> bool:
+    """Tail (default) or dump (--full) the gremlin's log file. Execs ``tail -F``
+    or ``cat`` so Ctrl-C handling and rotation/truncation behavior are whatever
+    the tool provides — the wrapper just resolves the id and prints the path."""
     match = resolve_gremlin(target)
     if match is None:
         return False
@@ -21,10 +21,20 @@ def do_log(target: str) -> bool:
         return False
 
     # Print the path to stderr so it survives even if the operator is piping
-    # tail's stdout into another tool. Flush immediately so the header isn't
-    # interleaved after tail starts writing.
+    # the tool's stdout into another tool. Flush immediately so the header
+    # isn't interleaved after the tool starts writing.
     sys.stderr.write(f"==> log: {log_path}\n")
     sys.stderr.flush()
+
+    if full:
+        try:
+            os.execvp("cat", ["cat", log_path])
+        except FileNotFoundError:
+            sys.stderr.write("error: cat not found in PATH\n")
+            return False
+        except OSError as e:
+            sys.stderr.write(f"error: could not exec cat: {e}\n")
+            return False
 
     try:
         os.execvp("tail", ["tail", "-F", log_path])
