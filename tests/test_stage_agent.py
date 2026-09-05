@@ -8,10 +8,10 @@ import re
 from typing import TYPE_CHECKING, Any, cast
 
 import pytest
+from _gremlins_core.artifacts import Uri
 from conftest import MINIMAL_EVENTS, MockGremlin
 
 from gremlins.artifacts.registry import ArtifactRegistry, MissingArtifact
-from _gremlins_core.artifacts import Uri
 from gremlins.executor.state import State, StateData, build_state
 from gremlins.stages.agent import Agent
 from gremlins.stages.outcome import Done

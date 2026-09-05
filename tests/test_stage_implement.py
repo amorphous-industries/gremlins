@@ -16,10 +16,10 @@ import subprocess
 from typing import TYPE_CHECKING, Any, cast
 
 import pytest
+from _gremlins_core.artifacts import Uri
 from conftest import MockGremlin
 
 from gremlins.artifacts.registry import ArtifactRegistry
-from _gremlins_core.artifacts import Uri
 from gremlins.executor.state import StateData, build_state
 from gremlins.pipeline import Pipeline
 from gremlins.pipeline.discovery import resolve_pipeline_path

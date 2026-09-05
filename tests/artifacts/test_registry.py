@@ -6,13 +6,13 @@ import json
 import pathlib
 
 import pytest
+from _gremlins_core.artifacts import Uri
 
 from gremlins.artifacts.registry import (
     ArtifactRegistry,
     DuplicateArtifact,
     MissingArtifact,
 )
-from _gremlins_core.artifacts import Uri
 
 
 def make_registry(tmp_path: pathlib.Path) -> ArtifactRegistry:

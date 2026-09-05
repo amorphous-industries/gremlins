@@ -11,13 +11,14 @@ import shutil
 from collections.abc import Iterable, Mapping
 from typing import Any
 
+from _gremlins_core.artifacts import Uri
+
 from gremlins.artifacts._protocol import SchemeResolver
 from gremlins.artifacts.schemes import (
     FileArtifactResolver,
     GitResolver,
     OpaqueResolver,
 )
-from _gremlins_core.artifacts import Uri
 from gremlins.utils import git as git_utils
 
 logger = logging.getLogger(__name__)

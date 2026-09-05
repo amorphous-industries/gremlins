@@ -6,11 +6,11 @@ import asyncio
 import pathlib
 
 import pytest
+from _gremlins_core.artifacts import Uri
 from conftest import MINIMAL_EVENTS, MockGremlin
 
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.artifacts.resolve import resolve_interpolation_map
-from _gremlins_core.artifacts import Uri
 from gremlins.executor.state import StateData, build_state
 from gremlins.stages.agent import Agent
 from gremlins.stages.exec import Exec

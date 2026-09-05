@@ -3,10 +3,10 @@ import pathlib
 import subprocess
 from typing import TYPE_CHECKING, cast
 
+from _gremlins_core.artifacts import Uri
 from conftest import MINIMAL_EVENTS, MockGremlin, ReviewCreatingClient
 
 from gremlins.artifacts.registry import ArtifactRegistry
-from _gremlins_core.artifacts import Uri
 from gremlins.executor.state import StateData, build_state
 from gremlins.pipeline import Pipeline
 from gremlins.pipeline.discovery import resolve_pipeline_path

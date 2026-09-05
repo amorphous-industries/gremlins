@@ -49,10 +49,7 @@ pub enum UriError {
     #[error("invalid URI (missing '://'): {0:?}")]
     MissingSeparator(String),
     #[error("unknown scheme {scheme:?}; known schemes: {known:?}")]
-    UnknownScheme {
-        scheme: String,
-        known: Vec<String>,
-    },
+    UnknownScheme { scheme: String, known: Vec<String> },
 }
 
 #[cfg(test)]

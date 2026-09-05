@@ -20,12 +20,12 @@ import subprocess
 import sys
 from typing import Any, cast
 
+from _gremlins_core.artifacts import Uri
 from _gremlins_core.config import project_root as _project_root_fn
 from _gremlins_core.config import scratch_root as _scratch_root_fn
 from _gremlins_core.config import state_root as _state_root_fn
 
 from gremlins.artifacts.registry import ArtifactRegistry
-from _gremlins_core.artifacts import Uri
 from gremlins.executor.gremlin import Gremlin, validate_gremlin_id, write_initial_state
 from gremlins.pipeline import Pipeline as _PipelineData
 from gremlins.pipeline.bootstrap import validate_source_values

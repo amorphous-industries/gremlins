@@ -1,8 +1,8 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 
+use gremlins::artifacts::uri as rust_uri;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use gremlins::artifacts::uri as rust_uri;
 
 #[pyclass(name = "Uri", module = "_gremlins_core.artifacts")]
 struct Uri {
