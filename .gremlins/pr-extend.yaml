@@ -95,7 +95,12 @@ stages:
       artifact.pr-diff: "file://session/diff.txt"
     options:
       cmds:
-        - "gh pr diff \"{pr}\" > \"{artifact_dir}/diff.txt\""
+        - |
+          gh pr diff "{pr}" > "{artifact_dir}/diff.txt" &&
+          SIZE=$(wc -c < "{artifact_dir}/diff.txt") &&
+          if [ "$SIZE" -gt 100000 ]; then
+            printf 'PR diff too large to inline (%d bytes). Reviewer should fetch the diff directly via gh pr diff.' "$SIZE" > "{artifact_dir}/diff.txt"
+          fi
 
   - parallel:
       - { type: gremlins:github-wait-copilot,          interpolation: {pr: artifact.pr-url} }

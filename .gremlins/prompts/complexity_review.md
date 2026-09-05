@@ -66,7 +66,7 @@ If the PR is already tight, write a summary body saying so explicitly and set `c
 Use `gh api` to submit the review. Get the repo owner/name from the PR metadata or by running `gh repo view --json nameWithOwner -q .nameWithOwner`.
 
 ```
-gh api repos/{{owner}}/{{repo}}/pulls/{{number}}/reviews --input /dev/stdin <<< '$JSON'
+gh api repos/{{owner}}/{{repo}}/pulls/{{number}}/reviews --input /dev/stdin <<< "$JSON"
 ```
 
 Write the JSON to a temp file if it's large, then pass it via `--input`.
