@@ -24,7 +24,7 @@ pub fn openai_agents_max_turns() -> usize {
     env::var("GREMLINS_OPENAI_AGENTS_MAX_TURNS")
         .ok()
         .and_then(|v| v.parse().ok())
-        .unwrap_or(100)
+        .unwrap_or(1000)
 }
 
 pub fn reasoning_effort() -> Option<String> {
