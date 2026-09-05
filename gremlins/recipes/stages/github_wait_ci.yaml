@@ -8,7 +8,7 @@ stages:
   - name: github-wait-ci
     type: loop
     max-iterations: 3
-    stop_when_exists: status
+    stop_when_exists: done
     interpolation:
       pr_url: artifact.pr-url
       pr_branch: artifact.pr-branch
@@ -19,6 +19,7 @@ stages:
           pr_url: artifact.pr-url
         bind:
           artifact.status?: "file://session/status"
+          artifact.done?: "file://session/done"
           artifact.bail: "file://session/bail"
           artifact.ci_log: "file://session/exec-poll.log"
         options:
@@ -67,6 +68,7 @@ stages:
                   if [ "$rollup_len" -eq 0 ]; then
                       printf 'ci-gate: no check-runs after %ss grace; skipping\n' {startup_grace_secs}
                       printf 'skipped' > "{artifact_dir}/status"
+                      printf 'passed' > "{artifact_dir}/done"
                       exit 0
                   fi
               else
@@ -124,10 +126,12 @@ stages:
               if [ "$failed_count" -eq 0 ]; then
                   printf 'ci-gate: all checks passed\n'
                   printf 'passed' > "{artifact_dir}/status"
+                  printf 'passed' > "{artifact_dir}/done"
                   exit 0
               fi
 
               # Collect failure logs for the fix agent.
+              printf 'failed' > "{artifact_dir}/status"
               printf '%s' "$failed_json" | jq -c '.[]' | while read -r check_json; do
                   check_name=$(printf '%s' "$check_json" | jq -r '.name // .context // "unknown"')
                   details_url=$(printf '%s' "$check_json" | jq -r '.detailsUrl // .targetUrl // empty')
@@ -144,12 +148,12 @@ stages:
               exit 1
 
       - name: fix
-        # skip_if_exists: status — poll may have produced status (CI passed)
+        # skip_if_exists: done — poll may have produced done (CI passed)
         # in this iteration. If so, skip fix/push/capture since there's
-        # nothing to fix. The loop-level stop_when_exists: status terminates
+        # nothing to fix. The loop-level stop_when_exists: done terminates
         # after this iteration completes.
         type: agent
-        skip_if_exists: status
+        skip_if_exists: done
         prompt:
           - "{{prompt}}"
         interpolation:
@@ -157,7 +161,7 @@ stages:
 
       - name: push-fix
         type: exec
-        skip_if_exists: status
+        skip_if_exists: done
         interpolation:
           pr_branch: artifact.pr-branch
         options:
@@ -166,7 +170,7 @@ stages:
 
       - name: capture-head
         type: exec
-        skip_if_exists: status
+        skip_if_exists: done
         bind:
           artifact.fix_head: "file://session/fix-head"
         options:

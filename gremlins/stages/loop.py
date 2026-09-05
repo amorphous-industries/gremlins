@@ -150,14 +150,13 @@ class LoopStage(Stage):
                 for raw_key in getattr(child, "bind_map", {}):
                     key = raw_key.removesuffix("?")
                     gremlin.state.artifacts.unbind(key)
-            if logger.isEnabledFor(logging.DEBUG):
-                logger.debug(
-                    "loop %s: iteration %d/%d starting (%d body runners)",
-                    self.name,
-                    iteration,
-                    self._max_iterations,
-                    len(self.body),
-                )
+            logger.info(
+                "loop %s: iteration %d/%d starting (%d body runners)",
+                self.name,
+                iteration,
+                self._max_iterations,
+                len(self.body),
+            )
             runners = (
                 self._body_runners
                 if self._body_runners is not None
@@ -167,27 +166,30 @@ class LoopStage(Stage):
                 await runner()
 
             if _is_bail_set(gremlin.state.artifacts):
-                if logger.isEnabledFor(logging.DEBUG):
-                    logger.debug(
-                        "loop %s: iteration %d hit bail artifact",
-                        self.name,
-                        iteration,
-                    )
+                logger.info(
+                    "loop %s: iteration %d hit bail artifact",
+                    self.name,
+                    iteration,
+                )
                 _do_bail(gremlin, gremlin.state.artifacts)
 
             if self._stop_when_exists is not None and gremlin.state.artifacts.produced(
                 self._stop_when_exists
             ):
-                if logger.isEnabledFor(logging.DEBUG):
-                    logger.debug(
-                        "loop %s: iteration %d stopping (artifact %s produced)",
-                        self.name,
-                        iteration,
-                        self._stop_when_exists,
-                    )
+                logger.info(
+                    "loop %s: stopped after %d iteration(s) — artifact %r produced",
+                    self.name,
+                    iteration,
+                    self._stop_when_exists,
+                )
                 return Done()
 
             if iteration == self._max_iterations:
+                logger.info(
+                    "loop %s: exhausted after %d iteration(s) without meeting stop condition",
+                    self.name,
+                    self._max_iterations,
+                )
                 gremlin.state.record_bail(
                     f"loop exhausted {self._max_iterations} iterations"
                 )
