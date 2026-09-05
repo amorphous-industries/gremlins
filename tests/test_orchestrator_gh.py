@@ -352,6 +352,7 @@ def test_gh_pipeline_stage_names(tmp_path):
         "verify-check",
         "verify-test",
         "open-pr",
+        "diff-summary",
         "compose-pr",
         "push-and-open",
         "github-discover-repo",
