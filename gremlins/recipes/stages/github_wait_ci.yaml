@@ -18,7 +18,6 @@ stages:
         interpolation:
           pr_url: artifact.pr-url
         bind:
-          artifact.status: "file://session/status"
           artifact.done?: "file://session/done"
           artifact.bail: "file://session/bail"
           artifact.ci_log: "file://session/exec-poll.log"

@@ -166,12 +166,11 @@ class LoopStage(Stage):
                 await runner()
 
             if _is_bail_set(gremlin.state.artifacts):
-                if logger.isEnabledFor(logging.DEBUG):
-                    logger.debug(
-                        "loop %s: iteration %d hit bail artifact",
-                        self.name,
-                        iteration,
-                    )
+                logger.info(
+                    "loop %s: iteration %d hit bail artifact",
+                    self.name,
+                    iteration,
+                )
                 _do_bail(gremlin, gremlin.state.artifacts)
 
             if self._stop_when_exists is not None and gremlin.state.artifacts.produced(
