@@ -520,9 +520,10 @@ fn _expand_entry(
                     return Ok(stages);
                 }
             }
-            Err(_) => {
+            Err(SchemaError::PipelineNotFound(_)) => {
                 // Not a pipeline — fall through to loader validation
             }
+            Err(e) => return Err(e),
         }
     }
 

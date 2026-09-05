@@ -4,7 +4,9 @@ pub use gremlins::schemas::error::SchemaError;
 
 pub fn into_pyerr(e: SchemaError) -> pyo3::PyErr {
     match &e {
-        SchemaError::PipelineFileNotFound { .. } | SchemaError::PromptFileNotFound { .. } => {
+        SchemaError::PipelineFileNotFound { .. }
+        | SchemaError::PromptFileNotFound { .. }
+        | SchemaError::PipelineNotFound(_) => {
             PyFileNotFoundError::new_err(e.to_string())
         }
         SchemaError::IncludeCycle(_)

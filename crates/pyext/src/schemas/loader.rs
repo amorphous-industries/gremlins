@@ -151,6 +151,7 @@ pub fn fill_names(raw_stages: &Bound<'_, PyList>) -> PyResult<()> {
             .and_then(|v| v.str().ok())
             .and_then(|s| s.to_str().ok().map(|s| s.to_string()))
             .filter(|n| !n.is_empty());
+        d.del_item("_auto_name").ok();
         let stage_type: Option<String> = d
             .get_item("type")
             .ok()

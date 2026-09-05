@@ -14,6 +14,9 @@ pub enum SchemaError {
     #[error("prompt file not found: {path}")]
     PromptFileNotFound { path: String },
 
+    #[error("pipeline not found: {0}")]
+    PipelineNotFound(String),
+
     #[error("prompt file is empty: {path}")]
     PromptFileEmpty { path: String },
 

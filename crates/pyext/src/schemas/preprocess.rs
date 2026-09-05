@@ -24,7 +24,15 @@ impl PipelineResolver for PyResolver<'_> {
                 project_root.to_path_buf(),
                 bundled_pipeline_dir.to_path_buf(),
             ))
-            .map_err(|e| SchemaError::Generic(e.to_string()))?;
+            .map_err(|e| {
+                if e.is_instance_of::<pyo3::exceptions::PyFileNotFoundError>(
+                    self.resolve_pipeline_name_fn.py(),
+                ) {
+                    SchemaError::PipelineNotFound(e.to_string())
+                } else {
+                    SchemaError::Generic(e.to_string())
+                }
+            })?;
         let path: String = result.extract().map_err(|e| {
             SchemaError::Generic(format!("pipeline resolver returned non-string: {e}"))
         })?;
