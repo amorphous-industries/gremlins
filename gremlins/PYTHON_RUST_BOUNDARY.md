@@ -81,21 +81,9 @@ use the Rust implementation. The remaining functions are still Python-only.
 
 The Rust `expand_pipeline` in `crates/pyext/src/schemas/preprocess.rs`
 takes `bundled_prompt_dir`, `bundled_stage_def_dir`, and
-`bundled_pipeline_dir` as explicit `PathBuf` parameters. The model saw
-these fields and tried to trace how Python's `BUNDLED_PROMPT_DIR` gets
-passed into the Rust function — searching for
-`_gremlins_core.schemas.expand_pipeline`, `schemas.expand_pipeline`,
-`from _gremlins_core import expand_pipeline`, etc.
-
-None of these searches matched, because **the Rust `expand_pipeline` was
-not yet called from Python**. The Python `expand_pipeline` in
-`gremlins/pipeline/preprocess.py` was the active one, and it read
-`BUNDLED_PROMPT_DIR` directly from the Python import
-`gremlins.prompts.BUNDLED_PROMPT_DIR` — no FFI boundary involved.
-
-Now that `expand_pipeline` is active, the Python call sites pass
-`BUNDLED_PROMPT_DIR`, `BUNDLED_STAGE_DEF_DIR`, and a resolver callback
-to the Rust function at each call site.
+`bundled_pipeline_dir` as explicit `PathBuf` parameters. The Python call
+sites pass `BUNDLED_PROMPT_DIR`, `BUNDLED_STAGE_DEF_DIR`, and a resolver
+callback to the Rust function at each call site.
 
 ### The discovery name resolution trap
 

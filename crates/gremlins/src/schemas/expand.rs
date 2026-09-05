@@ -219,7 +219,7 @@ pub fn substitute_recipe(
                             .filter_map(|v| v.as_str())
                             .collect::<Vec<_>>()
                             .join(" && "),
-                        Ok(val) => val.as_str().unwrap_or("").to_string(),
+                        Ok(val) => val_to_string(&val),
                         Err(_) => caps[0].to_string(),
                     }
                 });
@@ -229,6 +229,16 @@ pub fn substitute_recipe(
             }
         }
         _ => Ok(node.clone()),
+    }
+}
+
+fn val_to_string(val: &serde_yaml::Value) -> String {
+    match val {
+        serde_yaml::Value::String(s) => s.clone(),
+        serde_yaml::Value::Number(n) => n.to_string(),
+        serde_yaml::Value::Bool(b) => b.to_string(),
+        serde_yaml::Value::Null => "null".to_string(),
+        other => format!("{other:?}"),
     }
 }
 

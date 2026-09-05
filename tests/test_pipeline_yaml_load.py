@@ -16,22 +16,17 @@ from gremlins.prompts import BUNDLED_PROMPT_DIR
 from gremlins.recipes import BUNDLED_STAGE_DEF_DIR
 
 
-def _RESOLVE(n, pr):
+def _resolve(n, pr):
     return _resolve_pipeline_name(n, pr, BUNDLED_PIPELINE_DIR)
 
 
 def _expand(p: pathlib.Path, **kwargs) -> dict[str, Any]:
     return _expand_pipeline(
         str(p),
-        str(
-            kwargs.get(
-                "project_root",
-                p.parent.parent if p.parent.name == ".gremlins" else p.parent,
-            )
-        ),
+        kwargs.get("project_root"),
         str(BUNDLED_STAGE_DEF_DIR),
         str(BUNDLED_PROMPT_DIR),
-        _RESOLVE,
+        _resolve,
     )
 
 
