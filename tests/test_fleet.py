@@ -1090,3 +1090,89 @@ def test_compose_commit_message_tasks_without_checkboxes_empty_body(tmp_path):
     subject, body = _land.compose_commit_message(str(plan))
     assert subject == "Context body."
     assert body == ""
+
+
+# ---------------------------------------------------------------------------
+# do_log — tail and --full dump
+# ---------------------------------------------------------------------------
+
+
+def test_do_log_full_cat_not_found(sandbox, tmp_path, monkeypatch, capsys):
+    gr_dir, workdir = _setup_dead_gremlin(sandbox, tmp_path)
+    log_path = gr_dir / "log"
+    log_path.write_text("log content")
+
+    def fake_execvp(file, args):
+        raise FileNotFoundError
+
+    monkeypatch.setattr(os, "execvp", fake_execvp)
+    from gremlins.fleet.log import do_log
+
+    ok = do_log("test-id-aabb12", full=True)
+    assert ok is False
+    assert "cat not found" in capsys.readouterr().err
+
+
+def test_do_log_full_cat_oserror(sandbox, tmp_path, monkeypatch, capsys):
+    gr_dir, workdir = _setup_dead_gremlin(sandbox, tmp_path)
+    log_path = gr_dir / "log"
+    log_path.write_text("log content")
+
+    def fake_execvp(file, args):
+        raise OSError("permission denied")
+
+    monkeypatch.setattr(os, "execvp", fake_execvp)
+    from gremlins.fleet.log import do_log
+
+    ok = do_log("test-id-aabb12", full=True)
+    assert ok is False
+    assert "permission denied" in capsys.readouterr().err
+
+
+def test_do_log_no_log_file(sandbox, tmp_path, monkeypatch, capsys):
+    _setup_dead_gremlin(sandbox, tmp_path)
+    from gremlins.fleet.log import do_log
+
+    ok = do_log("test-id-aabb12", full=True)
+    assert ok is False
+    assert "no log file" in capsys.readouterr().err
+
+
+def test_do_log_no_match(sandbox, tmp_path, monkeypatch, capsys):
+    from gremlins.fleet.log import do_log
+
+    ok = do_log("nonexistent", full=True)
+    assert ok is False
+
+
+# ---------------------------------------------------------------------------
+# log_main — CLI argument parsing for --full
+# ---------------------------------------------------------------------------
+
+
+def test_log_main_full_flag_accepted(sandbox, tmp_path, monkeypatch, capsys):
+    gr_dir, workdir = _setup_dead_gremlin(sandbox, tmp_path)
+    log_path = gr_dir / "log"
+    log_path.write_text("log content")
+
+    def fake_execvp(file, args):
+        raise FileNotFoundError
+
+    monkeypatch.setattr(os, "execvp", fake_execvp)
+    rc = _fleet_cli.log_main(["test-id-aabb12", "--full"])
+    assert rc == 1
+    assert "cat not found" in capsys.readouterr().err
+
+
+def test_log_main_no_full_defaults_to_tail(sandbox, tmp_path, monkeypatch, capsys):
+    gr_dir, workdir = _setup_dead_gremlin(sandbox, tmp_path)
+    log_path = gr_dir / "log"
+    log_path.write_text("log content")
+
+    def fake_execvp(file, args):
+        raise FileNotFoundError
+
+    monkeypatch.setattr(os, "execvp", fake_execvp)
+    rc = _fleet_cli.log_main(["test-id-aabb12"])
+    assert rc == 1
+    assert "tail not found" in capsys.readouterr().err

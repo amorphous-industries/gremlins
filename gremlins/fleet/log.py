@@ -7,9 +7,9 @@ from gremlins.fleet.resolve import resolve_gremlin
 
 
 def do_log(target: str, *, full: bool = False) -> bool:
-    """Tail the gremlin's log file. Execs ``tail -F`` so Ctrl-C handling and
-    rotation/truncation behavior are whatever tail provides — the wrapper just
-    resolves the id and prints the path."""
+    """Tail (default) or dump (--full) the gremlin's log file. Execs ``tail -F``
+    or ``cat`` so Ctrl-C handling and rotation/truncation behavior are whatever
+    the tool provides — the wrapper just resolves the id and prints the path."""
     match = resolve_gremlin(target)
     if match is None:
         return False
