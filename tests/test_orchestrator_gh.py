@@ -215,6 +215,13 @@ def _patch_common(
                         p = pathlib.Path(m_repo.group(1))
                         p.parent.mkdir(parents=True, exist_ok=True)
                         p.write_text("owner/repo\n")
+                # If gh pr diff, write diff.txt so fetch-pr-diff stage produces the artifact
+                if "gh pr diff" in cmd:
+                    m_diff = re.search(r'"([^"]+/diff\.txt)"', cmd)
+                    if m_diff:
+                        p = pathlib.Path(m_diff.group(1))
+                        p.parent.mkdir(parents=True, exist_ok=True)
+                        p.write_text("diff --git a/f b/f\n")
                 return _subprocess_mod.CompletedProcess(cmd, 0, "", "")
             m = re.search(r'"([^"]+/pr-number\.txt)"', cmd)
             if m:
@@ -357,6 +364,7 @@ def test_gh_pipeline_stage_names(tmp_path):
         "push-and-open",
         "github-discover-repo",
         "github-request-copilot-review",
+        "fetch-pr-diff",
         "github-review-pull-request",
         "github-discover-repo-2",
         "github-wait-copilot",
@@ -862,6 +870,14 @@ def test_resume_from_github_review_pull_request(tmp_path, monkeypatch):
     artifact_dir, state_file = _patch_common(
         monkeypatch, tmp_path, fake_pr_number="200"
     )
+
+    # Pre-populate diff.txt and bind pr-diff artifact so the review stage
+    # can resolve artifact.pr-diff (fetch-pr-diff is skipped on resume).
+    (artifact_dir / "diff.txt").write_text("diff --git a/f b/f\n")
+    registry_path = tmp_path / "scratch" / "gr-test" / "registry.json"
+    reg = json.loads(registry_path.read_text())
+    reg["pr-diff"] = "file://session/diff.txt"
+    registry_path.write_text(json.dumps(reg))
 
     data = json.loads(state_file.read_text())
     data["issue_url"] = "https://github.com/owner/repo/issues/5"
