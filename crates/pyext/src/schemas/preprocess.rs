@@ -14,12 +14,16 @@ impl PipelineResolver for PyResolver<'_> {
     fn resolve(
         &self,
         name: &str,
-        project_root: &PathBuf,
-        bundled_pipeline_dir: &PathBuf,
+        project_root: &std::path::Path,
+        bundled_pipeline_dir: &std::path::Path,
     ) -> Result<PathBuf, SchemaError> {
         let result = self
             .resolve_pipeline_name_fn
-            .call1((name, project_root.clone(), bundled_pipeline_dir.clone()))
+            .call1((
+                name,
+                project_root.to_path_buf(),
+                bundled_pipeline_dir.to_path_buf(),
+            ))
             .map_err(|e| SchemaError::Generic(e.to_string()))?;
         let path: String = result.extract().map_err(|e| {
             SchemaError::Generic(format!("pipeline resolver returned non-string: {e}"))

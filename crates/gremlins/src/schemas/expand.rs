@@ -12,8 +12,8 @@ pub trait PipelineResolver {
     fn resolve(
         &self,
         name: &str,
-        project_root: &PathBuf,
-        bundled_pipeline_dir: &PathBuf,
+        project_root: &std::path::Path,
+        bundled_pipeline_dir: &std::path::Path,
     ) -> Result<PathBuf, SchemaError>;
 }
 
