@@ -15,6 +15,7 @@ from typing import Any, cast
 from _gremlins_core.artifacts import Uri
 from _gremlins_core.clients import RustClient as Client
 from _gremlins_core.config import project_root, scratch_root, state_root
+from _gremlins_core.discovery import resolve_pipeline_path
 
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.executor.state import (
@@ -25,7 +26,7 @@ from gremlins.executor.state import (
     write_state,
 )
 from gremlins.pipeline import Pipeline as _PipelineData
-from gremlins.pipeline.discovery import resolve_pipeline_path
+from gremlins.pipelines import BUNDLED_PIPELINE_DIR
 from gremlins.protocols import StageProtocol
 from gremlins.stages.base import Stage
 from gremlins.utils import git as _git_mod
@@ -486,7 +487,7 @@ class Gremlin:
             try:
                 pipeline = _PipelineData.from_yaml(
                     resolve_pipeline_path(
-                        pipeline_path or kind, pathlib.Path(_project_root)
+                        pipeline_path or kind, pathlib.Path(_project_root), BUNDLED_PIPELINE_DIR
                     )
                 )
             except FileNotFoundError:
@@ -562,7 +563,7 @@ class Gremlin:
         client: Client | None = None,
     ) -> Gremlin:
         try:
-            pipeline_path = resolve_pipeline_path(pipeline_ref, project_dir)
+            pipeline_path = resolve_pipeline_path(pipeline_ref, project_dir, BUNDLED_PIPELINE_DIR)
             # Inline client at launch: if a --client label was provided and the
             # pipeline YAML doesn't declare default_client, inject it so the
             # loader never sees None.

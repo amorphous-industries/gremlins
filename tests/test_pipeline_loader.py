@@ -900,10 +900,12 @@ stages:
 
 def test_boss_yaml_loads() -> None:
     """boss.yaml loads with loop/handoff sequence structure."""
-    from gremlins.pipeline import Pipeline
-    from gremlins.pipeline.discovery import resolve_pipeline_path
+    from _gremlins_core.discovery import resolve_pipeline_path
 
-    pipeline = Pipeline.from_yaml(resolve_pipeline_path("boss", pathlib.Path.cwd()))
+    from gremlins.pipeline import Pipeline
+    from gremlins.pipelines import BUNDLED_PIPELINE_DIR
+
+    pipeline = Pipeline.from_yaml(resolve_pipeline_path("boss", pathlib.Path.cwd(), BUNDLED_PIPELINE_DIR))
     names = [s.name for s in pipeline.stages]
     assert names == ["chain", "review-chain", "address-chain"]
     chain_entry = pipeline.stages[0]

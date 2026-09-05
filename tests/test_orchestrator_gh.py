@@ -15,12 +15,13 @@ from collections.abc import Callable
 from typing import Any
 
 import pytest
+from _gremlins_core.discovery import resolve_pipeline_path
 from conftest import MINIMAL_EVENTS
 
 from gremlins.executor.run import _parse_args as _parse_gh_args
 from gremlins.executor.run import run_pipeline
 from gremlins.pipeline import Pipeline
-from gremlins.pipeline.discovery import resolve_pipeline_path
+from gremlins.pipelines import BUNDLED_PIPELINE_DIR
 from tests.fake_client import FakeClient
 
 
@@ -58,7 +59,7 @@ def _async(fn: Callable[..., Any]) -> Callable[..., Any]:
 
 
 def _gh_pipeline_path(cwd):
-    return resolve_pipeline_path("gh", cwd)
+    return resolve_pipeline_path("gh", cwd, BUNDLED_PIPELINE_DIR)
 
 
 # ---------------------------------------------------------------------------
@@ -345,7 +346,7 @@ def test_parse_resume_from_commit():
 
 
 def test_gh_pipeline_stage_names(tmp_path):
-    pipeline = Pipeline.from_yaml(resolve_pipeline_path("gh", tmp_path))
+    pipeline = Pipeline.from_yaml(resolve_pipeline_path("gh", tmp_path, BUNDLED_PIPELINE_DIR))
     names = [s.name for s in pipeline.stages]
     assert names == [
         "plan",

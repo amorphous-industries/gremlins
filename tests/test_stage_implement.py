@@ -17,12 +17,13 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 from _gremlins_core.artifacts import Uri
+from _gremlins_core.discovery import resolve_pipeline_path
 from conftest import MockGremlin
 
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.executor.state import StateData, build_state
 from gremlins.pipeline import Pipeline
-from gremlins.pipeline.discovery import resolve_pipeline_path
+from gremlins.pipelines import BUNDLED_PIPELINE_DIR
 from gremlins.stages.exec import Exec
 from gremlins.stages.outcome import Bail
 from tests.fake_client import FakeClient
@@ -84,7 +85,7 @@ def _require_impl_progress_exec() -> Exec:
 
 def test_gh_pipeline_implement_expands_to_three_stages(tmp_path: pathlib.Path) -> None:
     """type: implement in gh.yaml expands to implement (agent) + git-commit (exec) + require-impl-progress (exec)."""
-    pipeline = Pipeline.from_yaml(resolve_pipeline_path("gh", tmp_path))
+    pipeline = Pipeline.from_yaml(resolve_pipeline_path("gh", tmp_path, BUNDLED_PIPELINE_DIR))
     names = [s.name for s in pipeline.stages]
     impl_idx = names.index("implement")
     assert names[impl_idx] == "implement"
