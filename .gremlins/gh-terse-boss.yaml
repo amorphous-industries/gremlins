@@ -17,9 +17,9 @@ bootstrap:
     if command -v sccache &>/dev/null; then
         export RUSTC_WRAPPER="${RUSTC_WRAPPER:-sccache}"
     fi
-    SECRET_ENV="${GREMLINS_PROJECT_ROOT}/.gremlins/secret_env"
-    if [ -f "$SECRET_ENV" ]; then
-        source "$SECRET_ENV"
+    THE_ENV="${GREMLINS_PROJECT_ROOT}/.gremlins/env"
+    if [ -f "$THE_ENV" ]; then
+        source "$THE_ENV"
     fi
     export VIRTUAL_ENV="${GREMLINS_WORKTREE_PATH}/.venv"
     export UV_PROJECT_ENVIRONMENT="${GREMLINS_WORKTREE_PATH}/.venv"
