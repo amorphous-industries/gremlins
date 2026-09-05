@@ -192,7 +192,10 @@ mod tests {
         ];
         let err = check_duplicate_producers(&stages, &HashMap::new()).unwrap_err();
         let msg = err.to_string();
-        assert!(msg.contains("duplicate bind"), "expected duplicate bind error, got: {msg}");
+        assert!(
+            msg.contains("duplicate bind"),
+            "expected duplicate bind error, got: {msg}"
+        );
         assert!(msg.contains("\"out\""), "expected key in error, got: {msg}");
     }
 
@@ -293,8 +296,14 @@ mod tests {
         let extra_out = HashMap::from([("out".to_string(), "uri-a".to_string())]);
         let err = check_duplicate_producers(&stages, &extra_out).unwrap_err();
         let msg = err.to_string();
-        assert!(msg.contains("duplicate bind"), "expected duplicate bind error, got: {msg}");
-        assert!(msg.contains("bootstrap"), "expected 'bootstrap' in error, got: {msg}");
+        assert!(
+            msg.contains("duplicate bind"),
+            "expected duplicate bind error, got: {msg}"
+        );
+        assert!(
+            msg.contains("bootstrap"),
+            "expected 'bootstrap' in error, got: {msg}"
+        );
     }
 
     #[test]
