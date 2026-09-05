@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import pathlib
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from _gremlins_core.clients import RustClient as Client
 
@@ -81,9 +81,7 @@ class Pipeline:
                 "'inputs' is not a valid pipeline key; declare CLI arguments under bootstrap.source"
             )
 
-        stages = parse_stages(
-            cast(list[dict[str, Any]], raw.get("stages") or []), depth=0
-        )
+        stages = parse_stages(raw.get("stages") or [], depth=0)
         bootstrap = Bootstrap.from_yaml(raw.get("bootstrap"))
 
         land_stage: Exec | None = None

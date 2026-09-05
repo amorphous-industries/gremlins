@@ -15,14 +15,14 @@ pub const STAGE_TYPES: &[(&str, &str, &str)] = &[
     ("exec", "gremlins.stages.exec", "Exec"),
 ];
 
-fn lookup_stage_class(stage_type: &str) -> Result<(&'static str, &'static str), SchemaError> {
-    for &(name, module, class) in STAGE_TYPES {
-        if name == stage_type {
+fn lookup_stage_class(stage_type: &str, name: &str) -> Result<(&'static str, &'static str), SchemaError> {
+    for &(st, module, class) in STAGE_TYPES {
+        if st == stage_type {
             return Ok((module, class));
         }
     }
     Err(SchemaError::Stage {
-        name: stage_type.to_string(),
+        name: name.to_string(),
         msg: format!("unknown type {stage_type:?}"),
     })
 }
@@ -33,7 +33,11 @@ pub fn parse_stage(py: Python<'_>, d: &Bound<'_, PyDict>, depth: usize) -> PyRes
             .import("gremlins.stages.parallel")?
             .getattr("ParallelStage")?;
         let stage: Py<PyAny> = cls.call_method1("with_dict", (d, depth))?.extract()?;
-        let skip_if_exists = parse_skip_if_exists(d)?;
+        let name: String = d
+            .get_item("name")?
+            .and_then(|v| v.extract().ok())
+            .unwrap_or_default();
+        let skip_if_exists = parse_skip_if_exists(d, &name)?;
         stage.setattr(py, "raw_dict", d)?;
         stage.setattr(py, "skip_if_exists", skip_if_exists)?;
         return Ok(stage);
@@ -62,10 +66,10 @@ pub fn parse_stage(py: Python<'_>, d: &Bound<'_, PyDict>, depth: usize) -> PyRes
     };
 
     // First try the built-in Rust constant
-    if let Ok((module, class)) = lookup_stage_class(&stage_type) {
+    if let Ok((module, class)) = lookup_stage_class(&stage_type, &name) {
         let cls = py.import(module)?.getattr(class)?;
         let stage: Py<PyAny> = cls.call_method1("with_dict", (d, depth))?.extract()?;
-        let skip_if_exists = parse_skip_if_exists(d)?;
+        let skip_if_exists = parse_skip_if_exists(d, &name)?;
         stage.setattr(py, "raw_dict", d)?;
         stage.setattr(py, "skip_if_exists", skip_if_exists)?;
         return Ok(stage);
@@ -80,7 +84,7 @@ pub fn parse_stage(py: Python<'_>, d: &Bound<'_, PyDict>, depth: usize) -> PyRes
     match stage_types.get_item(&stage_type)? {
         Some(cls) => {
             let stage: Py<PyAny> = cls.call_method1("with_dict", (d, depth))?.extract()?;
-            let skip_if_exists = parse_skip_if_exists(d)?;
+            let skip_if_exists = parse_skip_if_exists(d, &name)?;
             stage.setattr(py, "raw_dict", d)?;
             stage.setattr(py, "skip_if_exists", skip_if_exists)?;
             Ok(stage)
@@ -91,14 +95,14 @@ pub fn parse_stage(py: Python<'_>, d: &Bound<'_, PyDict>, depth: usize) -> PyRes
     }
 }
 
-fn parse_skip_if_exists(d: &Bound<'_, PyDict>) -> PyResult<String> {
+fn parse_skip_if_exists(d: &Bound<'_, PyDict>, name: &str) -> PyResult<String> {
     let raw = d.get_item("skip_if_exists")?;
     match raw {
         None => Ok(String::new()),
         Some(v) => {
             let s: String = v.extract().map_err(|_| {
                 pyo3::exceptions::PyValueError::new_err(format!(
-                    "'skip_if_exists' must be a string, got {} type",
+                    "stage {name:?}: 'skip_if_exists' must be a string, got {} type",
                     v.get_type()
                         .name()
                         .map(|n| n.to_string_lossy().into_owned())
@@ -167,7 +171,7 @@ pub fn fill_names(raw_stages: &Bound<'_, PyList>) -> PyResult<()> {
             .get_item("_auto_name")
             .ok()
             .flatten()
-            .and_then(|v| v.extract().ok());
+            .and_then(|v| v.str().ok().and_then(|s| s.to_str().ok().map(|s| s.to_string())));
         d.del_item("_auto_name").ok();
 
         let auto = auto_raw.unwrap_or_default();
@@ -197,8 +201,6 @@ pub fn fill_names(raw_stages: &Bound<'_, PyList>) -> PyResult<()> {
             let m = *count;
             candidate = format!("{stage_type}-{m}");
         }
-        *count = n.max(*count);
-
         d.set_item("name", &candidate)?;
         used.insert(candidate);
     }

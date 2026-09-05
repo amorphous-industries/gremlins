@@ -93,7 +93,7 @@ class LoopStage(Stage):
         if not isinstance(raw_children, list):
             raise ValueError(f"stage {name!r}: 'body' must be a list")
 
-        body = parse_stages(cast(list[dict[str, Any]], raw_children), depth=depth)
+        body = parse_stages(raw_children, depth=depth)
         stage = cls(
             name,
             body=body,

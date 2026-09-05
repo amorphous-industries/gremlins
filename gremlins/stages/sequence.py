@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from gremlins.stages.base import Stage, get_client_from_dict
 from gremlins.stages.composite import child_state as _child_state
@@ -34,7 +34,7 @@ class SequenceStage(Stage):
         raw_children: object = d.get("body") or []
         if not isinstance(raw_children, list):
             raise ValueError(f"stage {name!r}: 'body' must be a list")
-        children = parse_stages(cast(list[dict[str, Any]], raw_children), depth=depth)
+        children = parse_stages(raw_children, depth=depth)
         stage = cls(name, body=children)
         client = get_client_from_dict(d)
         stage.client = client

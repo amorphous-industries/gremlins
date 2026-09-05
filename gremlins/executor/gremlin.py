@@ -182,16 +182,17 @@ class Gremlin:
         pipeline_args: list[str] | None = None,
     ) -> None:
         unknown: list[str] = []
+        stage_types = _get_stage_types()
         for s in stages:
-            if s.type not in _get_stage_types():
+            if s.type not in stage_types:
                 unknown.append(s.type)
             elif s.type == "parallel":
                 unknown.extend(
-                    c.type for c in s.body if c.type not in _get_stage_types()
+                    c.type for c in s.body if c.type not in stage_types
                 )
             elif s.type == "loop":
                 unknown.extend(
-                    c.type for c in s.body if c.type not in _get_stage_types()
+                    c.type for c in s.body if c.type not in stage_types
                 )
         if unknown:
             raise ValueError(f"Gremlin does not support stage type(s): {unknown}")
