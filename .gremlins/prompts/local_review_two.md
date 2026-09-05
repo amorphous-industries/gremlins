@@ -14,15 +14,7 @@ Changed files:
 
 {diff}
 
-## Step 1: Review the code
-
-- **Correctness**: Logic errors, off-by-ones, missing edge cases, race conditions
-- **Security**: Injection, auth gaps, secrets, OWASP top 10
-- **Performance**: Unnecessary allocations, N+1 queries, missing indexes
-- **Readability**: Unclear naming, missing context, overly clever code
-- **Testing**: Adequate coverage for new/changed behavior
-
-## Step 2: Output the review
+## Output the review
 
 Write findings as markdown to `{local-review-two}` using this structure:
 
