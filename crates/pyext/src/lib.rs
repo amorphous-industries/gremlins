@@ -42,6 +42,9 @@ fn _gremlins_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // discovery submodule
     python::discovery::register_discovery_module(m)?;
 
+    // artifacts submodule
+    python::artifacts::register_artifacts_module(m)?;
+
     // config submodule
     python::config::register_config_module(m)?;
 

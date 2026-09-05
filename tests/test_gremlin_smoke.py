@@ -9,9 +9,9 @@ import shutil
 import subprocess
 
 import pytest
+from _gremlins_core.artifacts import Uri
 
 from gremlins.artifacts.registry import ArtifactRegistry
-from gremlins.artifacts.uri import Uri
 from gremlins.executor.gremlin import Gremlin
 from gremlins.executor.state import StateData
 from gremlins.pipeline import Pipeline

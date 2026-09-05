@@ -6,6 +6,7 @@ import pathlib
 import subprocess
 
 import pytest
+from _gremlins_core.artifacts import Uri
 
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.artifacts.schemes import (
@@ -13,7 +14,6 @@ from gremlins.artifacts.schemes import (
     GitResolver,
     snapshot_head_before,
 )
-from gremlins.artifacts.uri import Uri
 
 
 def make_git_repo(tmp_path: pathlib.Path) -> tuple[str, str]:

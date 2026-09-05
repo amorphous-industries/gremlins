@@ -5,10 +5,10 @@ import pathlib
 import sys
 from typing import Any
 
+from _gremlins_core.artifacts import Uri
 from _gremlins_core.config import project_root, scratch_root, state_root
 
 from gremlins.artifacts.registry import ArtifactRegistry
-from gremlins.artifacts.uri import Uri
 from gremlins.pipeline import Pipeline
 from gremlins.pipeline.discovery import resolve_pipeline_name
 from gremlins.utils.yaml_io import YamlLoadError

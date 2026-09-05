@@ -12,11 +12,11 @@ import shutil
 from collections.abc import Awaitable, Callable, Sequence
 from typing import Any, cast
 
+from _gremlins_core.artifacts import Uri
 from _gremlins_core.clients import RustClient as Client
 from _gremlins_core.config import project_root, scratch_root, state_root
 
 from gremlins.artifacts.registry import ArtifactRegistry
-from gremlins.artifacts.uri import Uri
 from gremlins.executor.state import (
     State,
     StateData,

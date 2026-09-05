@@ -6,10 +6,10 @@ import asyncio
 import pathlib
 
 import pytest
+from _gremlins_core.artifacts import Uri
 from conftest import MockGremlin
 
 from gremlins.artifacts.registry import ArtifactRegistry, MissingArtifact
-from gremlins.artifacts.uri import Uri
 from gremlins.executor.state import StateData, build_state
 from gremlins.stages.exec import Exec
 from gremlins.stages.outcome import Bail, Done

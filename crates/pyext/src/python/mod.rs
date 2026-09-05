@@ -1,3 +1,4 @@
+pub(crate) mod artifacts;
 pub(crate) mod clients;
 pub(crate) mod config;
 pub(crate) mod discovery;

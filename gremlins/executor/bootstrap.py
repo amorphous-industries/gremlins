@@ -19,7 +19,8 @@ import shutil
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
-from gremlins.artifacts.uri import Uri
+from _gremlins_core.artifacts import Uri
+
 from gremlins.pipeline.bootstrap import (
     Bootstrap,
     source_env,

@@ -6,10 +6,10 @@ import asyncio
 import pathlib
 from typing import Any
 
+from _gremlins_core.artifacts import Uri
 from conftest import MockGremlin
 
 from gremlins.artifacts.registry import ArtifactRegistry
-from gremlins.artifacts.uri import Uri
 from gremlins.executor.state import State, StateData, build_state
 from gremlins.pipeline import Pipeline
 from gremlins.stages.agent import Agent
