@@ -73,7 +73,7 @@ class LoopStage(Stage):
 
     @classmethod
     def with_dict(cls, d: dict[str, Any], depth: int = 0) -> LoopStage:
-        from gremlins.pipeline.loader import parse_stages
+        from _gremlins_core.schemas import parse_stages
 
         name = d.get("name") or ""
         raw_options: object = d.get("options") or {}
@@ -93,7 +93,7 @@ class LoopStage(Stage):
         if not isinstance(raw_children, list):
             raise ValueError(f"stage {name!r}: 'body' must be a list")
 
-        body = parse_stages(cast(list[dict[str, Any]], raw_children), depth=depth)
+        body = parse_stages(raw_children, depth=depth)
         stage = cls(
             name,
             body=body,

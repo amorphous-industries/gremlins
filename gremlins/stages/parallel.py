@@ -13,7 +13,7 @@ import secrets
 import shutil
 import signal
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from _gremlins_core.config import project_root, scratch_root, state_root
 
@@ -95,7 +95,7 @@ class ParallelStage(Stage):
 
     @classmethod
     def with_dict(cls, d: dict[str, Any], depth: int = 0) -> ParallelStage:
-        from gremlins.pipeline.loader import parse_stages
+        from _gremlins_core.schemas import parse_stages
 
         if depth > 0:
             raise ValueError(
@@ -105,7 +105,7 @@ class ParallelStage(Stage):
         children_field: object = d.get("parallel") or []
         if not isinstance(children_field, list):
             raise ValueError(f"parallel group {name!r}: 'parallel' must be a list")
-        body = parse_stages(cast(list[dict[str, Any]], children_field), depth=depth + 1)
+        body = parse_stages(children_field, depth=depth + 1)
         seen: set[str] = set()
         for child in body:
             if child.name in seen:

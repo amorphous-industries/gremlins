@@ -7,7 +7,7 @@ use crate::schemas::error::SchemaError;
 
 pub const GREMLINS_PREFIX: &str = "gremlins:";
 
-const STAGE_TYPES: &[(&str, &str, &str)] = &[
+pub const STAGE_TYPES: &[(&str, &str, &str)] = &[
     ("agent", "gremlins.stages.agent", "Agent"),
     ("loop", "gremlins.stages.loop", "LoopStage"),
     ("parallel", "gremlins.stages.parallel", "ParallelStage"),
@@ -15,14 +15,17 @@ const STAGE_TYPES: &[(&str, &str, &str)] = &[
     ("exec", "gremlins.stages.exec", "Exec"),
 ];
 
-fn lookup_stage_class(stage_type: &str) -> Result<(&'static str, &'static str), SchemaError> {
-    for &(name, module, class) in STAGE_TYPES {
-        if name == stage_type {
+fn lookup_stage_class(
+    stage_type: &str,
+    name: &str,
+) -> Result<(&'static str, &'static str), SchemaError> {
+    for &(st, module, class) in STAGE_TYPES {
+        if st == stage_type {
             return Ok((module, class));
         }
     }
     Err(SchemaError::Stage {
-        name: stage_type.to_string(),
+        name: name.to_string(),
         msg: format!("unknown type {stage_type:?}"),
     })
 }
@@ -33,7 +36,11 @@ pub fn parse_stage(py: Python<'_>, d: &Bound<'_, PyDict>, depth: usize) -> PyRes
             .import("gremlins.stages.parallel")?
             .getattr("ParallelStage")?;
         let stage: Py<PyAny> = cls.call_method1("with_dict", (d, depth))?.extract()?;
-        let skip_if_exists = parse_skip_if_exists(d)?;
+        let name: String = d
+            .get_item("name")?
+            .and_then(|v| v.extract().ok())
+            .unwrap_or_else(|| "<parallel>".to_string());
+        let skip_if_exists = parse_skip_if_exists(d, &name)?;
         stage.setattr(py, "raw_dict", d)?;
         stage.setattr(py, "skip_if_exists", skip_if_exists)?;
         return Ok(stage);
@@ -61,27 +68,44 @@ pub fn parse_stage(py: Python<'_>, d: &Bound<'_, PyDict>, depth: usize) -> PyRes
         }
     };
 
-    let (module, class) = lookup_stage_class(&stage_type)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    // First try the built-in Rust constant
+    if let Ok((module, class)) = lookup_stage_class(&stage_type, &name) {
+        let cls = py.import(module)?.getattr(class)?;
+        let stage: Py<PyAny> = cls.call_method1("with_dict", (d, depth))?.extract()?;
+        let skip_if_exists = parse_skip_if_exists(d, &name)?;
+        stage.setattr(py, "raw_dict", d)?;
+        stage.setattr(py, "skip_if_exists", skip_if_exists)?;
+        return Ok(stage);
+    }
 
-    let cls = py.import(module)?.getattr(class)?;
-    let stage: Py<PyAny> = cls.call_method1("with_dict", (d, depth))?.extract()?;
-
-    let skip_if_exists = parse_skip_if_exists(d)?;
-    stage.setattr(py, "raw_dict", d)?;
-    stage.setattr(py, "skip_if_exists", skip_if_exists)?;
-
-    Ok(stage)
+    // Fall back to the Python STAGE_TYPES dict (which may have dynamically
+    // registered types, e.g. test fixtures).
+    let stage_types: Bound<'_, PyDict> = py
+        .import("_gremlins_core.schemas")?
+        .getattr("STAGE_TYPES")?
+        .cast_into()?;
+    match stage_types.get_item(&stage_type)? {
+        Some(cls) => {
+            let stage: Py<PyAny> = cls.call_method1("with_dict", (d, depth))?.extract()?;
+            let skip_if_exists = parse_skip_if_exists(d, &name)?;
+            stage.setattr(py, "raw_dict", d)?;
+            stage.setattr(py, "skip_if_exists", skip_if_exists)?;
+            Ok(stage)
+        }
+        None => Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "stage {name:?}: unknown type {stage_type:?}"
+        ))),
+    }
 }
 
-fn parse_skip_if_exists(d: &Bound<'_, PyDict>) -> PyResult<String> {
+fn parse_skip_if_exists(d: &Bound<'_, PyDict>, name: &str) -> PyResult<String> {
     let raw = d.get_item("skip_if_exists")?;
     match raw {
         None => Ok(String::new()),
         Some(v) => {
             let s: String = v.extract().map_err(|_| {
                 pyo3::exceptions::PyValueError::new_err(format!(
-                    "'skip_if_exists' must be a string, got {} type",
+                    "stage {name:?}: 'skip_if_exists' must be a string, got {} type",
                     v.get_type()
                         .name()
                         .map(|n| n.to_string_lossy().into_owned())
@@ -146,11 +170,11 @@ pub fn fill_names(raw_stages: &Bound<'_, PyList>) -> PyResult<()> {
             continue;
         }
 
-        let auto_raw: Option<String> = d
-            .get_item("_auto_name")
-            .ok()
-            .flatten()
-            .and_then(|v| v.extract().ok());
+        let auto_raw: Option<String> = d.get_item("_auto_name").ok().flatten().and_then(|v| {
+            v.str()
+                .ok()
+                .and_then(|s| s.to_str().ok().map(|s| s.to_string()))
+        });
         d.del_item("_auto_name").ok();
 
         let auto = auto_raw.unwrap_or_default();
@@ -180,8 +204,6 @@ pub fn fill_names(raw_stages: &Bound<'_, PyList>) -> PyResult<()> {
             let m = *count;
             candidate = format!("{stage_type}-{m}");
         }
-        *count = n.max(*count);
-
         d.set_item("name", &candidate)?;
         used.insert(candidate);
     }
@@ -189,14 +211,30 @@ pub fn fill_names(raw_stages: &Bound<'_, PyList>) -> PyResult<()> {
     Ok(())
 }
 
-pub fn check_duplicate_producers(stages: &Bound<'_, PyList>) -> PyResult<()> {
-    _check_scope(stages)
+pub fn check_duplicate_producers(
+    stages: &Bound<'_, PyList>,
+    extra_out: Option<&Bound<'_, PyDict>>,
+) -> PyResult<()> {
+    _check_scope(stages, extra_out)
 }
 
-fn _check_scope(stages: &Bound<'_, PyList>) -> PyResult<()> {
+fn _check_scope(stages: &Bound<'_, PyList>, extra_out: Option<&Bound<'_, PyDict>>) -> PyResult<()> {
     let py = stages.py();
     let len = stages.len();
     let mut seen: HashMap<String, (String, String)> = HashMap::new();
+
+    if let Some(extra) = extra_out {
+        for (raw_key, uri_str) in extra.iter() {
+            let raw_key: String = raw_key.extract()?;
+            let uri_str: String = uri_str.extract()?;
+            let key = if raw_key.ends_with('?') {
+                raw_key[..raw_key.len() - 1].to_string()
+            } else {
+                raw_key
+            };
+            seen.insert(key, ("bootstrap".to_string(), uri_str));
+        }
+    }
 
     for i in 0..len {
         let stage = stages.get_item(i)?;
@@ -246,10 +284,10 @@ fn _check_scope(stages: &Bound<'_, PyList>) -> PyResult<()> {
                 for j in 0..body.len() {
                     let child = body.get_item(j)?;
                     let child_list = PyList::new(py, &[child])?;
-                    _check_scope(&child_list)?;
+                    _check_scope(&child_list, None)?;
                 }
             } else {
-                _check_scope(body)?;
+                _check_scope(body, None)?;
             }
         }
     }

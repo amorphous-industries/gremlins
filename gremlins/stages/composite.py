@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import dataclasses
 import pathlib
+from typing import TYPE_CHECKING
 
 from _gremlins_core.config import scratch_root
 
-from gremlins.executor.gremlin import State
 from gremlins.stages.base import Stage
+
+if TYPE_CHECKING:
+    from gremlins.executor.gremlin import State
 
 
 def child_state(

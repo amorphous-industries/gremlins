@@ -12,10 +12,10 @@ import pathlib
 import sys
 import traceback
 
-from gremlins.executor.gremlin import validate_gremlin_id, write_terminal_state
-
 
 def main(argv: list[str] | None = None) -> int:
+    from gremlins.executor.gremlin import validate_gremlin_id, write_terminal_state
+
     if argv is None:
         argv = sys.argv[1:]
     if len(argv) < 2:

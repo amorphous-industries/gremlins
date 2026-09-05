@@ -40,9 +40,10 @@ import sys
 import traceback
 from typing import Any, cast
 
+from _gremlins_core.schemas import parse_stage
+
 from gremlins.executor.gremlin import Gremlin
 from gremlins.logging_setup import configure_logging
-from gremlins.pipeline.loader import parse_stage
 from gremlins.stages.outcome import Bail
 
 logger = logging.getLogger(__name__)
@@ -89,7 +90,7 @@ async def _run(spec_path: pathlib.Path) -> int:
         return 2
 
     try:
-        stage = parse_stage(cast(dict[str, Any], stage_dict))
+        stage = parse_stage(stage_dict)
         gremlin = Gremlin.from_subprocess(spec)
     except Exception as exc:
         _write_result(

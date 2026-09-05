@@ -158,7 +158,12 @@ impl Pipeline {
             .transpose()?;
 
         let stages_list = PyList::new(py, stages.iter().map(|s| s.bind(py)))?;
-        loader::check_duplicate_producers(&stages_list)?;
+        let extra_out: Option<Bound<'_, PyDict>> = bootstrap.as_ref().and_then(|bs| {
+            bs.getattr(py, "cli_out")
+                .ok()
+                .and_then(|v| v.extract::<Bound<'_, PyDict>>(py).ok())
+        });
+        loader::check_duplicate_producers(&stages_list, extra_out.as_ref())?;
 
         if default_client.is_none() {
             return Err(pyo3::exceptions::PyValueError::new_err(

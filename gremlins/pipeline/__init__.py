@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import pathlib
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING
 
 from _gremlins_core.clients import RustClient as Client
 
@@ -45,8 +45,9 @@ class Pipeline:
     def from_yaml(
         cls, path: pathlib.Path, *, default_client_override: str | None = None
     ) -> Pipeline:
+        from _gremlins_core.schemas import check_duplicate_producers, parse_stages
+
         import gremlins._clients_init  # noqa: F401  # pyright: ignore[reportUnusedImport] — registers built-in providers
-        from gremlins.pipeline.loader import check_duplicate_producers, parse_stages
         from gremlins.pipeline.preprocess import expand_pipeline
 
         path = path.resolve()
@@ -80,7 +81,7 @@ class Pipeline:
                 "'inputs' is not a valid pipeline key; declare CLI arguments under bootstrap.source"
             )
 
-        stages = parse_stages(cast(list[dict[str, Any]], raw.get("stages") or []))
+        stages = parse_stages(raw.get("stages") or [])
         bootstrap = Bootstrap.from_yaml(raw.get("bootstrap"))
 
         land_stage: Exec | None = None

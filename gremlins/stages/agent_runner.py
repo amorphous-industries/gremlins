@@ -5,12 +5,14 @@ from __future__ import annotations
 import logging
 import pathlib
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from _gremlins_core.clients import PyCompletedRun as CompletedRun
 
-from gremlins.executor.gremlin import State
 from gremlins.stages.outcome import Bail
+
+if TYPE_CHECKING:
+    from gremlins.executor.gremlin import State
 
 logger = logging.getLogger(__name__)
 
