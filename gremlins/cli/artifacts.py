@@ -28,7 +28,9 @@ def artifacts_main(argv: list[str]) -> int:
             _print_live(reg)
             return 0
     try:
-        ppath = resolve_pipeline_name(target, pathlib.Path(project_root()), BUNDLED_PIPELINE_DIR)
+        ppath = resolve_pipeline_name(
+            target, pathlib.Path(project_root()), BUNDLED_PIPELINE_DIR
+        )
         pipe = Pipeline.from_yaml(ppath)
         _print_static(pipe)
         return 0

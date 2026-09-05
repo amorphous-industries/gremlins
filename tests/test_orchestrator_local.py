@@ -187,7 +187,9 @@ def test_local_main_injected_client_model(tmp_path, monkeypatch):
 
 
 def test_local_pipeline_stage_names(tmp_path):
-    pipeline = Pipeline.from_yaml(resolve_pipeline_path("local", tmp_path, BUNDLED_PIPELINE_DIR))
+    pipeline = Pipeline.from_yaml(
+        resolve_pipeline_path("local", tmp_path, BUNDLED_PIPELINE_DIR)
+    )
     names = [s.name for s in pipeline.stages]
     assert names == [
         "plan",

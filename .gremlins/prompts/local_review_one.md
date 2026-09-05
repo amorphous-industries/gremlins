@@ -2,7 +2,7 @@
 
 Review the changes on the current branch against `{base_ref}` and output findings as text.
 
-Do not re-read files. If you cannot come to a conclusion, indicate that you are unsure and explain why, and finish the review.
+Review the diff below and only the diff below. Do not read any source files, do not run any tools on any files, do not look at anything outside the diff. If you cannot reach a conclusion from the diff alone, say so explicitly and explain why.
 
 **Do not run any tests, checks, linters, or build commands.** This is a code review only.
 

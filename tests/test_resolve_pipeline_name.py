@@ -4,7 +4,6 @@ import pathlib
 import pytest
 from _gremlins_core.discovery import resolve_pipeline_name
 
-from gremlins import PACKAGE_ROOT
 from gremlins.pipelines import BUNDLED_PIPELINE_DIR
 
 
