@@ -164,7 +164,9 @@ def _expand_entry(
                 seen_defs,
             )
         try:
-            included_path = resolve_pipeline_name(stage_type, project_root, BUNDLED_PIPELINE_DIR)
+            included_path = resolve_pipeline_name(
+                stage_type, project_root, BUNDLED_PIPELINE_DIR
+            )
         except FileNotFoundError:
             pass
         else:

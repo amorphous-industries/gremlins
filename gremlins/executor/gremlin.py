@@ -487,7 +487,9 @@ class Gremlin:
             try:
                 pipeline = _PipelineData.from_yaml(
                     resolve_pipeline_path(
-                        pipeline_path or kind, pathlib.Path(_project_root), BUNDLED_PIPELINE_DIR
+                        pipeline_path or kind,
+                        pathlib.Path(_project_root),
+                        BUNDLED_PIPELINE_DIR,
                     )
                 )
             except FileNotFoundError:
@@ -563,7 +565,9 @@ class Gremlin:
         client: Client | None = None,
     ) -> Gremlin:
         try:
-            pipeline_path = resolve_pipeline_path(pipeline_ref, project_dir, BUNDLED_PIPELINE_DIR)
+            pipeline_path = resolve_pipeline_path(
+                pipeline_ref, project_dir, BUNDLED_PIPELINE_DIR
+            )
             # Inline client at launch: if a --client label was provided and the
             # pipeline YAML doesn't declare default_client, inject it so the
             # loader never sees None.

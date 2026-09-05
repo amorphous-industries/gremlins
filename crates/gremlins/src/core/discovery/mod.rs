@@ -30,7 +30,10 @@ fn project_pipeline_dirs(project_root: &std::path::Path) -> Vec<PathBuf> {
     dirs
 }
 
-pub fn list_pipelines(project_root: PathBuf, bundled_pipelines_dir: PathBuf) -> Vec<(String, PathBuf)> {
+pub fn list_pipelines(
+    project_root: PathBuf,
+    bundled_pipelines_dir: PathBuf,
+) -> Vec<(String, PathBuf)> {
     let mut results: Vec<(String, PathBuf)> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
 
@@ -224,7 +227,9 @@ mod tests {
         // project "boss" should come before the bundled one
         let idx = result.iter().position(|(n, _)| n == "boss").unwrap();
         assert_eq!(result[idx].0, "boss");
-        assert!(result[idx].1.starts_with(overlay.canonicalize().unwrap_or(overlay).as_path()));
+        assert!(result[idx]
+            .1
+            .starts_with(overlay.canonicalize().unwrap_or(overlay).as_path()));
         assert_eq!(result.iter().filter(|(n, _)| n == "boss").count(), 1);
     }
 
@@ -264,7 +269,8 @@ mod tests {
         fs::write(&p, "stages: []").unwrap();
 
         let result =
-            resolve_pipeline_path(p.to_str().unwrap(), project.path().to_path_buf(), bundled).unwrap();
+            resolve_pipeline_path(p.to_str().unwrap(), project.path().to_path_buf(), bundled)
+                .unwrap();
         assert!(result.ends_with("explicit.yaml"));
     }
 
@@ -282,7 +288,8 @@ mod tests {
     #[test]
     fn test_resolve_pipeline_path_missing() {
         let (project, bundled) = setup_dirs();
-        let err = resolve_pipeline_path("nope.yaml", project.path().to_path_buf(), bundled).unwrap_err();
+        let err =
+            resolve_pipeline_path("nope.yaml", project.path().to_path_buf(), bundled).unwrap_err();
         assert!(err.to_string().contains("not found"));
     }
 }

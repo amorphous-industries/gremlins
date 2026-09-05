@@ -102,7 +102,9 @@ def build_launch_parser(
 
 def launch_main(argv: list[str]) -> int:
     if "--list" in argv:
-        for name, path in list_pipelines(pathlib.Path(_project_root_fn()), BUNDLED_PIPELINE_DIR):
+        for name, path in list_pipelines(
+            pathlib.Path(_project_root_fn()), BUNDLED_PIPELINE_DIR
+        ):
             try:
                 pipeline = Pipeline.from_yaml(path)
                 label = pipeline.name
@@ -118,7 +120,9 @@ def launch_main(argv: list[str]) -> int:
     name = argv[0]
 
     try:
-        pipeline_path = resolve_pipeline_name(name, pathlib.Path(_project_root_fn()), BUNDLED_PIPELINE_DIR)
+        pipeline_path = resolve_pipeline_name(
+            name, pathlib.Path(_project_root_fn()), BUNDLED_PIPELINE_DIR
+        )
     except FileNotFoundError as exc:
         sys.stderr.write(f"error: {exc}\n")
         return 1
