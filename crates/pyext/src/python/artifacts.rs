@@ -50,7 +50,10 @@ impl Uri {
     }
 
     fn __repr__(&self) -> String {
-        format!("Uri(scheme='{}', path='{}')", self.inner.scheme, self.inner.path)
+        format!(
+            "Uri(scheme='{}', path='{}')",
+            self.inner.scheme, self.inner.path
+        )
     }
 
     fn __eq__(&self, other: &Uri) -> bool {
