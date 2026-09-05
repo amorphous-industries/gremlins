@@ -41,7 +41,15 @@ stages:
   - { name: verify-test,  type: verify, options: { cmds: ["make test"] },  prompt: verify }
   - { name: open-pr,    type: gremlins:github-open-pr }
   - { type: gremlins:github-request-copilot-review }
-  - { name: github-review-pull-request,                 type: agent, interpolation: {pr: artifact.pr-url}, prompt: [code-style, gremlins:github_review_pull_request.md] }
+  - name: fetch-pr-diff
+    type: exec
+    interpolation: {pr: artifact.pr-url}
+    bind:
+      artifact.pr-diff: "file://session/diff.txt"
+    options:
+      cmds:
+        - "gh pr diff --name-only \"{pr}\" > \"{artifact_dir}/diff.txt\""
+  - { name: github-review-pull-request,                 type: agent, interpolation: {pr: artifact.pr-url, plan: artifact.plan, diff: artifact.pr-diff}, prompt: [code-style, gremlins:github_review_pull_request.md] }
   - { type: gremlins:github-wait-copilot }
   - { name: github-address-pull-request-reviews,        type: agent, interpolation: {pr: artifact.pr-url}, prompt: [code-style, gremlins:github_address_pull_request_reviews.md, gremlins:bail_section.md] }
   - { name: ci-gate,    type: gremlins:github-wait-ci,  prompt: [gremlins:ci_fix.md, gremlins:bail_section_fix.md] }

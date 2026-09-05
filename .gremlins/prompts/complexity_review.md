@@ -1,6 +1,26 @@
-## Complexity review
+# Complexity review
 
 Review this PR with one job: find unnecessary complexity. Ignore style, naming, and bugs unless they reveal a complexity problem — other reviewers cover those.
+
+The plan for this change is:
+
+{plan}
+
+Review against this plan.
+
+## Step 1: Gather PR information
+
+Fetch PR metadata:
+
+```
+gh pr view {pr} --json number,title,body,author,baseRefName,headRefName
+```
+
+Changed files:
+
+{diff}
+
+## Step 2: Review for complexity
 
 Flag, with a concrete suggestion to remove or simplify each:
 
@@ -13,6 +33,42 @@ Flag, with a concrete suggestion to remove or simplify each:
 - **Comments that narrate the *what***: if the name already says it, delete the comment. Keep only comments that explain a non-obvious *why*.
 - **Dead or unreachable code**: branches that can't fire, parameters never read, returns never used.
 
-For each finding, post an inline comment on the specific line with: (1) what's unnecessary, (2) the simpler form, (3) one sentence on why the simpler form is safe here.
+## Step 3: Build the review
 
-If the PR is already tight, say so explicitly and post no comments. Do not invent findings to look thorough.
+Construct a JSON body for the GitHub pull request review API. The format is:
+
+```json
+{{
+  "event": "COMMENT",
+  "body": "Overall summary of the complexity review",
+  "comments": [
+    {{
+      "path": "relative/file/path",
+      "line": <line_number_in_the_new_file>,
+      "side": "RIGHT",
+      "body": "Comment text (markdown supported)"
+    }}
+  ]
+}}
+```
+
+Rules for the review:
+- `event` must be `"COMMENT"` (not APPROVE or REQUEST_CHANGES — leave that decision to a human)
+- `line` is the line number in the **new version** of the file (the right side of the diff)
+- `side` should always be `"RIGHT"`
+- Each comment `body` should include: (1) what's unnecessary, (2) the simpler form, (3) one sentence on why the simpler form is safe here
+- The top-level `body` is a concise summary (2-4 sentences) of the overall complexity assessment
+
+If the PR is already tight, write a summary body saying so explicitly and set `comments` to `[]`. Do not invent findings to look thorough.
+
+## Step 4: Post the review
+
+Use `gh api` to submit the review. Get the repo owner/name from the PR metadata or by running `gh repo view --json nameWithOwner -q .nameWithOwner`.
+
+```
+gh api repos/{{owner}}/{{repo}}/pulls/{{number}}/reviews --input /dev/stdin <<< "$JSON"
+```
+
+Write the JSON to a temp file if it's large, then pass it via `--input`.
+
+After posting, print a link to the PR so the user can see the review.

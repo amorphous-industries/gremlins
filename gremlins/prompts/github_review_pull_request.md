@@ -1,6 +1,12 @@
 <!-- placeholder: {pr} (the PR URL, resolved from the `pr` artifact via `in: {{pr: pr}}`) -->
 # Review a GitHub PR and post inline comments
 
+The plan for this change is:
+
+{plan}
+
+Review against this plan. Flag anything that contradicts the plan or leaves planned work undone.
+
 Review the pull request at `{pr}` and post the review directly to GitHub as a PR review with inline line comments.
 
 ## Step 1: Gather PR information
@@ -11,29 +17,9 @@ Fetch PR metadata:
 gh pr view {pr} --json number,title,body,author,baseRefName,headRefName
 ```
 
-Fetch the diff. Check the size first to pick the right strategy:
+Changed files:
 
-```
-gh pr diff {pr} | wc -c
-```
-
-**If the diff is ≤ 80 000 bytes**, read it whole:
-
-```
-gh pr diff {pr}
-```
-
-**If the diff is > 80 000 bytes**, fetch per-file instead using the GitHub API, which returns each file's patch directly:
-
-```
-gh api repos/{{owner}}/{{repo}}/pulls/{{number}}/files
-```
-
-This returns a JSON array. Each entry has `filename`, `patch` (unified diff for that file), `additions`, `deletions`, and `status`. Parse with `jq` to process files individually.
-
-Review every file. A file whose diff is itself > 80 000 bytes is rare but possible; if it happens, read it in chunks using `offset` and `limit` on the Read tool (e.g. `limit: 500` lines at a time).
-
-**If a `Read` call fails with "exceeds maximum allowed tokens"**, switch to per-file diffs immediately — do not retry the same Read call.
+{diff}
 
 ## Step 2: Review the code
 
