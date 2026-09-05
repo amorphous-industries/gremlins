@@ -2,13 +2,30 @@
 
 import pathlib
 import textwrap
+from typing import Any
 
 import pytest
 from _gremlins_core.clients import RustClient as Client
+from _gremlins_core.discovery import resolve_pipeline_name as _resolve_pipeline_name
+from _gremlins_core.schemas import expand_pipeline as _expand_pipeline
 from _gremlins_core.schemas import fill_names as _fill_names
 
 from gremlins.pipeline import Pipeline
-from gremlins.pipeline.preprocess import expand_pipeline
+from gremlins.pipelines import BUNDLED_PIPELINE_DIR
+from gremlins.prompts import BUNDLED_PROMPT_DIR
+from gremlins.recipes import BUNDLED_STAGE_DEF_DIR
+
+_RESOLVE = lambda n, pr: _resolve_pipeline_name(n, pr, BUNDLED_PIPELINE_DIR)
+
+
+def _expand(p: pathlib.Path, **kwargs) -> dict[str, Any]:
+    return _expand_pipeline(
+        str(p),
+        str(kwargs.get("project_root", p.parent.parent if p.parent.name == ".gremlins" else p.parent)),
+        str(BUNDLED_STAGE_DEF_DIR),
+        str(BUNDLED_PROMPT_DIR),
+        _RESOLVE,
+    )
 
 _BUNDLED_LOCAL = (
     pathlib.Path(__file__).parent.parent / "gremlins" / "pipelines" / "local.yaml"
@@ -209,7 +226,7 @@ def test_stage_definition_expands_to_primitive(tmp_path: pathlib.Path) -> None:
           - { type: normalize }
         """,
     )
-    expanded = expand_pipeline(p)
+    expanded = _expand(p)
     stages = expanded["stages"]
     assert len(stages) == 2
     assert stages[1]["type"] == "exec"
@@ -233,7 +250,7 @@ def test_stage_definition_call_site_out_applied(tmp_path: pathlib.Path) -> None:
               artifact.commits: git://range
         """,
     )
-    expanded = expand_pipeline(p)
+    expanded = _expand(p)
     stage = expanded["stages"][0]
     assert stage["type"] == "exec"
     assert stage["name"] == "normalize"
@@ -257,7 +274,7 @@ def test_stage_definition_reused_twice_with_different_out(
           - { type: normalize, bind: { artifact.b: git://range } }
         """,
     )
-    expanded = expand_pipeline(p)
+    expanded = _expand(p)
     stages = expanded["stages"]
     assert stages[0]["bind"] == {"artifact.a": "git://range"}
     assert stages[1]["bind"] == {"artifact.b": "git://range"}
@@ -282,7 +299,7 @@ def test_stage_definition_with_out_rejected(tmp_path: pathlib.Path) -> None:
         """,
     )
     with pytest.raises(ValueError, match="must not declare 'bind:'"):
-        expand_pipeline(p)
+        _expand(p)
 
 
 def test_stage_definitions_not_in_expanded_output(tmp_path: pathlib.Path) -> None:
@@ -299,7 +316,7 @@ def test_stage_definitions_not_in_expanded_output(tmp_path: pathlib.Path) -> Non
           - { type: normalize }
         """,
     )
-    expanded = expand_pipeline(p)
+    expanded = _expand(p)
     assert "stage-definitions" not in expanded
 
 
@@ -316,7 +333,7 @@ def test_stage_definition_self_cycle_raises(tmp_path: pathlib.Path) -> None:
         """,
     )
     with pytest.raises(ValueError, match="stage-definition cycle"):
-        expand_pipeline(p)
+        _expand(p)
 
 
 def test_stage_definition_mutual_cycle_raises(tmp_path: pathlib.Path) -> None:
@@ -334,7 +351,7 @@ def test_stage_definition_mutual_cycle_raises(tmp_path: pathlib.Path) -> None:
         """,
     )
     with pytest.raises(ValueError, match="stage-definition cycle"):
-        expand_pipeline(p)
+        _expand(p)
 
 
 def test_stage_definitions_non_mapping_rejected(tmp_path: pathlib.Path) -> None:
@@ -349,7 +366,7 @@ def test_stage_definitions_non_mapping_rejected(tmp_path: pathlib.Path) -> None:
         """,
     )
     with pytest.raises(ValueError, match="stage-definitions must be a mapping"):
-        expand_pipeline(p)
+        _expand(p)
 
 
 def test_stage_definition_gremlins_recipe_expands(tmp_path: pathlib.Path) -> None:
@@ -366,7 +383,7 @@ def test_stage_definition_gremlins_recipe_expands(tmp_path: pathlib.Path) -> Non
           - { type: implement, name: impl-step, prompt: impl-prompt }
         """,
     )
-    expanded = expand_pipeline(p)
+    expanded = _expand(p)
     assert len(expanded["stages"]) > 0
     assert expanded["stages"][0]["name"] == "impl-step"
 
@@ -381,7 +398,7 @@ def test_required_prompt_missing_raises(tmp_path: pathlib.Path) -> None:
         """,
     )
     with pytest.raises(ValueError, match="required prompt is missing or empty"):
-        expand_pipeline(p)
+        _expand(p)
 
 
 def test_required_prompt_empty_raises(tmp_path: pathlib.Path) -> None:
@@ -394,7 +411,7 @@ def test_required_prompt_empty_raises(tmp_path: pathlib.Path) -> None:
         """,
     )
     with pytest.raises(ValueError, match="required prompt is missing or empty"):
-        expand_pipeline(p)
+        _expand(p)
 
 
 def test_stage_definition_gremlins_recipe_missing_name_raises(
@@ -411,7 +428,7 @@ def test_stage_definition_gremlins_recipe_missing_name_raises(
         """,
     )
     with pytest.raises(ValueError, match="missing name after"):
-        expand_pipeline(p)
+        _expand(p)
 
 
 def test_stage_definition_gremlins_recipe_not_found_raises(
@@ -428,7 +445,7 @@ def test_stage_definition_gremlins_recipe_not_found_raises(
         """,
     )
     with pytest.raises(FileNotFoundError, match="bundled recipe not found"):
-        expand_pipeline(p)
+        _expand(p)
 
 
 def test_stage_definition_gremlins_recipe_path_traversal_raises(
@@ -445,7 +462,7 @@ def test_stage_definition_gremlins_recipe_path_traversal_raises(
         """,
     )
     with pytest.raises(ValueError, match="invalid bundled recipe name"):
-        expand_pipeline(p)
+        _expand(p)
 
 
 def test_gremlins_prefix_type_resolves_directly(tmp_path: pathlib.Path) -> None:
@@ -460,7 +477,7 @@ def test_gremlins_prefix_type_resolves_directly(tmp_path: pathlib.Path) -> None:
           - { type: gremlins:implement, name: impl-step, prompt: impl-prompt }
         """,
     )
-    expanded = expand_pipeline(p)
+    expanded = _expand(p)
     assert len(expanded["stages"]) == 3
     assert expanded["stages"][0]["name"] == "impl-step"
     assert expanded["stages"][0]["type"] == "agent"
@@ -477,7 +494,7 @@ def test_gremlins_prefix_type_accepts_dashes(tmp_path: pathlib.Path) -> None:
           - { type: gremlins:github-request-copilot-review }
         """,
     )
-    expanded = expand_pipeline(p)
+    expanded = _expand(p)
     assert len(expanded["stages"]) == 2
     assert expanded["stages"][0]["type"] == "exec"
     assert expanded["stages"][1]["type"] == "exec"
@@ -493,7 +510,7 @@ def test_gremlins_prefix_type_unknown_raises(tmp_path: pathlib.Path) -> None:
         """,
     )
     with pytest.raises(FileNotFoundError, match="bundled recipe not found"):
-        expand_pipeline(p)
+        _expand(p)
 
 
 def test_gremlins_prefix_type_path_traversal_raises(tmp_path: pathlib.Path) -> None:
@@ -506,7 +523,7 @@ def test_gremlins_prefix_type_path_traversal_raises(tmp_path: pathlib.Path) -> N
         """,
     )
     with pytest.raises(ValueError, match="invalid bundled recipe name"):
-        expand_pipeline(p)
+        _expand(p)
 
 
 # --- type: <pipeline-name> tests ---
@@ -536,7 +553,7 @@ def test_type_resolves_to_pipeline_file(tmp_path: pathlib.Path) -> None:
           - { type: sub }
         """,
     )
-    expanded = expand_pipeline(p, project_root=tmp_path)
+    expanded = _expand(p, project_root=tmp_path)
     assert len(expanded["stages"]) == 4
     assert expanded["stages"][0]["type"] == "agent"
     assert expanded["stages"][1]["type"] == "agent"
@@ -560,5 +577,5 @@ def test_type_self_referencing_pipeline_does_not_recurse(
         encoding="utf-8",
     )
     # self-reference is skipped (falls through to loader); expand_pipeline must not recurse
-    expanded = expand_pipeline(p)
+    expanded = _expand(p)
     assert expanded["stages"][0]["type"] == "self-ref"
