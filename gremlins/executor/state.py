@@ -531,12 +531,19 @@ class State:
             prepared_state = _prepare()
             child_gremlin.state = prepared_state
             child_gremlin.registry = prepared_state.artifacts
+            logger.info("stage starting: %s (type=%s)", entry.name, entry.type)
             _log_git_status(f"entering {entry.name}", base_state.cwd)
             try:
                 result = await entry.run(child_gremlin)
                 return result
             finally:
                 _log_git_status(f"exiting {entry.name}", base_state.cwd)
+                logger.info("stage finished: %s", entry.name)
+                for h in logging.getLogger().handlers:
+                    try:
+                        h.flush()
+                    except Exception:
+                        pass
 
         return _run_async
 

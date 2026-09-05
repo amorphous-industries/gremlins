@@ -186,6 +186,21 @@ class Agent(Stage):
         template = "\n\n".join(self.prompts).rstrip()
         prompt = self.substitute_vars(template, state, resolved)
 
+        # Inject workspace preamble so the agent knows its working directory
+        # without wasting turns on cd /workspace sandbox errors.
+        workspace_parts: list[str] = []
+        if state.cwd:
+            workspace_parts.append(f"Your working directory is: {state.cwd}")
+        wt = str(state.worktree) if state.worktree else ""
+        if wt and wt != state.cwd:
+            workspace_parts.append(f"Project worktree: {wt}")
+        workspace_parts.append(
+            "Relevant environment variables: $GREMLINS_WORKTREE_PATH, $GREMLIN_WORKSPACE_DIR, $GREMLINS_ARTIFACT_DIR"
+        )
+        if workspace_parts:
+            preamble = "\n".join(workspace_parts)
+            prompt = preamble + "\n\n" + prompt
+
         raw_path = state.artifact_dir / f"stream-{self.name}.jsonl"
         model = self.substitute_vars(raw_model, state, resolved) if raw_model else None
 
