@@ -107,7 +107,6 @@ struct RunContext {
 }
 
 pub struct OpenAiBackend {
-    provider: OpenAiProvider,
     client: openai::CompletionsClient,
     model: String,
     tool_filter: Option<Vec<String>>,
@@ -131,7 +130,6 @@ impl OpenAiBackend {
             model
         };
         Self {
-            provider,
             client,
             model,
             tool_filter,
@@ -143,7 +141,7 @@ impl OpenAiBackend {
     }
 
     fn extra_params(&self) -> Option<serde_json::Value> {
-        build_extra_params(self.provider, &self.client_params)
+        build_extra_params(&self.client_params)
     }
 
     fn effective_model(&self, override_model: Option<&str>) -> String {
@@ -680,18 +678,10 @@ async fn run_agent_loop_core<M: CompletionModel>(
     })
 }
 
-fn build_extra_params(
-    provider: OpenAiProvider,
-    client_params: &HashMap<String, String>,
-) -> Option<serde_json::Value> {
+fn build_extra_params(client_params: &HashMap<String, String>) -> Option<serde_json::Value> {
     let mut params = serde_json::Map::new();
 
-    match provider {
-        OpenAiProvider::OpenAi | OpenAiProvider::OpenRouter => {
-            params.insert("parallel_tool_calls".into(), serde_json::Value::Bool(true));
-        }
-        _ => {}
-    }
+    params.insert("parallel_tool_calls".into(), serde_json::Value::Bool(true));
 
     // reasoning effort: client param > env var
     let effort = client_params
@@ -955,18 +945,7 @@ mod tests {
 
     #[test]
     fn extra_params_default_no_reasoning() {
-        let empty = HashMap::new();
-
-        // openai gets parallel_tool_calls only
-        let p = build_extra_params(OpenAiProvider::OpenAi, &empty).unwrap();
-        assert_eq!(p["parallel_tool_calls"], true);
-        assert!(p.get("reasoning").is_none());
-
-        // xai gets nothing by default
-        assert!(build_extra_params(OpenAiProvider::Xai, &empty).is_none());
-
-        // openrouter gets parallel_tool_calls only
-        let p = build_extra_params(OpenAiProvider::OpenRouter, &empty).unwrap();
+        let p = build_extra_params(&HashMap::new()).unwrap();
         assert_eq!(p["parallel_tool_calls"], true);
         assert!(p.get("reasoning").is_none());
     }
@@ -975,7 +954,7 @@ mod tests {
     fn extra_params_client_reasoning_overrides() {
         let mut cp = HashMap::new();
         cp.insert("reasoning".into(), "low".into());
-        let p = build_extra_params(OpenAiProvider::OpenRouter, &cp).unwrap();
+        let p = build_extra_params(&cp).unwrap();
         assert_eq!(p["reasoning"]["effort"], "low");
         assert_eq!(p["reasoning"]["summary"], "auto");
     }
@@ -989,7 +968,7 @@ mod tests {
     fn build_extra_params_to_reasoning_effort_extraction_locked() {
         let mut cp = HashMap::new();
         cp.insert("reasoning".into(), "low".into());
-        let extra = build_extra_params(OpenAiProvider::OpenRouter, &cp).unwrap();
+        let extra = build_extra_params(&cp).unwrap();
         let effort = extra
             .get("reasoning")
             .and_then(|r| r.get("effort"))
@@ -997,7 +976,7 @@ mod tests {
         assert_eq!(effort, Some("low"));
 
         // Without reasoning, extraction returns None
-        let extra = build_extra_params(OpenAiProvider::OpenRouter, &HashMap::new()).unwrap();
+        let extra = build_extra_params(&HashMap::new()).unwrap();
         let effort = extra
             .get("reasoning")
             .and_then(|r| r.get("effort"))
@@ -1010,7 +989,7 @@ mod tests {
         let mut cp = HashMap::new();
         cp.insert("thinking".into(), "deepseek".into());
         cp.insert("foo".into(), "bar".into());
-        let p = build_extra_params(OpenAiProvider::OpenRouter, &cp).unwrap();
+        let p = build_extra_params(&cp).unwrap();
         assert_eq!(p["thinking"], "deepseek");
         assert_eq!(p["foo"], "bar");
         assert!(p.get("reasoning").is_none());
@@ -1024,7 +1003,7 @@ mod tests {
         cp.insert("stream".into(), "true".into());
         cp.insert("max_tokens".into(), "4096".into());
         cp.insert("stop".into(), "[\"END\"]".into()); // JSON array
-        let p = build_extra_params(OpenAiProvider::OpenAi, &cp).unwrap();
+        let p = build_extra_params(&cp).unwrap();
         // numbers
         assert_eq!(p["temperature"], serde_json::json!(0.7));
         assert_eq!(p["top_p"], serde_json::json!(0.95));
@@ -1040,11 +1019,11 @@ mod tests {
         let mut cp = HashMap::new();
         cp.insert("reasoning".into(), "high".into());
         cp.insert("thinking".into(), "deepseek".into());
-        let p = build_extra_params(OpenAiProvider::Xai, &cp).unwrap();
+        let p = build_extra_params(&cp).unwrap();
         assert_eq!(p["reasoning"]["effort"], "high");
         assert_eq!(p["thinking"], "deepseek");
-        // xai doesn't auto-insert parallel_tool_calls
-        assert!(p.get("parallel_tool_calls").is_none());
+        // xai auto-inserts parallel_tool_calls alongside reasoning + passthrough
+        assert_eq!(p["parallel_tool_calls"], true);
     }
 
     #[test]
