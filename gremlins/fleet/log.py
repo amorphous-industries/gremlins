@@ -20,6 +20,12 @@ def do_log(target: str, *, full: bool = False) -> bool:
         sys.stderr.write(f"error: no log file for gremlin {gremlin_id} at {log_path}\n")
         return False
 
+    # Print the path to stderr so it survives even if the operator is piping
+    # the tool's stdout into another tool. Flush immediately so the header
+    # isn't interleaved after the tool starts writing.
+    sys.stderr.write(f"==> log: {log_path}\n")
+    sys.stderr.flush()
+
     if full:
         try:
             os.execvp("cat", ["cat", log_path])
@@ -29,12 +35,6 @@ def do_log(target: str, *, full: bool = False) -> bool:
         except OSError as e:
             sys.stderr.write(f"error: could not exec cat: {e}\n")
             return False
-
-    # Print the path to stderr so it survives even if the operator is piping
-    # tail's stdout into another tool. Flush immediately so the header isn't
-    # interleaved after tail starts writing.
-    sys.stderr.write(f"==> log: {log_path}\n")
-    sys.stderr.flush()
 
     try:
         os.execvp("tail", ["tail", "-F", log_path])

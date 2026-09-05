@@ -1098,7 +1098,7 @@ def test_compose_commit_message_tasks_without_checkboxes_empty_body(tmp_path):
 
 
 def test_do_log_full_cat_not_found(sandbox, tmp_path, monkeypatch, capsys):
-    gr_dir, workdir = _setup_dead_gremlin(sandbox, tmp_path)
+    gr_dir, _ = _setup_dead_gremlin(sandbox, tmp_path)
     log_path = gr_dir / "log"
     log_path.write_text("log content")
 
@@ -1114,7 +1114,7 @@ def test_do_log_full_cat_not_found(sandbox, tmp_path, monkeypatch, capsys):
 
 
 def test_do_log_full_cat_oserror(sandbox, tmp_path, monkeypatch, capsys):
-    gr_dir, workdir = _setup_dead_gremlin(sandbox, tmp_path)
+    gr_dir, _ = _setup_dead_gremlin(sandbox, tmp_path)
     log_path = gr_dir / "log"
     log_path.write_text("log content")
 
@@ -1151,7 +1151,7 @@ def test_do_log_no_match(sandbox, tmp_path, monkeypatch, capsys):
 
 
 def test_log_main_full_flag_accepted(sandbox, tmp_path, monkeypatch, capsys):
-    gr_dir, workdir = _setup_dead_gremlin(sandbox, tmp_path)
+    gr_dir, _ = _setup_dead_gremlin(sandbox, tmp_path)
     log_path = gr_dir / "log"
     log_path.write_text("log content")
 
@@ -1165,7 +1165,7 @@ def test_log_main_full_flag_accepted(sandbox, tmp_path, monkeypatch, capsys):
 
 
 def test_log_main_no_full_defaults_to_tail(sandbox, tmp_path, monkeypatch, capsys):
-    gr_dir, workdir = _setup_dead_gremlin(sandbox, tmp_path)
+    gr_dir, _ = _setup_dead_gremlin(sandbox, tmp_path)
     log_path = gr_dir / "log"
     log_path.write_text("log content")
 
