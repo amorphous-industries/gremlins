@@ -678,9 +678,7 @@ async fn run_agent_loop_core<M: CompletionModel>(
     })
 }
 
-fn build_extra_params(
-    client_params: &HashMap<String, String>,
-) -> Option<serde_json::Value> {
+fn build_extra_params(client_params: &HashMap<String, String>) -> Option<serde_json::Value> {
     let mut params = serde_json::Map::new();
 
     params.insert("parallel_tool_calls".into(), serde_json::Value::Bool(true));
