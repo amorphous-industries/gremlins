@@ -4,8 +4,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
 use crate::schemas::error::SchemaError;
-
-pub const GREMLINS_PREFIX: &str = "gremlins:";
+use gremlins::schemas::loader as core_loader;
 
 pub const STAGE_TYPES: &[(&str, &str, &str)] = &[
     ("agent", "gremlins.stages.agent", "Agent"),
@@ -136,76 +135,48 @@ pub fn parse_stages(
 }
 
 pub fn fill_names(raw_stages: &Bound<'_, PyList>) -> PyResult<()> {
-    let len = raw_stages.len();
-
-    let mut explicit: Vec<String> = Vec::new();
-    for i in 0..len {
-        let item = raw_stages.get_item(i)?;
+    let mut entries: Vec<core_loader::StageEntry> = Vec::new();
+    for item in raw_stages.iter() {
         let d: &Bound<'_, PyDict> = item.cast()?;
-        if let Ok(Some(name)) = d
-            .get_item("name")
-            .map(|v| v.and_then(|v| v.extract::<String>().ok()))
-        {
-            if !name.is_empty() {
-                explicit.push(name);
-            }
-        }
-    }
-    let mut used: std::collections::HashSet<String> = explicit.iter().cloned().collect();
-    let mut counts: HashMap<String, usize> = HashMap::new();
-
-    for i in 0..len {
-        let item = raw_stages.get_item(i)?;
-        let d: &Bound<'_, PyDict> = item.cast()?;
-
-        let has_name = d
+        let name: Option<String> = d
             .get_item("name")
             .ok()
             .flatten()
             .and_then(|v| v.extract::<String>().ok())
-            .is_some_and(|n| !n.is_empty());
-
-        if has_name {
-            d.del_item("_auto_name").ok();
-            continue;
-        }
-
-        let auto_raw: Option<String> = d.get_item("_auto_name").ok().flatten().and_then(|v| {
-            v.str()
-                .ok()
-                .and_then(|s| s.to_str().ok().map(|s| s.to_string()))
-        });
+            .filter(|n| !n.is_empty());
+        let auto_name: Option<String> = d
+            .get_item("_auto_name")
+            .ok()
+            .flatten()
+            .and_then(|v| v.str().ok())
+            .and_then(|s| s.to_str().ok().map(|s| s.to_string()))
+            .filter(|n| !n.is_empty());
         d.del_item("_auto_name").ok();
+        let stage_type: Option<String> = d
+            .get_item("type")
+            .ok()
+            .flatten()
+            .and_then(|v| v.extract::<String>().ok())
+            .filter(|t| !t.is_empty());
+        let is_parallel = d.contains("parallel").unwrap_or(false);
+        entries.push(core_loader::StageEntry {
+            name,
+            auto_name,
+            stage_type,
+            is_parallel,
+        });
+    }
 
-        let auto = auto_raw.unwrap_or_default();
-        let stage_type = if !auto.is_empty() {
-            auto
-        } else if d.contains("parallel").unwrap_or(false) {
-            "parallel".to_string()
-        } else {
-            d.get_item("type")
-                .ok()
-                .flatten()
-                .and_then(|v| v.extract::<String>().ok())
-                .unwrap_or_default()
-        };
+    core_loader::fill_names(&mut entries).map_err(|e: gremlins::schemas::error::SchemaError| {
+        pyo3::exceptions::PyValueError::new_err(e.to_string())
+    })?;
 
-        let count = counts.entry(stage_type.clone()).or_insert(0);
-        *count += 1;
-        let n = *count;
-        let mut candidate = if n == 1 {
-            stage_type.clone()
-        } else {
-            format!("{stage_type}-{n}")
-        };
-
-        while used.contains(&candidate) {
-            *count += 1;
-            let m = *count;
-            candidate = format!("{stage_type}-{m}");
+    for (i, entry) in entries.iter().enumerate() {
+        if let Some(ref name) = entry.name {
+            let item = raw_stages.get_item(i)?;
+            let d: &Bound<'_, PyDict> = item.cast()?;
+            d.set_item("name", name)?;
         }
-        d.set_item("name", &candidate)?;
-        used.insert(candidate);
     }
 
     Ok(())
@@ -215,84 +186,68 @@ pub fn check_duplicate_producers(
     stages: &Bound<'_, PyList>,
     extra_out: Option<&Bound<'_, PyDict>>,
 ) -> PyResult<()> {
-    _check_scope(stages, extra_out)
+    let nodes = py_stages_to_nodes(stages)?;
+    let extra = match extra_out {
+        Some(dict) => {
+            let mut m = HashMap::new();
+            for (k, v) in dict.iter() {
+                let key: String = k.extract()?;
+                let val: String = v.extract()?;
+                m.insert(key, val);
+            }
+            m
+        }
+        None => HashMap::new(),
+    };
+    core_loader::check_duplicate_producers(&nodes, &extra).map_err(
+        |e: gremlins::schemas::error::SchemaError| {
+            pyo3::exceptions::PyValueError::new_err(e.to_string())
+        },
+    )
 }
 
-fn _check_scope(stages: &Bound<'_, PyList>, extra_out: Option<&Bound<'_, PyDict>>) -> PyResult<()> {
-    let py = stages.py();
-    let len = stages.len();
-    let mut seen: HashMap<String, (String, String)> = HashMap::new();
+fn py_stages_to_nodes(stages: &Bound<'_, PyList>) -> PyResult<Vec<core_loader::StageNode>> {
+    let mut nodes = Vec::new();
+    for item in stages.iter() {
+        let name: String = item.getattr("name")?.extract()?;
+        let stage_type: String = item
+            .getattr("type")
+            .ok()
+            .and_then(|v| v.extract::<String>().ok())
+            .unwrap_or_default();
+        let skip_if_exists: String = item
+            .getattr("skip_if_exists")
+            .ok()
+            .and_then(|v| v.extract::<String>().ok())
+            .unwrap_or_default();
 
-    if let Some(extra) = extra_out {
-        for (raw_key, uri_str) in extra.iter() {
-            let raw_key: String = raw_key.extract()?;
-            let uri_str: String = uri_str.extract()?;
-            let key = if raw_key.ends_with('?') {
-                raw_key[..raw_key.len() - 1].to_string()
-            } else {
-                raw_key
-            };
-            seen.insert(key, ("bootstrap".to_string(), uri_str));
-        }
-    }
-
-    for i in 0..len {
-        let stage = stages.get_item(i)?;
-        let bind_map_attr = stage.getattr("bind_map").ok();
-        let bind_map: Option<&Bound<'_, PyDict>> =
-            bind_map_attr.as_ref().and_then(|v| v.cast().ok());
-
-        if let Some(bind_map) = bind_map {
-            for (raw_key, uri_str) in bind_map.iter() {
-                let raw_key: String = raw_key.extract()?;
-                if raw_key.ends_with('?') {
-                    continue;
-                }
-                let uri_str: String = uri_str.extract()?;
-                let name: String = stage.getattr("name")?.extract()?;
-
-                if let Some((prev_name, prev_uri)) = seen.get(&raw_key) {
-                    if prev_uri != &uri_str {
-                        let skip_if_exists: String = stage
-                            .getattr("skip_if_exists")
-                            .ok()
-                            .and_then(|v| v.extract().ok())
-                            .unwrap_or_default();
-                        if skip_if_exists.is_empty() {
-                            return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                                "duplicate bind: key {raw_key:?}: declared by both {prev_name:?} and {name:?}"
-                            )));
-                        }
-                    }
-                } else {
-                    seen.insert(raw_key, (name, uri_str));
+        let mut bind_map = HashMap::new();
+        if let Ok(bm) = item.getattr("bind_map") {
+            if let Ok(bm_dict) = bm.cast::<PyDict>() {
+                for (k, v) in bm_dict.iter() {
+                    let key: String = k.extract()?;
+                    let val: String = v.extract()?;
+                    bind_map.insert(key, val);
                 }
             }
         }
 
-        let body_attr = stage.getattr("body").ok();
-        let body: Option<&Bound<'_, PyList>> = body_attr.as_ref().and_then(|v| v.cast().ok());
-
-        if let Some(body) = body {
-            let is_parallel: bool = stage
-                .getattr("type")
-                .ok()
-                .and_then(|v| v.extract::<String>().ok())
-                .is_some_and(|t| t == "parallel");
-
-            if is_parallel {
-                for j in 0..body.len() {
-                    let child = body.get_item(j)?;
-                    let child_list = PyList::new(py, &[child])?;
-                    _check_scope(&child_list, None)?;
-                }
-            } else {
-                _check_scope(body, None)?;
+        let mut body = Vec::new();
+        if let Ok(body_attr) = item.getattr("body") {
+            if let Ok(body_list) = body_attr.cast::<PyList>() {
+                body = py_stages_to_nodes(body_list)?;
             }
         }
-    }
 
-    Ok(())
+        nodes.push(core_loader::StageNode {
+            name,
+            stage_type,
+            bind_map,
+            skip_if_exists,
+            body,
+        });
+    }
+    Ok(nodes)
 }
 
 #[cfg(test)]
