@@ -1,4 +1,39 @@
 stages:
+  - name: resolve-pr-base
+    type: exec
+    interpolation:
+      prev_branch: artifact.pr-branch?
+    bind:
+      artifact.base_ref_to_open_pr: "file://session/pr-base-ref.txt"
+    options:
+      cmds:
+        - 'printf "%s" "${prev_branch:-{base_ref}}" > "{artifact_dir}/pr-base-ref.txt"'
+
+  - name: diff-summary
+    type: exec
+    interpolation:
+      base_ref_to_open_pr: artifact.base_ref_to_open_pr
+    bind:
+      artifact.diff_summary: "file://session/diff-summary.txt"
+    options:
+      cmds:
+        - |
+          {
+            if git merge-base --is-ancestor "{base_ref_to_open_pr}" HEAD 2>/dev/null; then
+              RANGE="{base_ref_to_open_pr}..HEAD"
+            elif git rev-parse --verify HEAD~10 >/dev/null 2>&1; then
+              RANGE="HEAD~10..HEAD"
+            else
+              ROOT=$(git rev-list --max-parents=0 HEAD)
+              RANGE="${ROOT}..HEAD"
+            fi
+            echo "Commits:"
+            git log --oneline "$RANGE" 2>/dev/null || echo "(no commits)"
+            echo ""
+            echo "Files changed:"
+            git diff --stat "$RANGE" 2>/dev/null || echo "(no diff)"
+          } > "{artifact_dir}/diff-summary.txt"
+
   - name: compose-pr
     type: agent
     interpolation:
