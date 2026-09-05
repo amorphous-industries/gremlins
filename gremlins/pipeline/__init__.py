@@ -46,7 +46,7 @@ class Pipeline:
         cls, path: pathlib.Path, *, default_client_override: str | None = None
     ) -> Pipeline:
         import gremlins._clients_init  # noqa: F401  # pyright: ignore[reportUnusedImport] — registers built-in providers
-        from gremlins.pipeline.loader import check_duplicate_producers, parse_stages
+        from _gremlins_core.schemas import check_duplicate_producers, parse_stages
         from gremlins.pipeline.preprocess import expand_pipeline
 
         path = path.resolve()

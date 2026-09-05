@@ -21,8 +21,11 @@ fn fill_names(raw_stages: &Bound<'_, PyList>) -> PyResult<()> {
 }
 
 #[pyfunction]
-fn check_duplicate_producers(stages: &Bound<'_, PyList>) -> PyResult<()> {
-    schemas::loader::check_duplicate_producers(stages)
+fn check_duplicate_producers(
+    stages: &Bound<'_, PyList>,
+    extra_out: Option<&Bound<'_, PyDict>>,
+) -> PyResult<()> {
+    schemas::loader::check_duplicate_producers(stages, extra_out)
 }
 
 #[pyfunction]
@@ -60,6 +63,14 @@ pub fn register_schemas_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     schemas_mod.add_function(wrap_pyfunction!(fill_names, &schemas_mod)?)?;
     schemas_mod.add_function(wrap_pyfunction!(check_duplicate_producers, &schemas_mod)?)?;
     schemas_mod.add_function(wrap_pyfunction!(expand_pipeline, &schemas_mod)?)?;
+
+    // Build STAGE_TYPES dict from the Rust constant
+    let stage_types = PyDict::new(m.py());
+    for &(name, module, class_name) in schemas::loader::STAGE_TYPES {
+        let cls = m.py().import(module)?.getattr(class_name)?;
+        stage_types.set_item(name, cls)?;
+    }
+    schemas_mod.add("STAGE_TYPES", &stage_types)?;
 
     m.add_submodule(&schemas_mod)?;
 

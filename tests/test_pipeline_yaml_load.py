@@ -7,7 +7,7 @@ import pytest
 from _gremlins_core.clients import RustClient as Client
 
 from gremlins.pipeline import Pipeline
-from gremlins.pipeline.loader import fill_names as _fill_names
+from _gremlins_core.schemas import fill_names as _fill_names
 from gremlins.pipeline.preprocess import expand_pipeline
 
 _BUNDLED_LOCAL = (

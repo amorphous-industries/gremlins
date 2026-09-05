@@ -95,7 +95,7 @@ class ParallelStage(Stage):
 
     @classmethod
     def with_dict(cls, d: dict[str, Any], depth: int = 0) -> ParallelStage:
-        from gremlins.pipeline.loader import parse_stages
+        from _gremlins_core.schemas import parse_stages
 
         if depth > 0:
             raise ValueError(

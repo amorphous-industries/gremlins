@@ -158,7 +158,7 @@ impl Pipeline {
             .transpose()?;
 
         let stages_list = PyList::new(py, stages.iter().map(|s| s.bind(py)))?;
-        loader::check_duplicate_producers(&stages_list)?;
+        loader::check_duplicate_producers(&stages_list, None)?;
 
         if default_client.is_none() {
             return Err(pyo3::exceptions::PyValueError::new_err(

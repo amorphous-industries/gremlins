@@ -267,7 +267,7 @@ def _append_graft(
     state_dir: pathlib.Path, graft_pipeline_name: str, project_root: str
 ) -> str:
     from gremlins.pipeline.discovery import resolve_pipeline_name
-    from gremlins.pipeline.loader import fill_names
+    from _gremlins_core.schemas import fill_names
     from gremlins.pipeline.preprocess import expand_pipeline
     from gremlins.utils.yaml_io import dump_yaml_text, load_yaml_file
 

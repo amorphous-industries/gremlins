@@ -6,7 +6,7 @@ import pytest
 from gremlins.executor.gremlin import Gremlin
 from gremlins.pipeline import Pipeline as _PipelineData
 from gremlins.pipeline.discovery import resolve_pipeline_name, resolve_pipeline_path
-from gremlins.pipeline.loader import STAGE_TYPES
+from _gremlins_core.schemas import STAGE_TYPES
 from gremlins.stages.agent import Agent
 from gremlins.stages.base import Stage
 from gremlins.stages.parallel import ParallelStage

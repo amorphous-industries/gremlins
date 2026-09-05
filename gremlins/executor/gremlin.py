@@ -26,7 +26,7 @@ from gremlins.executor.state import (
 )
 from gremlins.pipeline import Pipeline as _PipelineData
 from gremlins.pipeline.discovery import resolve_pipeline_path
-from gremlins.pipeline.loader import STAGE_TYPES
+from _gremlins_core.schemas import STAGE_TYPES
 from gremlins.protocols import StageProtocol
 from gremlins.stages.base import Stage
 from gremlins.utils import git as _git_mod

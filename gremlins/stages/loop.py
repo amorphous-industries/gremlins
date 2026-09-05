@@ -73,7 +73,7 @@ class LoopStage(Stage):
 
     @classmethod
     def with_dict(cls, d: dict[str, Any], depth: int = 0) -> LoopStage:
-        from gremlins.pipeline.loader import parse_stages
+        from _gremlins_core.schemas import parse_stages
 
         name = d.get("name") or ""
         raw_options: object = d.get("options") or {}

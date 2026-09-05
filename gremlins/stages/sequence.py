@@ -28,7 +28,7 @@ class SequenceStage(Stage):
 
     @classmethod
     def with_dict(cls, d: dict[str, Any], depth: int = 0) -> SequenceStage:
-        from gremlins.pipeline.loader import parse_stages
+        from _gremlins_core.schemas import parse_stages
 
         name = d.get("name") or ""
         raw_children: object = d.get("body") or []

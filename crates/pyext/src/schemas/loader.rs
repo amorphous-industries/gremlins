@@ -7,7 +7,7 @@ use crate::schemas::error::SchemaError;
 
 pub const GREMLINS_PREFIX: &str = "gremlins:";
 
-const STAGE_TYPES: &[(&str, &str, &str)] = &[
+pub const STAGE_TYPES: &[(&str, &str, &str)] = &[
     ("agent", "gremlins.stages.agent", "Agent"),
     ("loop", "gremlins.stages.loop", "LoopStage"),
     ("parallel", "gremlins.stages.parallel", "ParallelStage"),
@@ -189,14 +189,33 @@ pub fn fill_names(raw_stages: &Bound<'_, PyList>) -> PyResult<()> {
     Ok(())
 }
 
-pub fn check_duplicate_producers(stages: &Bound<'_, PyList>) -> PyResult<()> {
-    _check_scope(stages)
+pub fn check_duplicate_producers(
+    stages: &Bound<'_, PyList>,
+    extra_out: Option<&Bound<'_, PyDict>>,
+) -> PyResult<()> {
+    _check_scope(stages, extra_out)
 }
 
-fn _check_scope(stages: &Bound<'_, PyList>) -> PyResult<()> {
+fn _check_scope(
+    stages: &Bound<'_, PyList>,
+    extra_out: Option<&Bound<'_, PyDict>>,
+) -> PyResult<()> {
     let py = stages.py();
     let len = stages.len();
     let mut seen: HashMap<String, (String, String)> = HashMap::new();
+
+    if let Some(extra) = extra_out {
+        for (raw_key, uri_str) in extra.iter() {
+            let raw_key: String = raw_key.extract()?;
+            let uri_str: String = uri_str.extract()?;
+            let key = if raw_key.ends_with('?') {
+                raw_key[..raw_key.len() - 1].to_string()
+            } else {
+                raw_key
+            };
+            seen.insert(key, ("bootstrap".to_string(), uri_str));
+        }
+    }
 
     for i in 0..len {
         let stage = stages.get_item(i)?;
@@ -246,10 +265,10 @@ fn _check_scope(stages: &Bound<'_, PyList>) -> PyResult<()> {
                 for j in 0..body.len() {
                     let child = body.get_item(j)?;
                     let child_list = PyList::new(py, &[child])?;
-                    _check_scope(&child_list)?;
+                    _check_scope(&child_list, None)?;
                 }
             } else {
-                _check_scope(body)?;
+                _check_scope(body, None)?;
             }
         }
     }
