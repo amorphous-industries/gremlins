@@ -1165,7 +1165,7 @@ pub fn tool_definitions(filter: Option<&[String]>) -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "Edit".into(),
-            description: "Replace old_string with new_string in a file (first occurrence). When editing a file with duplicate substrings, include 2-3 lines of surrounding context in old_string to make it unique. After a failed edit due to non-uniqueness, re-read only the failing region (with offset/limit), not the whole file.".into(),
+            description: "Replace old_string with new_string in a file (requires unique match). When editing a file with duplicate substrings, include 2-3 lines of surrounding context in old_string to make it unique. After a failed edit due to non-uniqueness, re-read only the failing region (with offset/limit), not the whole file.".into(),
             parameters: serde_json::json!({
                 "type": "object",
                 "properties": {
