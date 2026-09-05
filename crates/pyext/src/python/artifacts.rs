@@ -51,13 +51,17 @@ impl Uri {
 
     fn __repr__(&self) -> String {
         format!(
-            "Uri(scheme='{}', path='{}')",
+            "Uri(scheme={:?}, path={:?})",
             self.inner.scheme, self.inner.path
         )
     }
 
-    fn __eq__(&self, other: &Uri) -> bool {
-        self.inner == other.inner
+    fn __eq__(&self, other: &Bound<'_, PyAny>) -> bool {
+        if let Ok(other) = other.extract::<PyRef<'_, Self>>() {
+            self.inner == other.inner
+        } else {
+            false
+        }
     }
 
     fn __hash__(&self) -> u64 {
