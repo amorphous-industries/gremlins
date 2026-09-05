@@ -10,8 +10,7 @@ Review against this plan. Flag anything that contradicts the plan or leaves plan
 
 **Do not run any tests, checks, linters, or build commands.** This is a code review only.
 
-The changed files are listed below. For each file you want to review, fetch the diff with:
-`git diff {base_ref}...HEAD -- <file>`
+Changed files:
 
 {diff}
 
