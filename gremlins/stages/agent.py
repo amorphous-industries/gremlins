@@ -98,7 +98,9 @@ class Agent(Stage):
             ),
             bind_map=strip_artifact_prefix_keys(cast(dict[str, str], raw_bind), name),
         )
-        stage.client = get_client_from_dict(d)
+        client = get_client_from_dict(d)
+        stage.client = client
+        stage.client_explicit = client is not None
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(
                 "Agent %r: %d prompts, %d interpolation keys, %d bind keys",
