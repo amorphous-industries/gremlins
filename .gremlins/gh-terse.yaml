@@ -77,7 +77,7 @@ stages:
       artifact.diff: "file://session/diff.txt"
     options:
       cmds:
-        - "git diff --name-only {base_ref}...HEAD > \"{artifact_dir}/diff.txt\""
+        - "git diff {base_ref}...HEAD > \"{artifact_dir}/diff.txt\""
 
   - parallel:
       - name: local-review-one
