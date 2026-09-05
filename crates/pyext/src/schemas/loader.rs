@@ -196,10 +196,7 @@ pub fn check_duplicate_producers(
     _check_scope(stages, extra_out)
 }
 
-fn _check_scope(
-    stages: &Bound<'_, PyList>,
-    extra_out: Option<&Bound<'_, PyDict>>,
-) -> PyResult<()> {
+fn _check_scope(stages: &Bound<'_, PyList>, extra_out: Option<&Bound<'_, PyDict>>) -> PyResult<()> {
     let py = stages.py();
     let len = stages.len();
     let mut seen: HashMap<String, (String, String)> = HashMap::new();

@@ -12,11 +12,11 @@ import pathlib
 import re
 
 from _gremlins_core.artifacts import Uri
+from _gremlins_core.schemas import parse_stages
 from conftest import MINIMAL_EVENTS, MockGremlin
 
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.executor.state import StateData, build_state
-from _gremlins_core.schemas import parse_stages
 from gremlins.stages.outcome import Done
 from tests.fake_client import FakeClient
 

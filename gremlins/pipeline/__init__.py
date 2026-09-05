@@ -45,8 +45,9 @@ class Pipeline:
     def from_yaml(
         cls, path: pathlib.Path, *, default_client_override: str | None = None
     ) -> Pipeline:
-        import gremlins._clients_init  # noqa: F401  # pyright: ignore[reportUnusedImport] — registers built-in providers
         from _gremlins_core.schemas import check_duplicate_producers, parse_stages
+
+        import gremlins._clients_init  # noqa: F401  # pyright: ignore[reportUnusedImport] — registers built-in providers
         from gremlins.pipeline.preprocess import expand_pipeline
 
         path = path.resolve()
