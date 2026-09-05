@@ -13,9 +13,7 @@ further; the fix was a stale artifact from a previous Rust change.
 **If the error persists after `make install`**, proceed with the following
 constraints to fix the code:
 
-- Fix only the specific errors reported in the output below. Do not investigate git history, diff against past commits, or chase unrelated tests — the failing lines name the exact files and locations to fix.
 - Do not skip or disable linting rules, formatter directives, or type-check annotations to make the check pass — fix the actual violation.
-- Do not weaken, delete, or change the intent of test assertions or fixtures to make tests pass — fix the implementation code instead. Mechanical cleanups in test files (import sorting, unused imports, formatting, type annotations) are allowed.
 - After fixing, stage the changed files by name and create a git commit titled 'Fix failing checks'. Do not push.
 
 ---
