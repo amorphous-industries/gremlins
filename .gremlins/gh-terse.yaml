@@ -77,12 +77,7 @@ stages:
       artifact.diff: "file://session/diff.txt"
     options:
       cmds:
-        - |
-          git diff {base_ref}...HEAD > "{artifact_dir}/diff.txt" &&
-          SIZE=$(wc -c < "{artifact_dir}/diff.txt") &&
-          if [ "$SIZE" -gt 100000 ]; then
-            printf 'Diff too large to inline (%d bytes). Reviewer should fetch the diff directly via git diff.' "$SIZE" > "{artifact_dir}/diff.txt"
-          fi
+        - "git diff --name-only {base_ref}...HEAD > \"{artifact_dir}/diff.txt\""
 
   - parallel:
       - name: local-review-one

@@ -16,7 +16,8 @@ Fetch PR metadata:
 gh pr view {pr} --json number,title,body,author,baseRefName,headRefName
 ```
 
-The full diff is pre-computed below:
+The changed files are listed below. For each file you want to review, fetch the diff with:
+`gh pr diff {pr} -- <file>`
 
 {diff}
 
