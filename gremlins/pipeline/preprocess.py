@@ -5,7 +5,7 @@ import pathlib
 from typing import Any, cast
 
 from gremlins.pipeline import GREMLINS_PREFIX
-from gremlins.pipeline.discovery import resolve_pipeline_name
+from _gremlins_core.discovery import resolve_pipeline_name
 from gremlins.prompts import BUNDLED_PROMPT_DIR
 from gremlins.recipes import BUNDLED_STAGE_DEF_DIR
 from gremlins.utils.yaml_io import load_yaml_file

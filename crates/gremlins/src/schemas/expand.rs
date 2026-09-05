@@ -13,7 +13,6 @@ pub trait PipelineResolver {
         &self,
         name: &str,
         project_root: &std::path::Path,
-        bundled_pipeline_dir: &std::path::Path,
     ) -> Result<PathBuf, SchemaError>;
 }
 
@@ -264,7 +263,6 @@ pub fn expand_pipeline(
     project_root: Option<&PathBuf>,
     bundled_stage_def_dir: &PathBuf,
     bundled_prompt_dir: &PathBuf,
-    bundled_pipeline_dir: &PathBuf,
     resolver: &dyn PipelineResolver,
 ) -> Result<serde_yaml::Value, SchemaError> {
     let project_root = project_root.cloned().unwrap_or_else(|| {
@@ -286,7 +284,6 @@ pub fn expand_pipeline(
         &chain,
         bundled_stage_def_dir,
         bundled_prompt_dir,
-        bundled_pipeline_dir,
         resolver,
     )
 }
@@ -298,7 +295,6 @@ fn _expand(
     chain: &[PathBuf],
     bundled_stage_def_dir: &PathBuf,
     bundled_prompt_dir: &PathBuf,
-    bundled_pipeline_dir: &PathBuf,
     resolver: &dyn PipelineResolver,
 ) -> Result<serde_yaml::Value, SchemaError> {
     let resolved = yaml_path
@@ -362,7 +358,6 @@ fn _expand(
             &HashSet::new(),
             bundled_stage_def_dir,
             bundled_prompt_dir,
-            bundled_pipeline_dir,
             resolver,
         )?;
         expanded_stages.extend(expanded);
@@ -399,7 +394,6 @@ fn _expand_entry(
     seen_defs: &HashSet<String>,
     bundled_stage_def_dir: &PathBuf,
     bundled_prompt_dir: &PathBuf,
-    bundled_pipeline_dir: &PathBuf,
     resolver: &dyn PipelineResolver,
 ) -> Result<Vec<serde_yaml::Value>, SchemaError> {
     let mapping = match entry.as_mapping() {
@@ -418,14 +412,13 @@ fn _expand_entry(
                 "include: value must be a non-empty string".to_string(),
             ));
         }
-        let included_path: PathBuf = resolver.resolve(name, project_root, bundled_pipeline_dir)?;
+        let included_path: PathBuf = resolver.resolve(name, project_root)?;
         let included = _expand(
             &included_path,
             project_root,
             chain,
             bundled_stage_def_dir,
             bundled_prompt_dir,
-            bundled_pipeline_dir,
             resolver,
         )?;
         let stages = match included.get("stages") {
@@ -449,7 +442,6 @@ fn _expand_entry(
                 seen_defs,
                 bundled_stage_def_dir,
                 bundled_prompt_dir,
-                bundled_pipeline_dir,
                 resolver,
             );
         }
@@ -473,7 +465,6 @@ fn _expand_entry(
                 seen_defs,
                 bundled_stage_def_dir,
                 bundled_prompt_dir,
-                bundled_pipeline_dir,
                 resolver,
             );
         }
@@ -495,12 +486,11 @@ fn _expand_entry(
                 seen_defs,
                 bundled_stage_def_dir,
                 bundled_prompt_dir,
-                bundled_pipeline_dir,
                 resolver,
             );
         }
         // Try resolving as pipeline name
-        let pipeline_result = resolver.resolve(stage_type, project_root, bundled_pipeline_dir);
+        let pipeline_result = resolver.resolve(stage_type, project_root);
         match pipeline_result {
             Ok(included_path) => {
                 if !chain.contains(&included_path) {
@@ -510,7 +500,6 @@ fn _expand_entry(
                         chain,
                         bundled_stage_def_dir,
                         bundled_prompt_dir,
-                        bundled_pipeline_dir,
                         resolver,
                     )?;
                     let stages = match included.get("stages") {
@@ -561,7 +550,6 @@ fn _expand_entry(
                     seen_defs,
                     bundled_stage_def_dir,
                     bundled_prompt_dir,
-                    bundled_pipeline_dir,
                     resolver,
                 )?;
 
@@ -612,7 +600,6 @@ fn _expand_entry(
                     seen_defs,
                     bundled_stage_def_dir,
                     bundled_prompt_dir,
-                    bundled_pipeline_dir,
                     resolver,
                 )?;
                 expanded_body.extend(expanded);
@@ -639,7 +626,6 @@ fn _expand_stage_def(
     seen_defs: &HashSet<String>,
     bundled_stage_def_dir: &PathBuf,
     bundled_prompt_dir: &PathBuf,
-    bundled_pipeline_dir: &PathBuf,
     resolver: &dyn PipelineResolver,
 ) -> Result<Vec<serde_yaml::Value>, SchemaError> {
     if seen_defs.contains(def_name) {
@@ -842,7 +828,6 @@ fn _expand_stage_def(
                 &new_seen,
                 bundled_stage_def_dir,
                 bundled_prompt_dir,
-                bundled_pipeline_dir,
                 resolver,
             )?;
             result.extend(expanded);
@@ -884,7 +869,6 @@ fn _expand_stage_def(
         &new_seen,
         bundled_stage_def_dir,
         bundled_prompt_dir,
-        bundled_pipeline_dir,
         resolver,
     )
 }

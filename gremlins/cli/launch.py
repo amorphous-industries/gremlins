@@ -12,7 +12,7 @@ from _gremlins_core.config import state_root as _state_root_fn
 
 from gremlins.launcher import launch
 from gremlins.pipeline import Pipeline
-from gremlins.pipeline.discovery import list_pipelines, resolve_pipeline_name
+from _gremlins_core.discovery import list_pipelines, resolve_pipeline_name
 from gremlins.utils.yaml_io import YamlLoadError
 
 _INFRA_ARGS = frozenset(

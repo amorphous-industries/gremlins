@@ -9,7 +9,7 @@ from conftest import MINIMAL_EVENTS, MockGremlin, ReviewCreatingClient
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.executor.state import StateData, build_state
 from gremlins.pipeline import Pipeline
-from gremlins.pipeline.discovery import resolve_pipeline_path
+from _gremlins_core.discovery import resolve_pipeline_path
 from gremlins.stages.agent import Agent
 
 if TYPE_CHECKING:

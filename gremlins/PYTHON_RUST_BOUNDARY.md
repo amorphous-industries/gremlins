@@ -48,11 +48,10 @@ The LLM client backend. Python `gremlins/clients/__init__.py` imports
 ### `_gremlins_core.discovery.*`
 
 The Rust discovery module (`crates/gremlins/src/core/discovery.rs` + PyO3
-wrapper at `crates/pyext/src/python/discovery.rs`) is a parallel
-implementation of the pipeline discovery utilities that exist on the Python
-side in `gremlins/pipeline/discovery.py`. The Rust version is exposed at
-`_gremlins_core.discovery.*` but **none of it is wired into any Python call
-site**.
+wrapper at `crates/pyext/src/python/discovery.rs`) is now **active**.
+All Python call sites import `list_pipelines`, `resolve_pipeline_name`, and
+`resolve_pipeline_path` from `_gremlins_core.discovery`. The Python
+`gremlins/pipeline/discovery.py` has been deleted.
 
 ### `_gremlins_core.schemas.*`
 
@@ -103,10 +102,8 @@ the Python-side bundled directories will be baked into the Rust call.
 
 The Rust `discovery` module at `_gremlins_core.discovery.*` contains
 `list_pipelines`, `resolve_pipeline_name`, and `resolve_pipeline_path`.
-Python code in `gremlins/pipeline/discovery.py`, `gremlins/launcher.py`,
-`gremlins/cli/launch.py`, `gremlins/cli/artifacts.py`,
-`gremlins/cli/pipeline_args.py`, and `gremlins/executor/run.py` all
-call the Python versions — none have been swapped to the Rust path.
+These are now **active** — all Python call sites use the Rust versions.
+The Python `gremlins/pipeline/discovery.py` has been deleted.
 
 ## Key files
 
@@ -115,11 +112,11 @@ call the Python versions — none have been swapped to the Rust path.
 | `gremlins/_core.py` | Shim: `import _gremlins_core as _core; __all__ = ["_core"]` |
 | `gremlins/utils/proc.py` | Re-exports `_gremlins_core.utils.proc.*` — **active** |
 | `gremlins/clients/__init__.py` | Wraps `_gremlins_core.clients.RustClient` — **active** |
-| `gremlins/pipeline/discovery.py` | Pure Python `list_pipelines`, `resolve_pipeline_name`, `resolve_pipeline_path` — **active** (Rust equivalents at `_gremlins_core.discovery.*` exist but are **not wired** into any Python call site) |
+| `gremlins/pipeline/discovery.py` | ~~Pure Python `list_pipelines`, `resolve_pipeline_name`, `resolve_pipeline_path` — **active**~~ **deleted** — replaced by `_gremlins_core.discovery.*` |
 | `gremlins/pipeline/preprocess.py` | Python `expand_pipeline` — **active** |
 | `gremlins/pipeline/loader.py` | Pure Python `parse_stage`, `parse_stages`, `fill_names`, `check_duplicate_producers` — **active** (Rust equivalents at `_gremlins_core.schemas.*` exist but are **not wired** into any Python call site) |
-| `crates/pyext/src/python/discovery.rs` | Rust `list_pipelines`, `resolve_pipeline_name`, `resolve_pipeline_path` (wraps `crates/gremlins/src/core/discovery.rs`) — **NOT yet active** |
-| `crates/gremlins/src/core/discovery.rs` | Rust discovery implementation — **NOT yet active** (Python originals in `gremlins/pipeline/discovery.py` are the active ones) |
+| `crates/pyext/src/python/discovery.rs` | Rust `list_pipelines`, `resolve_pipeline_name`, `resolve_pipeline_path` (wraps `crates/gremlins/src/core/discovery.rs`) — **active** |
+| `crates/gremlins/src/core/discovery.rs` | Rust discovery implementation — **active** |
 | `crates/pyext/src/schemas/loader.rs` | Rust `parse_stage`, `parse_stages`, `fill_names`, `check_duplicate_producers` — **NOT yet active** (parallel implementations; Python originals in `gremlins/pipeline/loader.py` are the active ones) |
 | `crates/pyext/src/schemas/preprocess.rs` | Rust `expand_pipeline` — **NOT yet active** |
 | `crates/pyext/src/lib.rs` | `#[pymodule]` — registers all `_gremlins_core.*` submodules |

@@ -4,7 +4,7 @@ import logging
 import pathlib
 
 from gremlins.pipeline import Pipeline
-from gremlins.pipeline.discovery import resolve_pipeline_path
+from _gremlins_core.discovery import resolve_pipeline_path
 
 logger = logging.getLogger(__name__)
 

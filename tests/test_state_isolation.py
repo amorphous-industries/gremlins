@@ -41,7 +41,7 @@ from conftest import common_local_patches as _common_patches
 
 from gremlins.executor.run import run_pipeline
 from gremlins.executor.state import StateData
-from gremlins.pipeline.discovery import resolve_pipeline_path
+from _gremlins_core.discovery import resolve_pipeline_path
 
 
 def test_autouse_isolate_gremlin_id_unsets_gremlin_id_under_inherited_env(

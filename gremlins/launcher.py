@@ -29,7 +29,7 @@ from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.executor.gremlin import Gremlin, validate_gremlin_id, write_initial_state
 from gremlins.pipeline import Pipeline as _PipelineData
 from gremlins.pipeline.bootstrap import validate_source_values
-from gremlins.pipeline.discovery import list_pipelines, resolve_pipeline_path
+from _gremlins_core.discovery import list_pipelines, resolve_pipeline_path
 from gremlins.utils import git as _git_mod
 from gremlins.utils import proc
 from gremlins.utils.spawn_logged_process import (
@@ -268,7 +268,7 @@ def _append_graft(
 ) -> str:
     from _gremlins_core.schemas import fill_names
 
-    from gremlins.pipeline.discovery import resolve_pipeline_name
+    from _gremlins_core.discovery import resolve_pipeline_name
     from gremlins.pipeline.preprocess import expand_pipeline
     from gremlins.utils.yaml_io import dump_yaml_text, load_yaml_file
 

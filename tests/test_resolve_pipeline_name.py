@@ -3,13 +3,16 @@ import pathlib
 
 import pytest
 
-from gremlins.pipeline.discovery import BUNDLED_PIPELINE_DIR, resolve_pipeline_name
+from _gremlins_core.discovery import resolve_pipeline_name
+from gremlins import PACKAGE_ROOT
+
+BUNDLED_PIPELINE_DIR = PACKAGE_ROOT / "pipelines"
 
 
 def test_hit_bundled(tmp_path: pathlib.Path) -> None:
     bundled_name = next(BUNDLED_PIPELINE_DIR.glob("*.yaml")).stem
     result = resolve_pipeline_name(bundled_name, tmp_path)
-    assert result == (BUNDLED_PIPELINE_DIR / f"{bundled_name}.yaml").resolve()
+    assert result.resolve() == (BUNDLED_PIPELINE_DIR / f"{bundled_name}.yaml").resolve()
 
 
 def test_hit_project_local(tmp_path: pathlib.Path) -> None:
