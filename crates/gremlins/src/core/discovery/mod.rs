@@ -65,7 +65,8 @@ pub fn list_pipelines(project_root: PathBuf) -> Vec<(String, PathBuf)> {
                 .parent()
                 .unwrap()
                 .to_path_buf();
-            results.push((name.to_string(), repo_root.join(PIPELINE_PATHS[name])));
+            let p = repo_root.join(PIPELINE_PATHS[name]);
+            results.push((name.to_string(), p.canonicalize().unwrap_or(p)));
         }
     }
 
@@ -84,7 +85,8 @@ pub fn resolve_pipeline_name(name: &str, project_root: PathBuf) -> Result<PathBu
             .parent()
             .unwrap()
             .to_path_buf();
-        return Ok(repo_root.join(PIPELINE_PATHS[name]));
+        let p = repo_root.join(PIPELINE_PATHS[name]);
+        return Ok(p.canonicalize().unwrap_or(p));
     }
 
     let mut names: Vec<String> = Vec::new();
@@ -139,7 +141,8 @@ pub fn resolve_pipeline_path(
             .parent()
             .unwrap()
             .to_path_buf();
-        return Ok(repo_root.join(PIPELINE_PATHS[name_or_path]));
+        let p = repo_root.join(PIPELINE_PATHS[name_or_path]);
+        return Ok(p.canonicalize().unwrap_or(p));
     }
 
     let dirs: Vec<String> = project_pipeline_dirs(&base_dir)
@@ -158,17 +161,17 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
-    fn setup_dirs() -> (TempDir, TempDir) {
+    fn setup_dirs() -> TempDir {
         std::env::remove_var("GREMLINS_OVERLAY_DIR");
         let project = TempDir::new().unwrap();
         let overlay = project.path().join(".gremlins");
         fs::create_dir_all(&overlay).unwrap();
-        (project, TempDir::new().unwrap())
+        project
     }
 
     #[test]
     fn test_list_pipelines_empty() {
-        let (project, _tmp) = setup_dirs();
+        let project = setup_dirs();
         let result = list_pipelines(project.path().to_path_buf());
         // bundled pipelines are always present
         assert!(!result.is_empty());
@@ -177,7 +180,7 @@ mod tests {
 
     #[test]
     fn test_list_pipelines_project_only() {
-        let (project, _tmp) = setup_dirs();
+        let project = setup_dirs();
         let overlay = project.path().join(".gremlins");
         fs::write(overlay.join("foo.yaml"), "stages: []").unwrap();
         fs::write(overlay.join("bar.yaml"), "stages: []").unwrap();
@@ -191,24 +194,24 @@ mod tests {
 
     #[test]
     fn test_list_pipelines_dedup() {
-        let (project, _tmp) = setup_dirs();
+        let project = setup_dirs();
         let overlay = project.path().join(".gremlins");
         fs::create_dir_all(&overlay).unwrap();
         fs::write(overlay.join("dup.yaml"), "stages: []").unwrap();
         let result = list_pipelines(project.path().to_path_buf());
-        assert!(result.iter().any(|(n, _)| n == "dup"));
+        assert_eq!(result.iter().filter(|(n, _)| n == "dup").count(), 1);
     }
 
     #[test]
-    fn test_list_pipelines_bundled_fallback() {
-        let (project, _tmp) = setup_dirs();
+    fn test_list_pipelines_bundled_always_present() {
+        let project = setup_dirs();
         let result = list_pipelines(project.path().to_path_buf());
         assert!(result.iter().any(|(n, _)| n == "boss"));
     }
 
     #[test]
     fn test_list_pipelines_project_wins_over_bundled() {
-        let (project, _tmp) = setup_dirs();
+        let project = setup_dirs();
         let overlay = project.path().join(".gremlins");
         fs::create_dir_all(&overlay).unwrap();
         fs::write(overlay.join("boss.yaml"), "stages: [a]").unwrap();
@@ -217,11 +220,13 @@ mod tests {
         // project "boss" should come before the bundled one
         let idx = result.iter().position(|(n, _)| n == "boss").unwrap();
         assert_eq!(result[idx].0, "boss");
+        assert!(result[idx].1.starts_with(overlay.path()));
+        assert_eq!(result.iter().filter(|(n, _)| n == "boss").count(), 1);
     }
 
     #[test]
     fn test_resolve_pipeline_name_found_overlay() {
-        let (project, _tmp) = setup_dirs();
+        let project = setup_dirs();
         let overlay = project.path().join(".gremlins");
         fs::create_dir_all(&overlay).unwrap();
         fs::write(overlay.join("test.yaml"), "stages: []").unwrap();
@@ -232,14 +237,14 @@ mod tests {
 
     #[test]
     fn test_resolve_pipeline_name_found_bundled() {
-        let (project, _tmp) = setup_dirs();
+        let project = setup_dirs();
         let result = resolve_pipeline_name("boss", project.path().to_path_buf()).unwrap();
         assert!(result.ends_with("boss.yaml"));
     }
 
     #[test]
     fn test_resolve_pipeline_name_not_found() {
-        let (project, _tmp) = setup_dirs();
+        let project = setup_dirs();
         let err = resolve_pipeline_name("nope", project.path().to_path_buf()).unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("nope"));
@@ -248,7 +253,7 @@ mod tests {
 
     #[test]
     fn test_resolve_pipeline_path_yaml_extension() {
-        let (project, _tmp) = setup_dirs();
+        let project = setup_dirs();
         let overlay = project.path().join(".gremlins");
         fs::create_dir_all(&overlay).unwrap();
         let p = overlay.join("explicit.yaml");
@@ -261,7 +266,7 @@ mod tests {
 
     #[test]
     fn test_resolve_pipeline_path_bare_name() {
-        let (project, _tmp) = setup_dirs();
+        let project = setup_dirs();
         let overlay = project.path().join(".gremlins");
         fs::create_dir_all(&overlay).unwrap();
         fs::write(overlay.join("bare.yaml"), "stages: []").unwrap();
@@ -272,7 +277,7 @@ mod tests {
 
     #[test]
     fn test_resolve_pipeline_path_missing() {
-        let (project, _tmp) = setup_dirs();
+        let project = setup_dirs();
         let err = resolve_pipeline_path("nope.yaml", project.path().to_path_buf()).unwrap_err();
         assert!(err.to_string().contains("not found"));
     }
