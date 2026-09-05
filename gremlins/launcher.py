@@ -24,12 +24,12 @@ from _gremlins_core.artifacts import Uri
 from _gremlins_core.config import project_root as _project_root_fn
 from _gremlins_core.config import scratch_root as _scratch_root_fn
 from _gremlins_core.config import state_root as _state_root_fn
+from _gremlins_core.discovery import list_pipelines, resolve_pipeline_path
 
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.executor.gremlin import Gremlin, validate_gremlin_id, write_initial_state
 from gremlins.pipeline import Pipeline as _PipelineData
 from gremlins.pipeline.bootstrap import validate_source_values
-from _gremlins_core.discovery import list_pipelines, resolve_pipeline_path
 from gremlins.utils import git as _git_mod
 from gremlins.utils import proc
 from gremlins.utils.spawn_logged_process import (
@@ -266,9 +266,9 @@ def _all_stage_names(stages: list[dict[str, Any]]) -> set[str]:
 def _append_graft(
     state_dir: pathlib.Path, graft_pipeline_name: str, project_root: str
 ) -> str:
+    from _gremlins_core.discovery import resolve_pipeline_name
     from _gremlins_core.schemas import fill_names
 
-    from _gremlins_core.discovery import resolve_pipeline_name
     from gremlins.pipeline.preprocess import expand_pipeline
     from gremlins.utils.yaml_io import dump_yaml_text, load_yaml_file
 

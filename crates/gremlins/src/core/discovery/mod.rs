@@ -61,7 +61,10 @@ pub fn list_pipelines(project_root: PathBuf) -> Vec<(String, PathBuf)> {
     bundled_names.sort();
     for name in bundled_names {
         if seen.insert(name.to_string()) {
-            let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_path_buf();
+            let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .parent()
+                .unwrap()
+                .to_path_buf();
             results.push((name.to_string(), repo_root.join(PIPELINE_PATHS[name])));
         }
     }
@@ -69,10 +72,7 @@ pub fn list_pipelines(project_root: PathBuf) -> Vec<(String, PathBuf)> {
     results
 }
 
-pub fn resolve_pipeline_name(
-    name: &str,
-    project_root: PathBuf,
-) -> Result<PathBuf, DiscoveryError> {
+pub fn resolve_pipeline_name(name: &str, project_root: PathBuf) -> Result<PathBuf, DiscoveryError> {
     for d in project_pipeline_dirs(&project_root) {
         let candidate = d.join(format!("{}.yaml", name));
         if candidate.exists() {
@@ -80,7 +80,10 @@ pub fn resolve_pipeline_name(
         }
     }
     if PIPELINES.contains_key(name) {
-        let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_path_buf();
+        let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .to_path_buf();
         return Ok(repo_root.join(PIPELINE_PATHS[name]));
     }
 
@@ -132,7 +135,10 @@ pub fn resolve_pipeline_path(
         }
     }
     if PIPELINES.contains_key(name_or_path) {
-        let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_path_buf();
+        let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .to_path_buf();
         return Ok(repo_root.join(PIPELINE_PATHS[name_or_path]));
     }
 
@@ -220,24 +226,21 @@ mod tests {
         fs::create_dir_all(&overlay).unwrap();
         fs::write(overlay.join("test.yaml"), "stages: []").unwrap();
 
-        let result =
-            resolve_pipeline_name("test", project.path().to_path_buf()).unwrap();
+        let result = resolve_pipeline_name("test", project.path().to_path_buf()).unwrap();
         assert!(result.ends_with("test.yaml"));
     }
 
     #[test]
     fn test_resolve_pipeline_name_found_bundled() {
         let (project, _tmp) = setup_dirs();
-        let result =
-            resolve_pipeline_name("boss", project.path().to_path_buf()).unwrap();
+        let result = resolve_pipeline_name("boss", project.path().to_path_buf()).unwrap();
         assert!(result.ends_with("boss.yaml"));
     }
 
     #[test]
     fn test_resolve_pipeline_name_not_found() {
         let (project, _tmp) = setup_dirs();
-        let err =
-            resolve_pipeline_name("nope", project.path().to_path_buf()).unwrap_err();
+        let err = resolve_pipeline_name("nope", project.path().to_path_buf()).unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("nope"));
         assert!(msg.contains("not found"));
@@ -263,16 +266,14 @@ mod tests {
         fs::create_dir_all(&overlay).unwrap();
         fs::write(overlay.join("bare.yaml"), "stages: []").unwrap();
 
-        let result =
-            resolve_pipeline_path("bare", project.path().to_path_buf()).unwrap();
+        let result = resolve_pipeline_path("bare", project.path().to_path_buf()).unwrap();
         assert!(result.ends_with("bare.yaml"));
     }
 
     #[test]
     fn test_resolve_pipeline_path_missing() {
         let (project, _tmp) = setup_dirs();
-        let err =
-            resolve_pipeline_path("nope.yaml", project.path().to_path_buf()).unwrap_err();
+        let err = resolve_pipeline_path("nope.yaml", project.path().to_path_buf()).unwrap_err();
         assert!(err.to_string().contains("not found"));
     }
 }

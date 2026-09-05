@@ -15,12 +15,12 @@ from collections.abc import Callable
 from typing import Any
 
 import pytest
+from _gremlins_core.discovery import resolve_pipeline_path
 from conftest import MINIMAL_EVENTS
 
 from gremlins.executor.run import _parse_args as _parse_gh_args
 from gremlins.executor.run import run_pipeline
 from gremlins.pipeline import Pipeline
-from _gremlins_core.discovery import resolve_pipeline_path
 from tests.fake_client import FakeClient
 
 

@@ -9,11 +9,7 @@ pub const GREMLINS_PREFIX: &str = "gremlins:";
 /// Trait for resolving pipeline names to file paths.
 /// The pyext layer provides a Python-callback implementation.
 pub trait PipelineResolver {
-    fn resolve(
-        &self,
-        name: &str,
-        project_root: &std::path::Path,
-    ) -> Result<PathBuf, SchemaError>;
+    fn resolve(&self, name: &str, project_root: &std::path::Path) -> Result<PathBuf, SchemaError>;
 }
 
 pub fn load_yaml_file(path: &PathBuf) -> Result<serde_yaml::Value, SchemaError> {

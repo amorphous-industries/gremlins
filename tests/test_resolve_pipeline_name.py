@@ -2,8 +2,8 @@ import os
 import pathlib
 
 import pytest
-
 from _gremlins_core.discovery import resolve_pipeline_name
+
 from gremlins import PACKAGE_ROOT
 
 BUNDLED_PIPELINE_DIR = PACKAGE_ROOT / "pipelines"

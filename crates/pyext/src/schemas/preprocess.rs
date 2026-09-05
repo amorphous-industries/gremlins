@@ -11,11 +11,7 @@ struct PyResolver<'a> {
 }
 
 impl PipelineResolver for PyResolver<'_> {
-    fn resolve(
-        &self,
-        name: &str,
-        project_root: &std::path::Path,
-    ) -> Result<PathBuf, SchemaError> {
+    fn resolve(&self, name: &str, project_root: &std::path::Path) -> Result<PathBuf, SchemaError> {
         let result = self
             .resolve_pipeline_name_fn
             .call1((name, project_root.to_path_buf()))
