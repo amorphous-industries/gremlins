@@ -159,4 +159,175 @@ mod tests {
         fill_names(&mut stages).unwrap();
         assert_eq!(stages[0].name.as_deref(), Some("custom"));
     }
+
+    // --- check_duplicate_producers tests ---
+
+    fn stage_with_bind(
+        name: &str,
+        stage_type: &str,
+        bind_map: HashMap<String, String>,
+    ) -> StageNode {
+        StageNode {
+            name: name.to_string(),
+            stage_type: stage_type.to_string(),
+            bind_map,
+            skip_if_exists: String::new(),
+            body: vec![],
+        }
+    }
+
+    #[test]
+    fn test_check_duplicate_producers_errs_on_different_uri() {
+        let stages = vec![
+            stage_with_bind(
+                "s1",
+                "agent",
+                HashMap::from([("out".to_string(), "uri-a".to_string())]),
+            ),
+            stage_with_bind(
+                "s2",
+                "agent",
+                HashMap::from([("out".to_string(), "uri-b".to_string())]),
+            ),
+        ];
+        let err = check_duplicate_producers(&stages, &HashMap::new()).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("duplicate bind"), "expected duplicate bind error, got: {msg}");
+        assert!(msg.contains("\"out\""), "expected key in error, got: {msg}");
+    }
+
+    #[test]
+    fn test_check_duplicate_producers_ok_on_same_uri() {
+        let stages = vec![
+            stage_with_bind(
+                "s1",
+                "agent",
+                HashMap::from([("out".to_string(), "uri-a".to_string())]),
+            ),
+            stage_with_bind(
+                "s2",
+                "agent",
+                HashMap::from([("out".to_string(), "uri-a".to_string())]),
+            ),
+        ];
+        check_duplicate_producers(&stages, &HashMap::new()).unwrap();
+    }
+
+    #[test]
+    fn test_check_duplicate_producers_skip_if_exists_bypasses_check() {
+        let stages = vec![
+            stage_with_bind(
+                "s1",
+                "agent",
+                HashMap::from([("out".to_string(), "uri-a".to_string())]),
+            ),
+            StageNode {
+                name: "s2".to_string(),
+                stage_type: "agent".to_string(),
+                bind_map: HashMap::from([("out".to_string(), "uri-b".to_string())]),
+                skip_if_exists: "true".to_string(),
+                body: vec![],
+            },
+        ];
+        check_duplicate_producers(&stages, &HashMap::new()).unwrap();
+    }
+
+    #[test]
+    fn test_parallel_children_isolated_scopes() {
+        // Two children of a parallel stage can both bind the same key
+        // without triggering a duplicate error.
+        let stages = vec![StageNode {
+            name: "par".to_string(),
+            stage_type: "parallel".to_string(),
+            bind_map: HashMap::new(),
+            skip_if_exists: String::new(),
+            body: vec![
+                stage_with_bind(
+                    "c1",
+                    "agent",
+                    HashMap::from([("out".to_string(), "uri-a".to_string())]),
+                ),
+                stage_with_bind(
+                    "c2",
+                    "agent",
+                    HashMap::from([("out".to_string(), "uri-a".to_string())]),
+                ),
+            ],
+        }];
+        check_duplicate_producers(&stages, &HashMap::new()).unwrap();
+    }
+
+    #[test]
+    fn test_non_parallel_children_shared_scope() {
+        // Two children of a non-parallel (sequence) stage sharing a bind key
+        // with different URIs should error.
+        let stages = vec![StageNode {
+            name: "seq".to_string(),
+            stage_type: "sequence".to_string(),
+            bind_map: HashMap::new(),
+            skip_if_exists: String::new(),
+            body: vec![
+                stage_with_bind(
+                    "c1",
+                    "agent",
+                    HashMap::from([("out".to_string(), "uri-a".to_string())]),
+                ),
+                stage_with_bind(
+                    "c2",
+                    "agent",
+                    HashMap::from([("out".to_string(), "uri-b".to_string())]),
+                ),
+            ],
+        }];
+        let err = check_duplicate_producers(&stages, &HashMap::new()).unwrap_err();
+        assert!(err.to_string().contains("duplicate bind"));
+    }
+
+    #[test]
+    fn test_extra_out_collision_with_stage() {
+        let stages = vec![stage_with_bind(
+            "s1",
+            "agent",
+            HashMap::from([("out".to_string(), "uri-b".to_string())]),
+        )];
+        let extra_out = HashMap::from([("out".to_string(), "uri-a".to_string())]);
+        let err = check_duplicate_producers(&stages, &extra_out).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("duplicate bind"), "expected duplicate bind error, got: {msg}");
+        assert!(msg.contains("bootstrap"), "expected 'bootstrap' in error, got: {msg}");
+    }
+
+    #[test]
+    fn test_extra_out_no_collision_on_same_uri() {
+        let stages = vec![stage_with_bind(
+            "s1",
+            "agent",
+            HashMap::from([("out".to_string(), "uri-a".to_string())]),
+        )];
+        let extra_out = HashMap::from([("out".to_string(), "uri-a".to_string())]);
+        check_duplicate_producers(&stages, &extra_out).unwrap();
+    }
+
+    #[test]
+    fn test_optional_bind_ignored_for_duplicates() {
+        // Keys ending with '?' are optional — they should not trigger duplicates.
+        let stages = vec![
+            stage_with_bind(
+                "s1",
+                "agent",
+                HashMap::from([("out".to_string(), "uri-a".to_string())]),
+            ),
+            stage_with_bind(
+                "s2",
+                "agent",
+                HashMap::from([("out?".to_string(), "uri-b".to_string())]),
+            ),
+        ];
+        check_duplicate_producers(&stages, &HashMap::new()).unwrap();
+    }
+
+    #[test]
+    fn test_empty_stages_ok() {
+        check_duplicate_producers(&[], &HashMap::new()).unwrap();
+    }
 }
