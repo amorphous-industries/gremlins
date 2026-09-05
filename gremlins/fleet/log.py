@@ -6,7 +6,7 @@ import sys
 from gremlins.fleet.resolve import resolve_gremlin
 
 
-def do_log(target: str) -> bool:
+def do_log(target: str, *, full: bool = False) -> bool:
     """Tail the gremlin's log file. Execs ``tail -F`` so Ctrl-C handling and
     rotation/truncation behavior are whatever tail provides — the wrapper just
     resolves the id and prints the path."""
@@ -19,6 +19,16 @@ def do_log(target: str) -> bool:
     if not os.path.isfile(log_path):
         sys.stderr.write(f"error: no log file for gremlin {gremlin_id} at {log_path}\n")
         return False
+
+    if full:
+        try:
+            os.execvp("cat", ["cat", log_path])
+        except FileNotFoundError:
+            sys.stderr.write("error: cat not found in PATH\n")
+            return False
+        except OSError as e:
+            sys.stderr.write(f"error: could not exec cat: {e}\n")
+            return False
 
     # Print the path to stderr so it survives even if the operator is piping
     # tail's stdout into another tool. Flush immediately so the header isn't

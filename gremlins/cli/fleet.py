@@ -163,10 +163,15 @@ def log_main(argv: list[str]) -> int:
         description="Tail the gremlin's log file (tail -F). Ctrl-C exits.",
     )
     p.add_argument("id_prefix", metavar="id-prefix")
+    p.add_argument(
+        "--full",
+        action="store_true",
+        help="Dump the entire log file to stdout (cat) instead of tailing.",
+    )
     args = p.parse_args(argv)
     if _no_state_root():
         return 0
-    return 0 if do_log(args.id_prefix) else 1
+    return 0 if do_log(args.id_prefix, full=args.full) else 1
 
 
 def land_main(argv: list[str]) -> int:

@@ -145,6 +145,7 @@ stages:
 
       - name: fix
         type: agent
+        skip_if_exists: status
         prompt:
           - "{{prompt}}"
         interpolation:
@@ -152,6 +153,7 @@ stages:
 
       - name: push-fix
         type: exec
+        skip_if_exists: status
         interpolation:
           pr_branch: artifact.pr-branch
         options:
@@ -160,6 +162,7 @@ stages:
 
       - name: capture-head
         type: exec
+        skip_if_exists: status
         bind:
           artifact.fix_head: "file://session/fix-head"
         options:
