@@ -65,7 +65,9 @@ class Pipeline:
         if not path.exists():
             raise FileNotFoundError(f"pipeline file not found: {path}")
 
-        _resolve = lambda n, pr: _resolve_pipeline_name(n, pr, BUNDLED_PIPELINE_DIR)
+        def _resolve(n, pr):
+            return _resolve_pipeline_name(n, pr, BUNDLED_PIPELINE_DIR)
+
         raw = _expand_pipeline(
             str(path),
             None,
