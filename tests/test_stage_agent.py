@@ -364,6 +364,83 @@ def test_multi_file_out_renames_only_written_files(tmp_path):
     assert not (state.artifact_dir / "biz.md").exists()
 
 
+# --- client_explicit regression ---
+
+
+def test_with_dict_client_explicit_is_true(tmp_path):
+    """Agent.with_dict must mark client_explicit=True when a client is present,
+    otherwise composite.child_state() falls back to the parent client (#1334)."""
+    d = {
+        "name": "my-agent",
+        "type": "agent",
+        "prompt": ["do stuff"],
+        "client": "openai:gpt-5",
+    }
+    agent = Agent.with_dict(d)
+    assert agent.client is not None
+    assert agent.client_explicit is True
+
+
+def test_with_dict_no_client_explicit_is_false(tmp_path):
+    """When no client key is present, client_explicit must be False."""
+    d = {"name": "my-agent", "type": "agent", "prompt": ["do stuff"]}
+    agent = Agent.with_dict(d)
+    assert agent.client is None
+    assert agent.client_explicit is False
+
+
+def test_child_state_uses_explicit_client(tmp_path):
+    """child_state() must select the child's client when client_explicit is set."""
+    from gremlins.pipeline import Pipeline
+    from gremlins.stages.composite import child_state
+
+    agent = _make_agent(name="child")
+    from _gremlins_core.clients import RustClient as Client
+
+    agent.client = Client.parse("xai:grok-5")
+    agent.client_explicit = True
+
+    parent_client = FakeClient(fixtures={"my-agent": MINIMAL_EVENTS})
+    parent_state = build_state(
+        data=StateData(),
+        client=parent_client,
+        artifact_dir=tmp_path / "artifacts",
+        worktree=tmp_path,
+        pipeline_data=Pipeline(
+            name="test", path=tmp_path, stages=[Agent("stub", [], {})]
+        ),
+    )
+    child = child_state(parent_state, agent)
+    assert child.client is agent.client
+    assert child.client is not parent_client
+
+
+def test_child_state_falls_back_to_parent_when_not_explicit(tmp_path):
+    """child_state() must fall back to the parent client when client_explicit is False."""
+    from _gremlins_core.clients import RustClient as Client
+
+    from gremlins.pipeline import Pipeline
+    from gremlins.stages.composite import child_state
+
+    agent = _make_agent(name="child")
+    agent.client = Client.parse("xai:grok-5")
+    agent.client_explicit = False
+
+    parent_client = FakeClient(fixtures={"my-agent": MINIMAL_EVENTS})
+    parent_state = build_state(
+        data=StateData(),
+        client=parent_client,
+        artifact_dir=tmp_path / "artifacts",
+        worktree=tmp_path,
+        pipeline_data=Pipeline(
+            name="test", path=tmp_path, stages=[Agent("stub", [], {})]
+        ),
+    )
+    child = child_state(parent_state, agent)
+    assert child.client is parent_client
+    assert child.client is not agent.client
+
+
 def test_multi_file_out_missing_files_do_not_raise(tmp_path):
     client = FakeClient(fixtures={"my-agent": MINIMAL_EVENTS})
     state = _make_state(tmp_path, client)
