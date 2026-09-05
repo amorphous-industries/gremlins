@@ -6,11 +6,13 @@ use pyo3::types::{PyDict, PyList};
 use crate::schemas;
 
 #[pyfunction]
+#[pyo3(signature = (d, depth=0))]
 fn parse_stage(d: &Bound<'_, PyDict>, depth: usize) -> PyResult<Py<PyAny>> {
     schemas::loader::parse_stage(d.py(), d, depth)
 }
 
 #[pyfunction]
+#[pyo3(signature = (raw, depth=0))]
 fn parse_stages(raw: &Bound<'_, PyList>, depth: usize) -> PyResult<Vec<Py<PyAny>>> {
     schemas::loader::parse_stages(raw.py(), raw, depth)
 }

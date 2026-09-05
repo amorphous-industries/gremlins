@@ -81,7 +81,7 @@ class Pipeline:
                 "'inputs' is not a valid pipeline key; declare CLI arguments under bootstrap.source"
             )
 
-        stages = parse_stages(raw.get("stages") or [], depth=0)
+        stages = parse_stages(raw.get("stages") or [])
         bootstrap = Bootstrap.from_yaml(raw.get("bootstrap"))
 
         land_stage: Exec | None = None

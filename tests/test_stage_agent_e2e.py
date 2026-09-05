@@ -33,7 +33,7 @@ def test_agent_stage_e2e_reads_artifact_and_writes_output(tmp_path):
             "bind": {"artifact.summary": "file://session/summary.md"},
         }
     ]
-    stages = parse_stages(raw, depth=0)
+    stages = parse_stages(raw)
     assert len(stages) == 1
     stage = stages[0]
     assert stage.type == "agent"
@@ -87,5 +87,5 @@ def test_agent_parse_stages_registers_type():
             "prompt": ["Do the thing"],
         }
     ]
-    stages = parse_stages(raw, depth=0)
+    stages = parse_stages(raw)
     assert stages[0].type == "agent"

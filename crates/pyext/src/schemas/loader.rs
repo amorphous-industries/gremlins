@@ -39,7 +39,7 @@ pub fn parse_stage(py: Python<'_>, d: &Bound<'_, PyDict>, depth: usize) -> PyRes
         let name: String = d
             .get_item("name")?
             .and_then(|v| v.extract().ok())
-            .unwrap_or_default();
+            .unwrap_or_else(|| "<parallel>".to_string());
         let skip_if_exists = parse_skip_if_exists(d, &name)?;
         stage.setattr(py, "raw_dict", d)?;
         stage.setattr(py, "skip_if_exists", skip_if_exists)?;

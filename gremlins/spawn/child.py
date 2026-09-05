@@ -90,7 +90,7 @@ async def _run(spec_path: pathlib.Path) -> int:
         return 2
 
     try:
-        stage = parse_stage(stage_dict, depth=0)
+        stage = parse_stage(stage_dict)
         gremlin = Gremlin.from_subprocess(spec)
     except Exception as exc:
         _write_result(
