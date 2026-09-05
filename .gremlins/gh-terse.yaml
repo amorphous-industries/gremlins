@@ -71,14 +71,24 @@ stages:
   - { type: gremlins:implement, prompt: [code-style, terse, dev-env, no_lint_in_implement.md, gremlins:implement_gh.md] }
   - { type: check-and-fix }
 
+  - name: compute-diff
+    type: exec
+    bind:
+      artifact.diff: "file://session/diff.txt"
+    options:
+      cmds:
+        - "git diff {base_ref}...HEAD > \"{artifact_dir}/diff.txt\""
+
   - parallel:
       - name: local-review-one
         type: agent
+        interpolation: { plan: artifact.plan, diff: artifact.diff }
         prompt: [code-style, terse, dev-env, local_review_one.md]
         bind:
           artifact.local-review-one: "file://session/local-review-one.md"
       - name: local-review-two
         type: agent
+        interpolation: { plan: artifact.plan, diff: artifact.diff }
         prompt: [code-style, terse, dev-env, local_review_two.md]
         bind:
           artifact.local-review-two: "file://session/local-review-two.md"

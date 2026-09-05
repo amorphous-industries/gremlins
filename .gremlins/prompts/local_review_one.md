@@ -2,41 +2,21 @@
 
 Review the changes on the current branch against `{base_ref}` and output findings as text.
 
-**Do not run any tests, checks, linters, or build commands.** This is a code review only — read-only analysis of the diff. Do not compile, format-check, lint, type-check, or run project code. Read-only git inspection commands like `git diff` are fine.
+The plan for this change is:
 
-## Step 1: Gather the diff
+{plan}
 
-Check diff size:
+Review against this plan. Flag anything that contradicts the plan or leaves planned work undone.
 
-```
-git diff {base_ref}...HEAD | wc -c
-```
+**Do not run any tests, checks, linters, or build commands.** This is a code review only.
 
-**If ≤ 80 000 bytes**, read it whole:
+The full diff is pre-computed below:
 
-```
-git diff {base_ref}...HEAD
-```
+{diff}
 
-**If > 80 000 bytes**, read per-file:
+## Step 1: Review the code
 
-```
-git diff {base_ref}...HEAD --name-only
-```
-
-Then for each file:
-
-```
-git diff {base_ref}...HEAD -- <filename>
-```
-
-A file whose diff is itself > 80 000 bytes is rare; if it happens, read it in chunks using `offset` and `limit` on the Read tool.
-
-**If a `Read` call fails with "exceeds maximum allowed tokens"**, switch to per-file diffs — do not retry the same Read call.
-
-## Step 2: Review the code
-
-**Review only — do not run tests, checks, linters, or any shell commands beyond `git diff`.** Analyze every file in the diff thoroughly. For each change, evaluate:
+Analyze every file in the diff thoroughly. For each change, evaluate:
 
 - **Correctness**: Logic errors, off-by-ones, missing edge cases, race conditions
 - **Security**: Injection, auth gaps, secrets, OWASP top 10
@@ -46,7 +26,7 @@ A file whose diff is itself > 80 000 bytes is rare; if it happens, read it in ch
 
 Read surrounding code in the repo as needed for full context — don't review the diff in isolation. Do not switch branches or fetch remote refs.
 
-## Step 3: Output the review
+## Step 2: Output the review
 
 Write findings as markdown to `{local-review-one}` using this structure:
 
