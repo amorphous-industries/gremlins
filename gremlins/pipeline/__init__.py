@@ -45,8 +45,16 @@ class Pipeline:
     def from_yaml(
         cls, path: pathlib.Path, *, default_client_override: str | None = None
     ) -> Pipeline:
-        from _gremlins_core.discovery import resolve_pipeline_name as _resolve_pipeline_name
-        from _gremlins_core.schemas import check_duplicate_producers, expand_pipeline as _expand_pipeline, parse_stages
+        from _gremlins_core.discovery import (
+            resolve_pipeline_name as _resolve_pipeline_name,
+        )
+        from _gremlins_core.schemas import (
+            check_duplicate_producers,
+            parse_stages,
+        )
+        from _gremlins_core.schemas import (
+            expand_pipeline as _expand_pipeline,
+        )
 
         import gremlins._clients_init  # noqa: F401  # pyright: ignore[reportUnusedImport] — registers built-in providers
         from gremlins.pipelines import BUNDLED_PIPELINE_DIR

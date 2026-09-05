@@ -273,7 +273,8 @@ def _append_graft(
     state_dir: pathlib.Path, graft_pipeline_name: str, project_root: str
 ) -> str:
     from _gremlins_core.discovery import resolve_pipeline_name
-    from _gremlins_core.schemas import expand_pipeline as _expand_pipeline, fill_names
+    from _gremlins_core.schemas import expand_pipeline as _expand_pipeline
+    from _gremlins_core.schemas import fill_names
 
     from gremlins.pipelines import BUNDLED_PIPELINE_DIR
     from gremlins.prompts import BUNDLED_PROMPT_DIR
@@ -284,7 +285,9 @@ def _append_graft(
     if not hermetic.is_file():
         raise RuntimeError(f"no persisted pipeline.yaml in {state_dir} — cannot graft")
 
-    graft_path = resolve_pipeline_name(graft_pipeline_name, pathlib.Path(project_root), BUNDLED_PIPELINE_DIR)
+    graft_path = resolve_pipeline_name(
+        graft_pipeline_name, pathlib.Path(project_root), BUNDLED_PIPELINE_DIR
+    )
     _resolve = lambda n, pr: resolve_pipeline_name(n, pr, BUNDLED_PIPELINE_DIR)
     expanded = _expand_pipeline(
         str(graft_path),
