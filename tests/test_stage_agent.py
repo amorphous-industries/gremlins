@@ -11,7 +11,7 @@ import pytest
 from conftest import MINIMAL_EVENTS, MockGremlin
 
 from gremlins.artifacts.registry import ArtifactRegistry, MissingArtifact
-from gremlins.artifacts.uri import Uri
+from _gremlins_core.artifacts import Uri
 from gremlins.executor.state import State, StateData, build_state
 from gremlins.stages.agent import Agent
 from gremlins.stages.outcome import Done

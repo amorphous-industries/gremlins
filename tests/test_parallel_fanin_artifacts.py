@@ -8,7 +8,7 @@ import pathlib
 
 import pytest
 
-from gremlins.artifacts.uri import Uri
+from _gremlins_core.artifacts import Uri
 from gremlins.executor.state import State, StateData, build_state
 from gremlins.stages.base import Stage
 from gremlins.stages.parallel import ParallelStage, _ParallelExecutor

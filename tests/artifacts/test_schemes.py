@@ -13,7 +13,7 @@ from gremlins.artifacts.schemes import (
     GitResolver,
     snapshot_head_before,
 )
-from gremlins.artifacts.uri import Uri
+from _gremlins_core.artifacts import Uri
 
 
 def make_git_repo(tmp_path: pathlib.Path) -> tuple[str, str]:

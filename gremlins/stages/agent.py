@@ -8,7 +8,7 @@ import secrets
 from typing import TYPE_CHECKING, Any, cast
 
 from gremlins.artifacts.resolve import resolve_interpolation_map
-from gremlins.artifacts.uri import Uri
+from _gremlins_core.artifacts import Uri
 from gremlins.stages.agent_runner import run_agent
 from gremlins.stages.base import Stage, get_client_from_dict
 from gremlins.stages.constants import FRAMEWORK_KEYS

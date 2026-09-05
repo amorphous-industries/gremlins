@@ -17,7 +17,7 @@ from gremlins.artifacts.schemes import (
     GitResolver,
     OpaqueResolver,
 )
-from gremlins.artifacts.uri import Uri
+from _gremlins_core.artifacts import Uri
 from gremlins.utils import git as git_utils
 
 logger = logging.getLogger(__name__)

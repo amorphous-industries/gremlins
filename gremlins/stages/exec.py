@@ -14,7 +14,7 @@ from gremlins.artifacts.registry import (
 )
 from gremlins.artifacts.resolve import resolve_interpolation_map
 from gremlins.artifacts.schemes import snapshot_head_before
-from gremlins.artifacts.uri import Uri
+from _gremlins_core.artifacts import Uri
 from gremlins.stages.base import Stage
 from gremlins.stages.constants import (
     FRAMEWORK_KEYS,

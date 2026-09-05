@@ -86,7 +86,7 @@ def test_loop_active_children_set_and_cleared(tmp_path: pathlib.Path) -> None:
     class _Spy(Stage):
         async def run(self, gremlin: Any) -> Outcome:
             captured.append(_read_state(tmp_path).get("active_children"))
-            from gremlins.artifacts.uri import Uri
+            from _gremlins_core.artifacts import Uri
 
             gremlin.state.artifacts.bind("done", Uri.parse("file://session/done.txt"))
             return Done()

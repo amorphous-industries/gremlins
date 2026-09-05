@@ -12,7 +12,7 @@ from gremlins.artifacts.registry import (
     DuplicateArtifact,
     MissingArtifact,
 )
-from gremlins.artifacts.uri import Uri
+from _gremlins_core.artifacts import Uri
 
 
 def make_registry(tmp_path: pathlib.Path) -> ArtifactRegistry:
