@@ -29,9 +29,13 @@ impl PipelineResolver for PyResolver<'_> {
         } else if let Ok(p) = result.extract::<PathBuf>() {
             Ok(p)
         } else {
-            Err(SchemaError::Generic(
-                "pipeline resolver returned non-string, non-path".to_string(),
-            ))
+            let type_name = result
+                .get_type()
+                .name()
+                .map_or_else(|_| "<unknown>".to_string(), |n| n.to_string());
+            Err(SchemaError::Generic(format!(
+                "pipeline resolver returned {type_name} (expected str or Path)",
+            )))
         }
     }
 }
