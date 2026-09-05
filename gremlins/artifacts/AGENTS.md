@@ -10,7 +10,7 @@ applies to the main `Gremlin` executor path; subprocess child paths
 
 ```python
 from gremlins.artifacts.registry import ArtifactRegistry, MissingArtifact
-from gremlins.artifacts.uri import Uri
+from _gremlins_core.artifacts import Uri
 ```
 
 ## URI schemes
