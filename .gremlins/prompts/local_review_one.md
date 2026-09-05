@@ -2,13 +2,11 @@
 
 Review the changes on the current branch against `{base_ref}` and output findings as text.
 
+**Do not run any tests, checks, linters, or build commands.** This is a code review only.
+
 The plan for this change is:
 
 {plan}
-
-Review against this plan. Flag anything that contradicts the plan or leaves planned work undone.
-
-**Do not run any tests, checks, linters, or build commands.** This is a code review only.
 
 Changed files:
 
@@ -16,15 +14,11 @@ Changed files:
 
 ## Step 1: Review the code
 
-Analyze every file in the diff thoroughly. For each change, evaluate:
-
 - **Correctness**: Logic errors, off-by-ones, missing edge cases, race conditions
 - **Security**: Injection, auth gaps, secrets, OWASP top 10
 - **Performance**: Unnecessary allocations, N+1 queries, missing indexes
 - **Readability**: Unclear naming, missing context, overly clever code
 - **Testing**: Adequate coverage for new/changed behavior
-
-Read surrounding code in the repo as needed for full context — don't review the diff in isolation. Do not switch branches or fetch remote refs.
 
 ## Step 2: Output the review
 
