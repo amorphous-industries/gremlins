@@ -163,10 +163,7 @@ impl Pipeline {
                 .ok()
                 .and_then(|v| v.extract::<Bound<'_, PyDict>>(py).ok())
         });
-        loader::check_duplicate_producers(
-            &stages_list,
-            extra_out.as_ref(),
-        )?;
+        loader::check_duplicate_producers(&stages_list, extra_out.as_ref())?;
 
         if default_client.is_none() {
             return Err(pyo3::exceptions::PyValueError::new_err(

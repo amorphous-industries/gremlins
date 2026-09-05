@@ -15,7 +15,10 @@ pub const STAGE_TYPES: &[(&str, &str, &str)] = &[
     ("exec", "gremlins.stages.exec", "Exec"),
 ];
 
-fn lookup_stage_class(stage_type: &str, name: &str) -> Result<(&'static str, &'static str), SchemaError> {
+fn lookup_stage_class(
+    stage_type: &str,
+    name: &str,
+) -> Result<(&'static str, &'static str), SchemaError> {
     for &(st, module, class) in STAGE_TYPES {
         if st == stage_type {
             return Ok((module, class));
@@ -167,11 +170,11 @@ pub fn fill_names(raw_stages: &Bound<'_, PyList>) -> PyResult<()> {
             continue;
         }
 
-        let auto_raw: Option<String> = d
-            .get_item("_auto_name")
-            .ok()
-            .flatten()
-            .and_then(|v| v.str().ok().and_then(|s| s.to_str().ok().map(|s| s.to_string())));
+        let auto_raw: Option<String> = d.get_item("_auto_name").ok().flatten().and_then(|v| {
+            v.str()
+                .ok()
+                .and_then(|s| s.to_str().ok().map(|s| s.to_string()))
+        });
         d.del_item("_auto_name").ok();
 
         let auto = auto_raw.unwrap_or_default();

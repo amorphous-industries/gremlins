@@ -187,13 +187,9 @@ class Gremlin:
             if s.type not in stage_types:
                 unknown.append(s.type)
             elif s.type == "parallel":
-                unknown.extend(
-                    c.type for c in s.body if c.type not in stage_types
-                )
+                unknown.extend(c.type for c in s.body if c.type not in stage_types)
             elif s.type == "loop":
-                unknown.extend(
-                    c.type for c in s.body if c.type not in stage_types
-                )
+                unknown.extend(c.type for c in s.body if c.type not in stage_types)
         if unknown:
             raise ValueError(f"Gremlin does not support stage type(s): {unknown}")
 
