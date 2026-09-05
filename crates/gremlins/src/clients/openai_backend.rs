@@ -945,20 +945,7 @@ mod tests {
 
     #[test]
     fn extra_params_default_no_reasoning() {
-        let empty = HashMap::new();
-
-        // openai gets parallel_tool_calls only
-        let p = build_extra_params(&empty).unwrap();
-        assert_eq!(p["parallel_tool_calls"], true);
-        assert!(p.get("reasoning").is_none());
-
-        // xai gets parallel_tool_calls
-        let p = build_extra_params(&empty).unwrap();
-        assert_eq!(p["parallel_tool_calls"], true);
-        assert!(p.get("reasoning").is_none());
-
-        // openrouter gets parallel_tool_calls only
-        let p = build_extra_params(&empty).unwrap();
+        let p = build_extra_params(&HashMap::new()).unwrap();
         assert_eq!(p["parallel_tool_calls"], true);
         assert!(p.get("reasoning").is_none());
     }
