@@ -6,7 +6,8 @@ __pycache__/
 .venv/
 dist/
 build/
-plans/
+plans/*.md
+!plans/SINGLE_GREMLIN_PLAN_INSTRUCTIONS.md
 .at_venv
 .claude/
 .gremlins/secret_env
