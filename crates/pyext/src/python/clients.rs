@@ -10,6 +10,7 @@ use gremlins::clients::backend::{Backend, ClientError, RunParams};
 use gremlins::clients::cmd_backend::CmdBackend;
 use gremlins::clients::openai_backend::{OpenAiBackend, OpenAiProvider};
 use gremlins::clients::protocol::CompletedRun;
+use gremlins::config::ApiKeys;
 use rig_core::providers::openai;
 
 /// Python-exposed RustClient.
@@ -180,16 +181,28 @@ fn default_native_block() -> HashMap<String, Vec<String>> {
     )])
 }
 
+fn resolve_api_key(kind: OpenAiProvider) -> Option<String> {
+    if let Ok(key) = std::env::var(kind.api_key_env()) {
+        if !key.trim().is_empty() {
+            return Some(key);
+        }
+    }
+    ApiKeys::load().get(kind.name()).map(|s| s.to_string())
+}
+
 fn build_openai_backend(
     kind: OpenAiProvider,
     model: &str,
     native_block: &HashMap<String, Vec<String>>,
     extra_params: &IndexMap<String, String>,
 ) -> PyResult<Arc<dyn Backend>> {
-    let api_key = std::env::var(kind.api_key_env()).map_err(|_| {
+    let api_key = resolve_api_key(kind).ok_or_else(|| {
+        let path = gremlins::config::user_config_root().join("api_keys.json");
         pyo3::exceptions::PyRuntimeError::new_err(format!(
-            "{} environment variable is not set",
-            kind.api_key_env()
+            "no API key for provider '{}': set {} or add an entry in {}",
+            kind.name(),
+            kind.api_key_env(),
+            path.display(),
         ))
     })?;
     let client = openai::Client::builder()

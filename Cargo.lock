@@ -564,6 +564,7 @@ version = "0.0.0"
 dependencies = [
  "gremlins",
  "indexmap",
+ "log",
  "pyo3",
  "pyo3-async-runtimes",
  "pyo3-log",
