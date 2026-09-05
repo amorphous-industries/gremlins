@@ -18,3 +18,5 @@ plans/
 *.dylib
 *.dSYM/
 uv.lock
+
+/.gremlins/env
