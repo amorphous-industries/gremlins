@@ -400,7 +400,7 @@ impl ApiKeys {
             Err(e) => {
                 if !matches!(&e, ApiKeysError::Io(io_err) if io_err.kind() == std::io::ErrorKind::NotFound)
                 {
-                    warn!("failed to load providers.json: {e}");
+                    warn!("failed to load {}: {e}", path.display());
                 }
                 ApiKeys::default()
             }
