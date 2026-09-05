@@ -61,17 +61,34 @@ pub fn parse_stage(py: Python<'_>, d: &Bound<'_, PyDict>, depth: usize) -> PyRes
         }
     };
 
-    let (module, class) = lookup_stage_class(&stage_type)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    // First try the built-in Rust constant
+    if let Ok((module, class)) = lookup_stage_class(&stage_type) {
+        let cls = py.import(module)?.getattr(class)?;
+        let stage: Py<PyAny> = cls.call_method1("with_dict", (d, depth))?.extract()?;
+        let skip_if_exists = parse_skip_if_exists(d)?;
+        stage.setattr(py, "raw_dict", d)?;
+        stage.setattr(py, "skip_if_exists", skip_if_exists)?;
+        return Ok(stage);
+    }
 
-    let cls = py.import(module)?.getattr(class)?;
-    let stage: Py<PyAny> = cls.call_method1("with_dict", (d, depth))?.extract()?;
-
-    let skip_if_exists = parse_skip_if_exists(d)?;
-    stage.setattr(py, "raw_dict", d)?;
-    stage.setattr(py, "skip_if_exists", skip_if_exists)?;
-
-    Ok(stage)
+    // Fall back to the Python STAGE_TYPES dict (which may have dynamically
+    // registered types, e.g. test fixtures).
+    let stage_types: Bound<'_, PyDict> = py
+        .import("_gremlins_core.schemas")?
+        .getattr("STAGE_TYPES")?
+        .cast_into()?;
+    match stage_types.get_item(&stage_type)? {
+        Some(cls) => {
+            let stage: Py<PyAny> = cls.call_method1("with_dict", (d, depth))?.extract()?;
+            let skip_if_exists = parse_skip_if_exists(d)?;
+            stage.setattr(py, "raw_dict", d)?;
+            stage.setattr(py, "skip_if_exists", skip_if_exists)?;
+            Ok(stage)
+        }
+        None => Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "stage {name:?}: unknown type {stage_type:?}"
+        ))),
+    }
 }
 
 fn parse_skip_if_exists(d: &Bound<'_, PyDict>) -> PyResult<String> {

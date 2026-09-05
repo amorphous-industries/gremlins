@@ -15,7 +15,6 @@ from typing import Any, cast
 from _gremlins_core.artifacts import Uri
 from _gremlins_core.clients import RustClient as Client
 from _gremlins_core.config import project_root, scratch_root, state_root
-from _gremlins_core.schemas import STAGE_TYPES
 
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.executor.state import (
@@ -32,6 +31,20 @@ from gremlins.stages.base import Stage
 from gremlins.utils import git as _git_mod
 from gremlins.utils.yaml_io import YamlLoadError as _YamlLoadError
 from gremlins.utils.yaml_io import dump_yaml_text
+
+
+def _get_stage_types() -> dict:
+    """Lazy import to avoid circular dependency during module init.
+
+    ``_gremlins_core.schemas.STAGE_TYPES`` is populated during the native
+    extension's module registration, which triggers Python imports that
+    eventually reach this module.  Importing at module level would capture
+    a stale placeholder dict.
+    """
+    from _gremlins_core.schemas import STAGE_TYPES  # noqa: PLC0415
+
+    return STAGE_TYPES
+
 
 logger = logging.getLogger(__name__)
 
@@ -170,12 +183,16 @@ class Gremlin:
     ) -> None:
         unknown: list[str] = []
         for s in stages:
-            if s.type not in STAGE_TYPES:
+            if s.type not in _get_stage_types():
                 unknown.append(s.type)
             elif s.type == "parallel":
-                unknown.extend(c.type for c in s.body if c.type not in STAGE_TYPES)
+                unknown.extend(
+                    c.type for c in s.body if c.type not in _get_stage_types()
+                )
             elif s.type == "loop":
-                unknown.extend(c.type for c in s.body if c.type not in STAGE_TYPES)
+                unknown.extend(
+                    c.type for c in s.body if c.type not in _get_stage_types()
+                )
         if unknown:
             raise ValueError(f"Gremlin does not support stage type(s): {unknown}")
 
