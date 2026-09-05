@@ -15,7 +15,9 @@ from gremlins.pipelines import BUNDLED_PIPELINE_DIR
 from gremlins.prompts import BUNDLED_PROMPT_DIR
 from gremlins.recipes import BUNDLED_STAGE_DEF_DIR
 
-_RESOLVE = lambda n, pr: _resolve_pipeline_name(n, pr, BUNDLED_PIPELINE_DIR)
+
+def _RESOLVE(n, pr):
+    return _resolve_pipeline_name(n, pr, BUNDLED_PIPELINE_DIR)
 
 
 def _expand(p: pathlib.Path, **kwargs) -> dict[str, Any]:

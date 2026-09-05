@@ -288,7 +288,10 @@ def _append_graft(
     graft_path = resolve_pipeline_name(
         graft_pipeline_name, pathlib.Path(project_root), BUNDLED_PIPELINE_DIR
     )
-    _resolve = lambda n, pr: resolve_pipeline_name(n, pr, BUNDLED_PIPELINE_DIR)
+
+    def _resolve(n, pr):
+        return resolve_pipeline_name(n, pr, BUNDLED_PIPELINE_DIR)
+
     expanded = _expand_pipeline(
         str(graft_path),
         str(project_root),
@@ -386,7 +389,9 @@ def _persist_expanded_pipeline(state_dir: pathlib.Path, pipeline_path: str) -> s
     from gremlins.recipes import BUNDLED_STAGE_DEF_DIR
     from gremlins.utils.yaml_io import dump_yaml_text
 
-    _resolve = lambda n, pr: _resolve_pipeline_name(n, pr, BUNDLED_PIPELINE_DIR)
+    def _resolve(n, pr):
+        return _resolve_pipeline_name(n, pr, BUNDLED_PIPELINE_DIR)
+
     expanded = _expand_pipeline(
         str(pipeline_path),
         None,
