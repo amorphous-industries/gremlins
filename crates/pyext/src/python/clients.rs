@@ -197,7 +197,7 @@ fn build_openai_backend(
     extra_params: &IndexMap<String, String>,
 ) -> PyResult<Arc<dyn Backend>> {
     let api_key = resolve_api_key(kind).ok_or_else(|| {
-        let path = gremlins::config::user_config_root().join("api_keys.json");
+        let path = gremlins::config::user_config_root().join("providers.json");
         pyo3::exceptions::PyRuntimeError::new_err(format!(
             "no API key for provider '{}': set {} or add an entry in {}",
             kind.name(),
