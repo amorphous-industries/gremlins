@@ -41,8 +41,8 @@ from conftest import ReviewCreatingClient as _ReviewCreatingClient
 from conftest import common_local_patches as _common_patches
 
 from gremlins.executor.run import run_pipeline
-from gremlins.pipelines import BUNDLED_PIPELINE_DIR
 from gremlins.executor.state import StateData
+from gremlins.pipelines import BUNDLED_PIPELINE_DIR
 
 
 def test_autouse_isolate_gremlin_id_unsets_gremlin_id_under_inherited_env(

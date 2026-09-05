@@ -45,7 +45,10 @@ pub fn load_bundled_recipe(
         .unwrap_or_else(|_| bundled_stage_def_dir.clone());
 
     // Reject path traversal even when the file doesn't exist
-    if recipe_path.components().any(|c| c == std::path::Component::ParentDir) {
+    if recipe_path
+        .components()
+        .any(|c| c == std::path::Component::ParentDir)
+    {
         return Err(SchemaError::Generic(format!(
             "invalid bundled recipe name: {raw_name:?}"
         )));
@@ -862,7 +865,8 @@ fn _expand_stage_def(
     if def_map.contains_key("bind") {
         return Err(SchemaError::StageDef {
             name: def_name.to_string(),
-            msg: "must not declare 'bind:' keys; declare them at each call site instead".to_string(),
+            msg: "must not declare 'bind:' keys; declare them at each call site instead"
+                .to_string(),
         });
     }
 

@@ -21,11 +21,17 @@ _RESOLVE = lambda n, pr: _resolve_pipeline_name(n, pr, BUNDLED_PIPELINE_DIR)
 def _expand(p: pathlib.Path, **kwargs) -> dict[str, Any]:
     return _expand_pipeline(
         str(p),
-        str(kwargs.get("project_root", p.parent.parent if p.parent.name == ".gremlins" else p.parent)),
+        str(
+            kwargs.get(
+                "project_root",
+                p.parent.parent if p.parent.name == ".gremlins" else p.parent,
+            )
+        ),
         str(BUNDLED_STAGE_DEF_DIR),
         str(BUNDLED_PROMPT_DIR),
         _RESOLVE,
     )
+
 
 _BUNDLED_LOCAL = (
     pathlib.Path(__file__).parent.parent / "gremlins" / "pipelines" / "local.yaml"

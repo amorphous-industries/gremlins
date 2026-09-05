@@ -198,7 +198,9 @@ def test_resolve_pipeline_name_uses_overlay_dir(
 ) -> None:
     overlay = _make_overlay(tmp_path, "mylocal")
     monkeypatch.setenv("GREMLINS_OVERLAY_DIR", str(overlay))
-    result = resolve_pipeline_name("mylocal", tmp_path / "project", BUNDLED_PIPELINE_DIR)
+    result = resolve_pipeline_name(
+        "mylocal", tmp_path / "project", BUNDLED_PIPELINE_DIR
+    )
     assert result == (overlay / "mylocal.yaml").resolve()
 
 
@@ -207,7 +209,9 @@ def test_resolve_pipeline_path_uses_overlay_dir(
 ) -> None:
     overlay = _make_overlay(tmp_path, "mylocal")
     monkeypatch.setenv("GREMLINS_OVERLAY_DIR", str(overlay))
-    result = resolve_pipeline_path("mylocal", tmp_path / "project", BUNDLED_PIPELINE_DIR)
+    result = resolve_pipeline_path(
+        "mylocal", tmp_path / "project", BUNDLED_PIPELINE_DIR
+    )
     assert result == (overlay / "mylocal.yaml").resolve()
 
 
