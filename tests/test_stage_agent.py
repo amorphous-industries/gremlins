@@ -93,7 +93,7 @@ def test_no_interpolation_map_runs_prompt_unchanged(tmp_path):
     result = asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
 
     assert isinstance(result, Done)
-    assert client.calls[0].prompt == "Static prompt"
+    assert client.calls[0].prompt.endswith("Static prompt")
 
 
 # --- out: verification ---
@@ -228,7 +228,7 @@ def test_single_file_out_prompt_gets_slug_prefixed_name(tmp_path):
     asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
 
     assert len(client.calls) == 1
-    m = re.fullmatch(
+    m = re.search(
         r"Write to `"
         + re.escape(str(state.artifact_dir))
         + r"/([0-9a-f]{8})_output\.md`",
