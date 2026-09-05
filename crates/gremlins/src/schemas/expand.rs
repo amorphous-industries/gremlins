@@ -9,8 +9,12 @@ pub const GREMLINS_PREFIX: &str = "gremlins:";
 /// Trait for resolving pipeline names to file paths.
 /// The pyext layer provides a Python-callback implementation.
 pub trait PipelineResolver {
-    fn resolve(&self, name: &str, project_root: &PathBuf, bundled_pipeline_dir: &PathBuf)
-        -> Result<PathBuf, SchemaError>;
+    fn resolve(
+        &self,
+        name: &str,
+        project_root: &PathBuf,
+        bundled_pipeline_dir: &PathBuf,
+    ) -> Result<PathBuf, SchemaError>;
 }
 
 pub fn load_yaml_file(path: &PathBuf) -> Result<serde_yaml::Value, SchemaError> {
@@ -203,7 +207,10 @@ pub fn substitute_recipe(
     }
 }
 
-pub fn resolve_placeholder(key: &str, ctx: &serde_yaml::Value) -> Result<serde_yaml::Value, String> {
+pub fn resolve_placeholder(
+    key: &str,
+    ctx: &serde_yaml::Value,
+) -> Result<serde_yaml::Value, String> {
     let (dotted_key, has_default, default_val) = if let Some(idx) = key.find(" | default(") {
         let raw_default = &key[idx + " | default(".len()..];
         let raw_default = raw_default.strip_suffix(')').unwrap_or(raw_default);
@@ -274,7 +281,7 @@ pub fn expand_pipeline(
 
     let chain: Vec<PathBuf> = Vec::new();
     _expand(
-        &yaml_path,
+        yaml_path,
         &project_root,
         &chain,
         bundled_stage_def_dir,
@@ -524,7 +531,8 @@ fn _expand_entry(
 
     if entry_map.contains_key("prompt") {
         let prompt_val = entry_map.get("prompt").unwrap().clone();
-        let texts = prompts::read_prompts(&prompt_val, prompt_dir, named_prompts, bundled_prompt_dir)?;
+        let texts =
+            prompts::read_prompts(&prompt_val, prompt_dir, named_prompts, bundled_prompt_dir)?;
         entry_map.insert(
             serde_yaml::Value::String("prompt".to_string()),
             serde_yaml::Value::Sequence(texts.into_iter().map(serde_yaml::Value::String).collect()),
@@ -634,7 +642,9 @@ fn _expand_stage_def(
     resolver: &dyn PipelineResolver,
 ) -> Result<Vec<serde_yaml::Value>, SchemaError> {
     if seen_defs.contains(def_name) {
-        return Err(SchemaError::Generic(format!("stage-definition cycle: {def_name:?}")));
+        return Err(SchemaError::Generic(format!(
+            "stage-definition cycle: {def_name:?}"
+        )));
     }
 
     let definition = stage_defs

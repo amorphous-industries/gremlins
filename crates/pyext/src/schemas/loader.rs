@@ -138,14 +138,23 @@ pub fn fill_names(raw_stages: &Bound<'_, PyList>) -> PyResult<()> {
     let mut entries: Vec<core_loader::StageEntry> = Vec::new();
     for item in raw_stages.iter() {
         let d: &Bound<'_, PyDict> = item.cast()?;
-        let name: Option<String> = d.get_item("name").ok().flatten()
+        let name: Option<String> = d
+            .get_item("name")
+            .ok()
+            .flatten()
             .and_then(|v| v.extract::<String>().ok())
             .filter(|n| !n.is_empty());
-        let auto_name: Option<String> = d.get_item("_auto_name").ok().flatten()
+        let auto_name: Option<String> = d
+            .get_item("_auto_name")
+            .ok()
+            .flatten()
             .and_then(|v| v.str().ok())
             .and_then(|s| s.to_str().ok().map(|s| s.to_string()))
             .filter(|n| !n.is_empty());
-        let stage_type: Option<String> = d.get_item("type").ok().flatten()
+        let stage_type: Option<String> = d
+            .get_item("type")
+            .ok()
+            .flatten()
             .and_then(|v| v.extract::<String>().ok())
             .filter(|t| !t.is_empty());
         let is_parallel = d.contains("parallel").unwrap_or(false);
@@ -157,7 +166,9 @@ pub fn fill_names(raw_stages: &Bound<'_, PyList>) -> PyResult<()> {
         });
     }
 
-    core_loader::fill_names(&mut entries).map_err(|e: gremlins::schemas::error::SchemaError| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    core_loader::fill_names(&mut entries).map_err(|e: gremlins::schemas::error::SchemaError| {
+        pyo3::exceptions::PyValueError::new_err(e.to_string())
+    })?;
 
     for (i, entry) in entries.iter().enumerate() {
         if let Some(ref name) = entry.name {
@@ -187,18 +198,25 @@ pub fn check_duplicate_producers(
         }
         None => HashMap::new(),
     };
-    core_loader::check_duplicate_producers(&nodes, &extra)
-        .map_err(|e: gremlins::schemas::error::SchemaError| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+    core_loader::check_duplicate_producers(&nodes, &extra).map_err(
+        |e: gremlins::schemas::error::SchemaError| {
+            pyo3::exceptions::PyValueError::new_err(e.to_string())
+        },
+    )
 }
 
 fn py_stages_to_nodes(stages: &Bound<'_, PyList>) -> PyResult<Vec<core_loader::StageNode>> {
     let mut nodes = Vec::new();
     for item in stages.iter() {
         let name: String = item.getattr("name")?.extract()?;
-        let stage_type: String = item.getattr("type").ok()
+        let stage_type: String = item
+            .getattr("type")
+            .ok()
             .and_then(|v| v.extract::<String>().ok())
             .unwrap_or_default();
-        let skip_if_exists: String = item.getattr("skip_if_exists").ok()
+        let skip_if_exists: String = item
+            .getattr("skip_if_exists")
+            .ok()
             .and_then(|v| v.extract::<String>().ok())
             .unwrap_or_default();
 
@@ -216,7 +234,7 @@ fn py_stages_to_nodes(stages: &Bound<'_, PyList>) -> PyResult<Vec<core_loader::S
         let mut body = Vec::new();
         if let Ok(body_attr) = item.getattr("body") {
             if let Ok(body_list) = body_attr.cast::<PyList>() {
-                body = py_stages_to_nodes(&body_list)?;
+                body = py_stages_to_nodes(body_list)?;
             }
         }
 
