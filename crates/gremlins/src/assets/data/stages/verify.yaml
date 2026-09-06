@@ -16,8 +16,7 @@ stages:
         options:
           timeout: "{{options.timeout | default(900)}}"
           cmds:
-            - rm -f "{artifact_dir}/done"
-            - ({{options.cmds}}); rc=$?; printf '%d' "$rc" > "{artifact_dir}/exec_exit_code"; if [ "$rc" -eq 0 ]; then printf 'done' > "{artifact_dir}/done"; fi; true
+            - rm -f -- "{artifact_dir}/done"; ({{options.cmds}}); rc=$?; printf '%d' "$rc" > "{artifact_dir}/exec_exit_code"; if [ "$rc" -eq 0 ]; then printf 'done' > "{artifact_dir}/done"; fi; true
       - name: fix
         type: agent
         skip_if_exists: done
