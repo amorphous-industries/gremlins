@@ -56,6 +56,13 @@ def lenv_with_gh(tmp_path, monkeypatch, lenv):
     shutil.rmtree(lenv.repo, ignore_errors=True)
     _init_git_repo(lenv.repo, with_origin=True)
     monkeypatch.chdir(lenv.repo)
+    # Copy fixture pipelines into the project overlay.
+    from conftest import PIPELINE_FIXTURES_DIR
+
+    overlay = lenv.repo / ".gremlins"
+    overlay.mkdir(parents=True, exist_ok=True)
+    for yaml_file in PIPELINE_FIXTURES_DIR.glob("*.yaml"):
+        shutil.copy2(yaml_file, overlay / yaml_file.name)
     return lenv
 
 
@@ -778,7 +785,7 @@ def test_build_spawn_env_is_minimal(lenv, monkeypatch):
 def test_setup_workdir_overlay_goes_to_state_dir(lenv):
     """stage_gremlins_overlay copies .gremlins to state_dir, not the worktree."""
     overlay_src = lenv.repo / ".gremlins"
-    overlay_src.mkdir(parents=True)
+    overlay_src.mkdir(parents=True, exist_ok=True)
     (overlay_src / "custom-local.yaml").write_text(
         "name: custom-local\ndefault_client: openai:gpt-4o\nstages: []\n",
         encoding="utf-8",

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pathlib
+import shutil
 
 import pytest
 
@@ -541,8 +542,16 @@ stages:
 # ---- include: directive ---------------------------------------------------
 
 
-def test_include_directive_expands_bundled_pipeline(tmp_path: pathlib.Path) -> None:
-    """{ include: local } inlines all stages from the bundled local pipeline."""
+def test_include_directive_expands_from_overlay(tmp_path: pathlib.Path) -> None:
+    """{ include: local } inlines all stages from the local pipeline."""
+    from conftest import PIPELINE_FIXTURES_DIR
+
+    # Copy fixture pipelines into project overlay so include: local resolves.
+    overlay = tmp_path / ".gremlins"
+    overlay.mkdir(parents=True, exist_ok=True)
+    for yaml_file in PIPELINE_FIXTURES_DIR.glob("*.yaml"):
+        shutil.copy2(yaml_file, overlay / yaml_file.name)
+
     yaml_path = _write_yaml(
         tmp_path / "pipeline.yaml",
         """\
@@ -575,6 +584,14 @@ stages:
 
 def test_loop_body_with_include_expands(tmp_path: pathlib.Path) -> None:
     """Loop body supports { include: <name> } to inline another pipeline's stages."""
+    from conftest import PIPELINE_FIXTURES_DIR
+
+    # Copy fixture pipelines into project overlay so include: local resolves.
+    overlay = tmp_path / ".gremlins"
+    overlay.mkdir(parents=True, exist_ok=True)
+    for yaml_file in PIPELINE_FIXTURES_DIR.glob("*.yaml"):
+        shutil.copy2(yaml_file, overlay / yaml_file.name)
+
     yaml_path = _write_yaml(
         tmp_path / "pipeline.yaml",
         """\
@@ -900,14 +917,11 @@ stages:
 
 def test_boss_yaml_loads() -> None:
     """boss.yaml loads with loop/handoff sequence structure."""
-    from _gremlins_core.discovery import resolve_pipeline_path
+    from conftest import PIPELINE_FIXTURES_DIR
 
     from gremlins.pipeline import Pipeline
-    from gremlins.pipelines import BUNDLED_PIPELINE_DIR
 
-    pipeline = Pipeline.from_yaml(
-        resolve_pipeline_path("boss", pathlib.Path.cwd(), BUNDLED_PIPELINE_DIR)
-    )
+    pipeline = Pipeline.from_yaml(PIPELINE_FIXTURES_DIR / "boss.yaml")
     names = [s.name for s in pipeline.stages]
     assert names == ["chain", "review-chain", "address-chain"]
     chain_entry = pipeline.stages[0]

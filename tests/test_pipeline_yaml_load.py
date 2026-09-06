@@ -1,4 +1,4 @@
-"""Load tests for bundled pipeline YAMLs."""
+"""Load tests for pipeline YAMLs."""
 
 import pathlib
 import textwrap
@@ -11,11 +11,10 @@ from _gremlins_core.schemas import expand_pipeline as _expand_pipeline
 from _gremlins_core.schemas import fill_names as _fill_names
 
 from gremlins.pipeline import Pipeline
-from gremlins.pipelines import BUNDLED_PIPELINE_DIR
 
 
 def _resolve(n, pr):
-    return _resolve_pipeline_name(n, pr, BUNDLED_PIPELINE_DIR)
+    return _resolve_pipeline_name(n, pr)
 
 
 def _expand(p: pathlib.Path, **kwargs) -> dict[str, Any]:
@@ -26,9 +25,7 @@ def _expand(p: pathlib.Path, **kwargs) -> dict[str, Any]:
     )
 
 
-_BUNDLED_LOCAL = (
-    pathlib.Path(__file__).parent.parent / "gremlins" / "pipelines" / "local.yaml"
-)
+_FIXTURE_LOCAL = pathlib.Path(__file__).parent / "fixtures" / "pipelines" / "local.yaml"
 
 _LOCAL_STAGE_NAMES = [
     "plan",
@@ -44,8 +41,8 @@ _LOCAL_STAGE_NAMES = [
 ]
 
 
-def test_bundled_local_loads() -> None:
-    pipeline = Pipeline.from_yaml(_BUNDLED_LOCAL)
+def test_fixture_local_loads() -> None:
+    pipeline = Pipeline.from_yaml(_FIXTURE_LOCAL)
     expected = Client("xai", "grok-4")
     assert pipeline.default_client == expected
     assert [s.name for s in pipeline.stages] == _LOCAL_STAGE_NAMES

@@ -34,7 +34,6 @@ import subprocess
 import sys
 import textwrap
 
-from _gremlins_core.discovery import resolve_pipeline_path
 from conftest import MINIMAL_EVENTS
 from conftest import REVIEW_LABELS as _REVIEW_LABELS
 from conftest import ReviewCreatingClient as _ReviewCreatingClient
@@ -42,7 +41,6 @@ from conftest import common_local_patches as _common_patches
 
 from gremlins.executor.run import run_pipeline
 from gremlins.executor.state import StateData
-from gremlins.pipelines import BUNDLED_PIPELINE_DIR
 
 
 def test_autouse_isolate_gremlin_id_unsets_gremlin_id_under_inherited_env(
@@ -144,10 +142,12 @@ def test_local_main_does_not_clobber_external_state(tmp_path, monkeypatch, sandb
             "address-code": MINIMAL_EVENTS,
         }
     )
+    from conftest import PIPELINE_FIXTURES_DIR
+
     assert (
         asyncio.run(
             run_pipeline(
-                resolve_pipeline_path("local", tmp_path, BUNDLED_PIPELINE_DIR),
+                PIPELINE_FIXTURES_DIR / "local.yaml",
                 argv=[],
                 client=client,
             )

@@ -6,7 +6,6 @@ import pathlib
 from _gremlins_core.discovery import resolve_pipeline_path
 
 from gremlins.pipeline import Pipeline
-from gremlins.pipelines import BUNDLED_PIPELINE_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -32,9 +31,7 @@ def resolve_pipeline(
             filtered.append(args[i])
             i += 1
     name = pipeline_val or kind
-    resolved = str(
-        resolve_pipeline_path(name, pathlib.Path(project_root), BUNDLED_PIPELINE_DIR)
-    )
+    resolved = str(resolve_pipeline_path(name, pathlib.Path(project_root)))
     return filtered, resolved
 
 
