@@ -928,7 +928,6 @@ def _load_pipeline_land_stage(state: dict[str, Any]):
     _pr = str(state.get("project_root") or "")
     if not pipeline_path:
         return None
-    project_dir = pathlib.Path(_pr) if _pr else pathlib.Path(_project_root_fn())
     try:
         p = resolve_pipeline_path(pipeline_path)
         pipeline = Pipeline.from_yaml(p)
