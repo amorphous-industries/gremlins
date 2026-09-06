@@ -502,7 +502,8 @@ fn _expand_entry(
                 }
                 Err(SchemaError::BundledRecipeNotFound { .. }) => {
                     // Not a bundled recipe — try stage definition directories.
-                    if let Some(recipe) = load_stage_def_from_dirs(recipe_name, Some(project_root))? {
+                    if let Some(recipe) = load_stage_def_from_dirs(recipe_name, Some(project_root))?
+                    {
                         let mut direct_defs = stage_defs.clone();
                         direct_defs.insert(stage_type.to_string(), recipe);
                         return _expand_stage_def(
