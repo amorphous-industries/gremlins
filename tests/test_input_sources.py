@@ -101,7 +101,7 @@ class TestPipelineInputSources:
             """,
         )
         pipeline = Pipeline.from_yaml(p)
-        assert pipeline.bootstrap.source is None
+        assert pipeline.bootstrap is None
 
     def test_invalid_sources_block_rejected(self, tmp_path: pathlib.Path) -> None:
         p = self._write_pipeline(

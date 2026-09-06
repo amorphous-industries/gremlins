@@ -630,7 +630,7 @@ class Gremlin:
                 cwd=self.worktree_dir,
             )
             bootstrap_block = self.pipeline_data.bootstrap
-            source = bootstrap_block.source
+            source = bootstrap_block.source if bootstrap_block is not None else None
             source_keys: set[str] = set(source.sources) if source is not None else set()
             # Don't pre-write bootstrap source keys — they are bound by
             # launch_cmds (via bind_artifact DSL or cli_out) which resolves
