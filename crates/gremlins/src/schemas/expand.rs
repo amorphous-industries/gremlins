@@ -37,7 +37,7 @@ pub fn load_yaml_file(path: &PathBuf) -> Result<serde_yaml::Value, SchemaError> 
 
 pub fn load_bundled_recipe(raw_name: &str) -> Result<serde_yaml::Value, SchemaError> {
     let name = raw_name.replace('-', "_");
-    let yaml_str = assets::RECIPES.get(&name).ok_or_else(|| {
+    let yaml_str = assets::RECIPES.get(name.as_str()).ok_or_else(|| {
         let mut available: Vec<_> = assets::RECIPES.keys().copied().collect();
         available.sort();
         SchemaError::BundledRecipeNotFound {
@@ -450,8 +450,8 @@ fn _expand_entry(
         }
         // Auto-resolve bundled stage-definitions by type name
         let underscored = stage_type.replace('-', "_");
-        if assets::RECIPES.contains_key(&underscored) {
-            let auto_def = load_bundled_recipe(&underscored)?;
+        if assets::RECIPES.contains_key(underscored.as_str()) {
+            let auto_def = load_bundled_recipe(underscored.as_str())?;
             let mut auto_defs = stage_defs.clone();
             auto_defs.insert(stage_type.to_string(), auto_def);
             return _expand_stage_def(
