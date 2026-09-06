@@ -142,8 +142,7 @@ impl InputSources {
     }
 }
 
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Bootstrap {
     pub source: Option<InputSources>,
     pub launch_cmds: Vec<String>,
@@ -239,7 +238,6 @@ impl Bootstrap {
         }
     }
 }
-
 
 fn string_list(raw: Option<&serde_yaml::Value>, label: &str) -> Result<Vec<String>, SchemaError> {
     match raw {

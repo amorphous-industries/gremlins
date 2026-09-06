@@ -6,7 +6,7 @@ use pyo3::types::{PyDict, PyList, PyType};
 
 use gremlins::schemas::bootstrap as rust_bootstrap;
 
-#[pyclass(name = "InputSource")]
+#[pyclass(name = "InputSource", from_py_object)]
 #[derive(Clone)]
 pub struct InputSource {
     pub(crate) inner: rust_bootstrap::InputSource,
@@ -53,7 +53,7 @@ impl InputSource {
     }
 }
 
-#[pyclass(name = "InputSources")]
+#[pyclass(name = "InputSources", from_py_object)]
 #[derive(Clone)]
 pub struct InputSources {
     pub(crate) inner: rust_bootstrap::InputSources,
@@ -148,7 +148,7 @@ impl InputSources {
     }
 }
 
-#[pyclass(name = "Bootstrap")]
+#[pyclass(name = "Bootstrap", from_py_object)]
 #[derive(Clone)]
 pub struct Bootstrap {
     pub(crate) inner: rust_bootstrap::Bootstrap,
