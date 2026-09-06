@@ -35,12 +35,10 @@ pub fn load_yaml_file(path: &PathBuf) -> Result<serde_yaml::Value, SchemaError> 
     Ok(parsed)
 }
 
-pub fn load_bundled_recipe(
-    raw_name: &str,
-) -> Result<serde_yaml::Value, SchemaError> {
+pub fn load_bundled_recipe(raw_name: &str) -> Result<serde_yaml::Value, SchemaError> {
     let name = raw_name.replace('-', "_");
     let yaml_str = assets::RECIPES.get(&name).ok_or_else(|| {
-        let mut available: Vec<_> = assets::RECIPES.keys().map(|k| *k).collect();
+        let mut available: Vec<_> = assets::RECIPES.keys().copied().collect();
         available.sort();
         SchemaError::BundledRecipeNotFound {
             name: format!("{GREMLINS_PREFIX}{raw_name}"),
@@ -286,12 +284,7 @@ pub fn expand_pipeline(
     });
 
     let chain: Vec<PathBuf> = Vec::new();
-    _expand(
-        yaml_path,
-        &project_root,
-        &chain,
-        resolver,
-    )
+    _expand(yaml_path, &project_root, &chain, resolver)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -335,11 +328,9 @@ fn _expand(
         .cloned()
         .collect();
 
-    let named_prompts =
-        prompts::parse_named_prompts(raw_mapping.get("prompts"), &prompt_dir)?;
+    let named_prompts = prompts::parse_named_prompts(raw_mapping.get("prompts"), &prompt_dir)?;
 
-    let stage_defs =
-        parse_stage_definitions(raw_mapping.get("stage-definitions"))?;
+    let stage_defs = parse_stage_definitions(raw_mapping.get("stage-definitions"))?;
 
     let stages_raw = raw_mapping.get("stages");
     let stages_list: Vec<serde_yaml::Value> = match stages_raw {
@@ -413,12 +404,7 @@ fn _expand_entry(
             ));
         }
         let included_path: PathBuf = resolver.resolve(name, project_root)?;
-        let included = _expand(
-            &included_path,
-            project_root,
-            chain,
-            resolver,
-        )?;
+        let included = _expand(&included_path, project_root, chain, resolver)?;
         let stages = match included.get("stages") {
             Some(serde_yaml::Value::Sequence(s)) => s.clone(),
             _ => Vec::new(),
@@ -484,12 +470,7 @@ fn _expand_entry(
         match pipeline_result {
             Ok(included_path) => {
                 if !chain.contains(&included_path) {
-                    let included = _expand(
-                        &included_path,
-                        project_root,
-                        chain,
-                        resolver,
-                    )?;
+                    let included = _expand(&included_path, project_root, chain, resolver)?;
                     let stages = match included.get("stages") {
                         Some(serde_yaml::Value::Sequence(s)) => s.clone(),
                         _ => Vec::new(),
@@ -509,8 +490,7 @@ fn _expand_entry(
 
     if entry_map.contains_key("prompt") {
         let prompt_val = entry_map.get("prompt").unwrap().clone();
-        let texts =
-            prompts::read_prompts(&prompt_val, prompt_dir, named_prompts)?;
+        let texts = prompts::read_prompts(&prompt_val, prompt_dir, named_prompts)?;
         entry_map.insert(
             serde_yaml::Value::String("prompt".to_string()),
             serde_yaml::Value::Sequence(texts.into_iter().map(serde_yaml::Value::String).collect()),

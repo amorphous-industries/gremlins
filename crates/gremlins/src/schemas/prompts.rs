@@ -63,9 +63,12 @@ pub fn read_prompts(
 }
 
 pub fn read_bundled_prompt(name: &str) -> Result<String, SchemaError> {
-    assets::PROMPTS.get(name).map(|s| s.to_string()).ok_or_else(|| {
-        SchemaError::PromptFileNotFound { path: name.to_string() }
-    })
+    assets::PROMPTS
+        .get(name)
+        .map(|s| s.to_string())
+        .ok_or_else(|| SchemaError::PromptFileNotFound {
+            path: name.to_string(),
+        })
 }
 
 pub fn read_prompt_file(path: &std::path::PathBuf) -> Result<String, SchemaError> {
