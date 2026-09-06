@@ -190,14 +190,11 @@ impl Bootstrap {
                         })?;
                         let mut out = HashMap::new();
                         for (k, v) in m {
-                            let ks = k
-                                .as_str()
-                                .map(String::from)
-                                .ok_or_else(|| {
-                                    SchemaError::Generic(
-                                        "'bootstrap.cli_out' keys must be strings".to_string(),
-                                    )
-                                })?;
+                            let ks = k.as_str().map(String::from).ok_or_else(|| {
+                                SchemaError::Generic(
+                                    "'bootstrap.cli_out' keys must be strings".to_string(),
+                                )
+                            })?;
                             let vs = v.as_str().ok_or_else(|| {
                                 SchemaError::Generic(format!(
                                     "'bootstrap.cli_out.{ks}' must be a string"
