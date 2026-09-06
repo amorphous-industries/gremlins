@@ -239,18 +239,22 @@ def test_nonzero_exit_raises_bail(tmp_path):
 
 def test_nonzero_exit_writes_log(tmp_path):
     state = _make_state(tmp_path)
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
     stage = _exec("myname", cmds=["echo oops; exit 1"])
     with pytest.raises(Bail):
-        asyncio.run(stage.run(MockGremlin(state=state)))
-    assert (state.artifact_dir / "exec-myname.log").exists()
+        asyncio.run(stage.run(MockGremlin(state=state, state_dir=state_dir)))
+    assert (state_dir / "exec-myname.log").exists()
 
 
 def test_success_writes_log(tmp_path):
     state = _make_state(tmp_path)
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
     stage = _exec("myname", cmds=["echo hello"])
-    result = asyncio.run(stage.run(MockGremlin(state=state)))
+    result = asyncio.run(stage.run(MockGremlin(state=state, state_dir=state_dir)))
     assert isinstance(result, Done)
-    assert (state.artifact_dir / "exec-myname.log").exists()
+    assert (state_dir / "exec-myname.log").exists()
 
 
 # ---------------------------------------------------------------------------

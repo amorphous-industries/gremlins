@@ -72,6 +72,7 @@ def test_verify_cmds_wrapped_with_done_writing(tmp_path: pathlib.Path) -> None:
     assert "make check" in wrapped
     assert "printf 'done'" in wrapped
     assert "{artifact_dir}/done" in wrapped
+    assert "{artifact_dir}/verify_output.txt" in wrapped
     assert "true" in wrapped
 
 
