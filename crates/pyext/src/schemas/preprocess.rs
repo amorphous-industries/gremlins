@@ -52,7 +52,7 @@ pub fn expand_pipeline(
     let resolver = PyResolver {
         resolve_pipeline_name_fn,
     };
-    let result = expand::expand_pipeline(&yaml_path, project_root.as_ref(), &resolver)
+    let result = expand::expand_pipeline(&yaml_path, project_root.as_deref(), &resolver)
         .map_err(into_pyerr)?;
     serde_yaml_to_py(py, &result)
 }
