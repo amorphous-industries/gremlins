@@ -17,11 +17,11 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 from _gremlins_core.artifacts import Uri
+from _gremlins_core.schemas import Pipeline
 from conftest import MockGremlin
 
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.executor.state import StateData, build_state
-from gremlins.pipeline import Pipeline
 from gremlins.stages.exec import Exec
 from gremlins.stages.outcome import Bail
 from tests.fake_client import FakeClient

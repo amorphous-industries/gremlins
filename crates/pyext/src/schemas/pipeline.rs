@@ -1,8 +1,11 @@
 use std::path::PathBuf;
 
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList, PyType};
+use pyo3::types::{PyBool, PyDict, PyList, PyType};
 
+use crate::convert::pyval_to_serde;
+use crate::schemas::bootstrap::Bootstrap;
+use crate::schemas::error::into_pyerr;
 use crate::schemas::loader;
 
 #[pyclass(name = "Pipeline")]
@@ -25,11 +28,34 @@ pub struct Pipeline {
 
 #[pymethods]
 impl Pipeline {
+    #[new]
+    #[pyo3(signature = (name, path, stages, default_client=None, base_ref="current".to_string(), bootstrap=None, land=None))]
+    fn new(
+        name: String,
+        path: PathBuf,
+        stages: Vec<Py<PyAny>>,
+        default_client: Option<Py<PyAny>>,
+        base_ref: String,
+        bootstrap: Option<Py<PyAny>>,
+        land: Option<Py<PyAny>>,
+    ) -> Self {
+        Pipeline {
+            name,
+            path,
+            stages,
+            default_client,
+            base_ref,
+            bootstrap,
+            land,
+        }
+    }
+
     #[classmethod]
+    #[pyo3(signature = (path, *, default_client_override=None))]
     fn from_yaml(
         _cls: &Bound<'_, PyType>,
         path: PathBuf,
-        resolve_pipeline_name_fn: Py<PyAny>,
+        default_client_override: Option<String>,
     ) -> PyResult<Self> {
         let py = _cls.py();
 
@@ -41,16 +67,31 @@ impl Pipeline {
             )));
         }
 
-        py.import("gremlins.clients")?;
+        py.import("gremlins._clients_init")?;
 
-        let raw = crate::schemas::preprocess::expand_pipeline(
-            py,
-            path.clone(),
-            None,
-            resolve_pipeline_name_fn.bind(py),
-        )?;
+        // Determine project root: walk up parent chain to find .gremlins directory
+        let project_root = {
+            let mut p = path.parent();
+            let mut root = None;
+            while let Some(parent) = p {
+                if parent.file_name().is_some_and(|n| n == ".gremlins") {
+                    root = parent.parent().map(PathBuf::from);
+                    break;
+                }
+                p = parent.parent();
+            }
+            root.unwrap_or_else(|| {
+                path.parent()
+                    .map(PathBuf::from)
+                    .unwrap_or_else(|| PathBuf::from("."))
+            })
+        };
 
-        let raw_dict: &Bound<'_, PyDict> = raw.bind(py).cast()?;
+        // Use Rust parse_pipeline_file directly — no Python callback
+        let raw = gremlins::schemas::expand::parse_pipeline_file(&path, &project_root)
+            .map_err(into_pyerr)?;
+
+        let raw_dict: Bound<'_, PyDict> = serde_yaml_value_to_py_dict(py, &raw)?;
         let pipeline_name = path
             .file_stem()
             .and_then(|s| s.to_str())
@@ -59,14 +100,15 @@ impl Pipeline {
 
         let default_client: Option<Py<PyAny>> = raw_dict
             .get_item("default_client")?
-            .map(|v| {
+            .filter(|v: &Bound<'_, PyAny>| !v.is_none())
+            .map(|v: Bound<'_, PyAny>| {
                 let s: String = v.extract()?;
                 if s.is_empty() {
                     return Err(pyo3::exceptions::PyValueError::new_err(
                         "default_client must be a non-empty string",
                     ));
                 }
-                let client_cls = py.import("gremlins.clients.client")?.getattr("Client")?;
+                let client_cls = py.import("_gremlins_core.clients")?.getattr("RustClient")?;
                 let client: Py<PyAny> = client_cls.call_method1("parse", (s,))?.extract()?;
                 Ok(client)
             })
@@ -74,7 +116,7 @@ impl Pipeline {
 
         let base_ref: String = raw_dict
             .get_item("base_ref")?
-            .map(|v| {
+            .map(|v: Bound<'_, PyAny>| {
                 let s: String = v.extract()?;
                 if s.trim().is_empty() {
                     Err(pyo3::exceptions::PyValueError::new_err(
@@ -105,36 +147,41 @@ impl Pipeline {
 
         let stages = loader::parse_stages(py, raw_stages, 0)?;
 
-        // Reject the old "inputs" key — declare CLI args under bootstrap.source
+        // Reject the old "inputs" key
         if raw_dict.get_item("inputs")?.is_some() {
             return Err(pyo3::exceptions::PyValueError::new_err(
                 "'inputs' is not a valid pipeline key; declare CLI arguments under bootstrap.source"
             ));
         }
 
-        let bootstrap: Option<Py<PyAny>> = raw_dict
-            .get_item("bootstrap")?
-            .map(|v| {
-                if v.is_none() {
-                    return Ok::<Option<Py<PyAny>>, pyo3::PyErr>(None);
+        let bootstrap: Option<Py<PyAny>> = {
+            let raw_bs = raw_dict.get_item("bootstrap")?;
+            let rust_bs = match raw_bs {
+                None => gremlins::schemas::bootstrap::Bootstrap::default(),
+                Some(v) if v.is_none() => gremlins::schemas::bootstrap::Bootstrap::default(),
+                Some(v) => {
+                    let bootstrap_dict: &Bound<'_, PyDict> = v.cast().map_err(|_| {
+                        pyo3::exceptions::PyValueError::new_err("'bootstrap' must be a mapping")
+                    })?;
+                    let mut mapping = serde_yaml::Mapping::new();
+                    for (k, v) in bootstrap_dict.iter() {
+                        let k_str: String = k.extract()?;
+                        mapping.insert(serde_yaml::Value::String(k_str), pyval_to_serde(&v)?);
+                    }
+                    gremlins::schemas::bootstrap::Bootstrap::from_yaml(Some(
+                        &serde_yaml::Value::Mapping(mapping),
+                    ))
+                    .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?
                 }
-                let bootstrap_dict: &Bound<'_, PyDict> = v.cast().map_err(|_| {
-                    pyo3::exceptions::PyValueError::new_err("'bootstrap' must be a mapping")
-                })?;
-                let bootstrap_cls = py
-                    .import("gremlins.pipeline.bootstrap")?
-                    .getattr("Bootstrap")?;
-                let bs = bootstrap_cls
-                    .call_method1("from_yaml", (bootstrap_dict,))?
-                    .extract()?;
-                Ok::<Option<Py<PyAny>>, pyo3::PyErr>(Some(bs))
-            })
-            .transpose()?
-            .flatten();
+            };
+            let bs = Bootstrap { inner: rust_bs };
+            let bs_obj = Py::new(py, bs)?;
+            Some(bs_obj.into_any())
+        };
 
         let land_stage: Option<Py<PyAny>> = raw_dict
             .get_item("land")?
-            .map(|v| {
+            .map(|v: Bound<'_, PyAny>| {
                 let land_dict: &Bound<'_, PyDict> = v.cast().map_err(|_| {
                     pyo3::exceptions::PyValueError::new_err("'land' must be a mapping")
                 })?;
@@ -159,14 +206,26 @@ impl Pipeline {
         });
         loader::check_duplicate_producers(&stages_list, extra_out.as_ref())?;
 
+        // Handle default_client_override
+        let default_client = match (default_client, default_client_override) {
+            (None, Some(override_str)) => {
+                let client_cls = py.import("_gremlins_core.clients")?.getattr("RustClient")?;
+                let client: Py<PyAny> = client_cls
+                    .call_method1("parse", (override_str,))?
+                    .extract()?;
+                Some(client)
+            }
+            (dc, _) => dc,
+        };
+
         if default_client.is_none() {
             return Err(pyo3::exceptions::PyValueError::new_err(
-                "pipeline is missing 'default_client' — every pipeline must declare one",
+                "pipeline is missing 'default_client' — set a 'default_client' in the pipeline YAML or pass --client on the command line",
             ));
         }
 
         if let Some(ref dc) = default_client {
-            fill_stage_clients(py, &stages, dc)?;
+            fill_stage_clients_inner(py, &stages, dc)?;
         }
 
         Ok(Pipeline {
@@ -208,24 +267,110 @@ impl Pipeline {
     }
 }
 
-fn fill_stage_clients(py: Python<'_>, stages: &[Py<PyAny>], default: &Py<PyAny>) -> PyResult<()> {
+fn fill_stage_clients_inner(
+    py: Python<'_>,
+    stages: &[Py<PyAny>],
+    default: &Py<PyAny>,
+) -> PyResult<()> {
     for stage in stages {
-        let stage_type: String = stage.getattr(py, "type")?.extract(py)?;
-        if stage_type != "parallel" {
-            let client: Option<Py<PyAny>> = stage.getattr(py, "client")?.extract(py)?;
-            if client.is_none() {
-                stage.setattr(py, "client", default)?;
+        let stage_type: Option<String> = stage
+            .getattr(py, "type")
+            .ok()
+            .and_then(|v| v.extract(py).ok());
+        if stage_type.as_deref() == Some("parallel") {
+            let body: Option<Vec<Py<PyAny>>> = stage
+                .getattr(py, "body")
+                .ok()
+                .and_then(|v| v.extract(py).ok());
+            if let Some(body) = body {
+                fill_stage_clients_inner(py, &body, default)?;
             }
+            // Fall through — parallel stage itself needs client set
+        }
+        let client: Option<Py<PyAny>> = stage.getattr(py, "client")?.extract(py)?;
+        if client.is_none() {
+            stage.setattr(py, "client", default)?;
         }
         let body: Option<Vec<Py<PyAny>>> = stage
             .getattr(py, "body")
             .ok()
             .and_then(|v| v.extract(py).ok());
         if let Some(body) = body {
-            fill_stage_clients(py, &body, default)?;
+            fill_stage_clients_inner(py, &body, default)?;
         }
     }
     Ok(())
+}
+
+/// Public pyfunction wrapper for fill_stage_clients (used by tests).
+#[pyfunction]
+#[pyo3(signature = (stages, default))]
+pub fn fill_stage_clients(stages: &Bound<'_, PyList>, default: &Bound<'_, PyAny>) -> PyResult<()> {
+    let py = stages.py();
+    let stages_vec: Vec<Py<PyAny>> = stages.iter().map(|s| s.unbind()).collect();
+    fill_stage_clients_inner(py, &stages_vec, &default.clone().unbind())
+}
+
+/// Convert a serde_yaml::Value mapping to a PyDict.
+fn serde_yaml_value_to_py_dict<'a>(
+    py: Python<'a>,
+    value: &'a serde_yaml::Value,
+) -> PyResult<Bound<'a, PyDict>> {
+    let dict = PyDict::new(py);
+    match value {
+        serde_yaml::Value::Mapping(m) => {
+            for (k, v) in m {
+                let key_str = k
+                    .as_str()
+                    .map(String::from)
+                    .unwrap_or_else(|| format!("{k:?}"));
+                let val = serde_yaml_to_py(py, v)?;
+                dict.set_item(key_str, val)?;
+            }
+        }
+        _ => {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "expected a YAML mapping",
+            ));
+        }
+    }
+    Ok(dict)
+}
+
+fn serde_yaml_to_py(py: Python<'_>, value: &serde_yaml::Value) -> PyResult<Py<PyAny>> {
+    match value {
+        serde_yaml::Value::Null => Ok(py.None()),
+        serde_yaml::Value::Bool(b) => Ok(PyBool::new(py, *b).to_owned().into_any().unbind()),
+        serde_yaml::Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                Ok(i.into_pyobject(py)?.into_any().unbind())
+            } else if let Some(f) = n.as_f64() {
+                Ok(f.into_pyobject(py)?.into_any().unbind())
+            } else {
+                Ok(py.None())
+            }
+        }
+        serde_yaml::Value::String(s) => Ok(s.into_pyobject(py)?.into_any().unbind()),
+        serde_yaml::Value::Sequence(seq) => {
+            let list = PyList::empty(py);
+            for item in seq {
+                list.append(serde_yaml_to_py(py, item)?)?;
+            }
+            Ok(list.into())
+        }
+        serde_yaml::Value::Mapping(m) => {
+            let dict = PyDict::new(py);
+            for (k, v) in m {
+                let key_str = k
+                    .as_str()
+                    .map(String::from)
+                    .unwrap_or_else(|| format!("{k:?}"));
+                dict.set_item(key_str, serde_yaml_to_py(py, v)?)?;
+            }
+            Ok(dict.into())
+        }
+        serde_yaml::Value::Tagged(t) => serde_yaml_to_py(py, &t.value),
+    }
 }
 
 #[cfg(test)]

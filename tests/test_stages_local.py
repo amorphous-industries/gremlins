@@ -4,11 +4,11 @@ import subprocess
 from typing import TYPE_CHECKING, cast
 
 from _gremlins_core.artifacts import Uri
+from _gremlins_core.schemas import Pipeline
 from conftest import MINIMAL_EVENTS, MockGremlin, ReviewCreatingClient
 
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.executor.state import StateData, build_state
-from gremlins.pipeline import Pipeline
 from gremlins.stages.agent import Agent
 from gremlins.utils.yaml_io import load_bundled_prompt
 

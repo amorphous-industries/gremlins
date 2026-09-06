@@ -168,8 +168,9 @@ def test_parallel_child_artifact_dir_is_full_copy(sandbox) -> None:
     """Child's artifact dir contains a full copy of parent's artifacts."""
     import subprocess
 
+    from _gremlins_core.schemas import Pipeline
+
     from gremlins.executor.gremlin import Gremlin
-    from gremlins.pipeline import Pipeline
 
     # Create a temporary git repo
     tmp_repo = sandbox.root / "repo"
@@ -291,8 +292,9 @@ def test_fork_uses_parent_not_child_state_as_source(sandbox) -> None:
     child_state(fan_out=True) as _ParallelExecutor._fan_out does)."""
     import subprocess
 
+    from _gremlins_core.schemas import Pipeline
+
     from gremlins.executor.gremlin import Gremlin
-    from gremlins.pipeline import Pipeline
     from gremlins.stages.base import Stage
     from gremlins.stages.composite import child_state
 

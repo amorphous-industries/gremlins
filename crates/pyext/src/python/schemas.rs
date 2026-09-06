@@ -52,6 +52,7 @@ pub fn register_schemas_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     schemas_mod.add_class::<schemas::bootstrap::InputSource>()?;
     schemas_mod.add_class::<schemas::bootstrap::InputSources>()?;
+    schemas_mod.add_class::<schemas::bootstrap::Bootstrap>()?;
     schemas_mod.add_class::<schemas::pipeline::Pipeline>()?;
     schemas_mod.add("GREMLINS_PREFIX", GREMLINS_PREFIX)?;
     schemas_mod.add_function(wrap_pyfunction!(parse_stage, &schemas_mod)?)?;
@@ -59,6 +60,22 @@ pub fn register_schemas_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     schemas_mod.add_function(wrap_pyfunction!(fill_names, &schemas_mod)?)?;
     schemas_mod.add_function(wrap_pyfunction!(check_duplicate_producers, &schemas_mod)?)?;
     schemas_mod.add_function(wrap_pyfunction!(expand_pipeline, &schemas_mod)?)?;
+    schemas_mod.add_function(wrap_pyfunction!(
+        schemas::bootstrap::source_env,
+        &schemas_mod
+    )?)?;
+    schemas_mod.add_function(wrap_pyfunction!(
+        schemas::bootstrap::validate_source_values,
+        &schemas_mod
+    )?)?;
+    schemas_mod.add_function(wrap_pyfunction!(
+        schemas::bootstrap::substitute_bootstrap_vars,
+        &schemas_mod
+    )?)?;
+    schemas_mod.add_function(wrap_pyfunction!(
+        schemas::pipeline::fill_stage_clients,
+        &schemas_mod
+    )?)?;
 
     // Add a placeholder STAGE_TYPES so that Python imports triggered during
     // the real STAGE_TYPES construction (e.g. gremlins.stages.agent ->

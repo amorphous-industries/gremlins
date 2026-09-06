@@ -6,8 +6,7 @@ import json
 import pathlib
 
 import yaml
-
-from gremlins.pipeline import Pipeline
+from _gremlins_core.schemas import Pipeline
 
 # ---------------------------------------------------------------------------
 # _persist_expanded_pipeline — unit tests

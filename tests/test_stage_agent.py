@@ -391,7 +391,8 @@ def test_with_dict_no_client_explicit_is_false(tmp_path):
 
 def test_child_state_uses_explicit_client(tmp_path):
     """child_state() must select the child's client when client_explicit is set."""
-    from gremlins.pipeline import Pipeline
+    from _gremlins_core.schemas import Pipeline
+
     from gremlins.stages.composite import child_state
 
     agent = _make_agent(name="child")
@@ -418,8 +419,8 @@ def test_child_state_uses_explicit_client(tmp_path):
 def test_child_state_falls_back_to_parent_when_not_explicit(tmp_path):
     """child_state() must fall back to the parent client when client_explicit is False."""
     from _gremlins_core.clients import RustClient as Client
+    from _gremlins_core.schemas import Pipeline
 
-    from gremlins.pipeline import Pipeline
     from gremlins.stages.composite import child_state
 
     agent = _make_agent(name="child")

@@ -23,8 +23,9 @@ from gremlins.stages.constants import FRAMEWORK_KEYS
 from gremlins.utils.state_file import locked_update
 
 if TYPE_CHECKING:
+    from _gremlins_core.schemas import Pipeline
+
     from gremlins.executor.gremlin import Gremlin
-    from gremlins.pipeline import Pipeline
 
 from gremlins.protocols import StageProtocol
 from gremlins.stages.outcome import Done

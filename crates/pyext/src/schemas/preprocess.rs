@@ -19,7 +19,10 @@ impl PipelineResolver for PyResolver<'_> {
                 if e.is_instance_of::<pyo3::exceptions::PyFileNotFoundError>(
                     self.resolve_pipeline_name_fn.py(),
                 ) {
-                    SchemaError::PipelineNotFound(e.to_string())
+                    SchemaError::PipelineNotFound {
+                        name: name.to_string(),
+                        available: String::new(),
+                    }
                 } else {
                     SchemaError::Generic(e.to_string())
                 }
@@ -49,7 +52,7 @@ pub fn expand_pipeline(
     let resolver = PyResolver {
         resolve_pipeline_name_fn,
     };
-    let result = expand::expand_pipeline(&yaml_path, project_root.as_ref(), &resolver)
+    let result = expand::expand_pipeline(&yaml_path, project_root.as_deref(), &resolver)
         .map_err(into_pyerr)?;
     serde_yaml_to_py(py, &result)
 }

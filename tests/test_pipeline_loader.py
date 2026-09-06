@@ -1,4 +1,4 @@
-"""Tests for gremlins.pipeline loader."""
+"""Tests for pipeline loader."""
 
 from __future__ import annotations
 
@@ -6,8 +6,7 @@ import pathlib
 import shutil
 
 import pytest
-
-from gremlins.pipeline import Pipeline
+from _gremlins_core.schemas import Pipeline
 
 
 def _write_yaml(path: pathlib.Path, content: str) -> pathlib.Path:
@@ -917,9 +916,8 @@ stages:
 
 def test_boss_yaml_loads() -> None:
     """boss.yaml loads with loop/handoff sequence structure."""
+    from _gremlins_core.schemas import Pipeline
     from conftest import PIPELINE_FIXTURES_DIR
-
-    from gremlins.pipeline import Pipeline
 
     pipeline = Pipeline.from_yaml(PIPELINE_FIXTURES_DIR / "boss.yaml")
     names = [s.name for s in pipeline.stages]
@@ -936,7 +934,7 @@ def test_boss_yaml_loads() -> None:
 
 
 def test_bootstrap_parsed_from_yaml(tmp_path: pathlib.Path) -> None:
-    from gremlins.pipeline.bootstrap import Bootstrap
+    from _gremlins_core.schemas import Bootstrap
 
     yaml_path = _write_yaml(
         tmp_path / "pipeline.yaml",
@@ -955,7 +953,7 @@ stages: []
 
 
 def test_bootstrap_empty_when_not_declared(tmp_path: pathlib.Path) -> None:
-    from gremlins.pipeline.bootstrap import Bootstrap
+    from _gremlins_core.schemas import Bootstrap
 
     yaml_path = _write_yaml(
         tmp_path / "pipeline.yaml",

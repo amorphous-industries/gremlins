@@ -21,8 +21,9 @@ from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.executor.parallel_state import ParallelGroupState
 
 if TYPE_CHECKING:
+    from _gremlins_core.schemas import Pipeline
+
     from gremlins.executor.gremlin import Gremlin, State
-    from gremlins.pipeline import Pipeline
 from gremlins.stages.base import Stage
 from gremlins.stages.composite import child_state as _child_state
 from gremlins.stages.outcome import Bail, Done, Outcome
@@ -42,11 +43,11 @@ def _noop_set_stage(_: str) -> None:
 def _branch_pipeline(
     branch_stage: Stage | None, parent_state: State
 ) -> Pipeline | None:
-    from gremlins.pipeline import Pipeline
+    from _gremlins_core.schemas import Pipeline
 
     if branch_stage is None or branch_stage.raw_dict is None:
         return None
-    from gremlins.pipeline.bootstrap import Bootstrap
+    from _gremlins_core.schemas import Bootstrap
 
     parent_pipeline = parent_state.pipeline_data
     return Pipeline(

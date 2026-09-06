@@ -1,10 +1,11 @@
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
 use crate::assets;
 use crate::schemas::error::SchemaError;
 use crate::schemas::prompts;
+use crate::schemas::resolve::BuiltinResolver;
 
 pub const GREMLINS_PREFIX: &str = "gremlins:";
 
@@ -14,7 +15,7 @@ pub trait PipelineResolver {
     fn resolve(&self, name: &str, project_root: &std::path::Path) -> Result<PathBuf, SchemaError>;
 }
 
-pub fn load_yaml_file(path: &PathBuf) -> Result<serde_yaml::Value, SchemaError> {
+pub fn load_yaml_file(path: &Path) -> Result<serde_yaml::Value, SchemaError> {
     let text = std::fs::read_to_string(path).map_err(|e| match e.kind() {
         std::io::ErrorKind::NotFound => SchemaError::PipelineFileNotFound {
             path: path.display().to_string(),
@@ -265,13 +266,25 @@ pub fn parse_default(raw: &str) -> serde_yaml::Value {
     serde_yaml::Value::String(s.to_string())
 }
 
+/// Parse a pipeline YAML file from disk, expanding includes, stage-definitions,
+/// and prompts. Returns the fully expanded YAML tree.
+pub fn parse_pipeline_file(
+    yaml_path: &Path,
+    project_root: &Path,
+) -> Result<serde_yaml::Value, SchemaError> {
+    let resolver = BuiltinResolver {
+        project_root: project_root.to_path_buf(),
+    };
+    expand_pipeline(yaml_path, Some(project_root), &resolver)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn expand_pipeline(
-    yaml_path: &PathBuf,
-    project_root: Option<&PathBuf>,
+    yaml_path: &Path,
+    project_root: Option<&Path>,
     resolver: &dyn PipelineResolver,
 ) -> Result<serde_yaml::Value, SchemaError> {
-    let project_root = project_root.cloned().unwrap_or_else(|| {
+    let project_root = project_root.map(|p| p.to_path_buf()).unwrap_or_else(|| {
         let parent = yaml_path.parent().unwrap_or(yaml_path);
         if parent.file_name().is_some_and(|n| n == ".gremlins") {
             parent
@@ -289,14 +302,14 @@ pub fn expand_pipeline(
 
 #[allow(clippy::too_many_arguments)]
 fn _expand(
-    yaml_path: &PathBuf,
+    yaml_path: &Path,
     project_root: &PathBuf,
     chain: &[PathBuf],
     resolver: &dyn PipelineResolver,
 ) -> Result<serde_yaml::Value, SchemaError> {
     let resolved = yaml_path
         .canonicalize()
-        .unwrap_or_else(|_| yaml_path.clone());
+        .unwrap_or_else(|_| yaml_path.to_path_buf());
     if chain.contains(&resolved) {
         let mut cycle_parts: Vec<String> = chain.iter().map(|p| p.display().to_string()).collect();
         cycle_parts.push(resolved.display().to_string());
@@ -479,7 +492,7 @@ fn _expand_entry(
                     return Ok(stages);
                 }
             }
-            Err(SchemaError::PipelineNotFound(_)) => {
+            Err(SchemaError::PipelineNotFound { .. }) => {
                 // Not a pipeline — fall through to loader validation
             }
             Err(e) => return Err(e),
