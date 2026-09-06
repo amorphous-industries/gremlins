@@ -118,8 +118,8 @@ stages:
           set -e
           set -o pipefail
           PR_URL="{pr}"
-          PR_NUMBER="$(echo "$PR_URL" | grep -oE '[0-9]+$')"
           PR_JSON="$(gh pr view "$PR_URL" --json number,title,body,author,baseRefName,headRefName,repository)"
+          PR_NUMBER="$(echo "$PR_JSON" | jq -r '.number')"
           OWNER_REPO="$(echo "$PR_JSON" | jq -r '.repository.nameWithOwner')"
           PR_TITLE="$(echo "$PR_JSON" | jq -r '.title')"
           PR_BODY="$(echo "$PR_JSON" | jq -r '.body')"
