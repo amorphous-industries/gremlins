@@ -28,11 +28,8 @@ stages:
       plan: artifact.plan
 """
     path = _write_pipeline(yaml_content)
-    # The Rust pipeline parser does not validate unused interpolation keys
-    # (bundled recipes use cross-stage interpolation references that make
-    # per-stage validation impossible). This test is kept for documentation
-    # purposes but the validation is expected to be done at a higher level.
-    Pipeline.from_yaml(path)
+    with pytest.raises(Exception, match="not referenced"):
+        Pipeline.from_yaml(path)
 
 
 def test_valid_pipeline_passes():
@@ -132,5 +129,5 @@ stages:
       unused_key: artifact.unused
 """
     path = _write_pipeline(yaml_content)
-    # See note in test_unused_interpolation_key_raises
-    Pipeline.from_yaml(path)
+    with pytest.raises(Exception, match="not referenced"):
+        Pipeline.from_yaml(path)

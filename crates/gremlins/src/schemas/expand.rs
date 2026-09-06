@@ -334,27 +334,6 @@ pub fn validate_interpolation_keys(
     }
 }
 
-fn is_bundled_recipe_type(stage: &serde_yaml::Value) -> bool {
-    let mapping = match stage.as_mapping() {
-        Some(m) => m,
-        None => return false,
-    };
-    let stage_type = match mapping.get("type").and_then(|v| v.as_str()) {
-        Some(t) => t,
-        None => return false,
-    };
-    // Check gremlins:xxx prefix
-    if let Some(recipe_name) = stage_type.strip_prefix(GREMLINS_PREFIX) {
-        if !recipe_name.is_empty() {
-            let underscored = recipe_name.replace('-', "_");
-            return assets::RECIPES.contains_key(underscored.as_str());
-        }
-    }
-    // Check bare type name against bundled recipes
-    let underscored = stage_type.replace('-', "_");
-    assets::RECIPES.contains_key(underscored.as_str())
-}
-
 fn validate_stage_interpolation(stage: &serde_yaml::Value, errors: &mut Vec<SchemaError>) {
     let mapping = match stage.as_mapping() {
         Some(m) => m,
@@ -371,11 +350,6 @@ fn validate_stage_interpolation(stage: &serde_yaml::Value, errors: &mut Vec<Sche
         for child in parallel {
             validate_stage_interpolation(child, errors);
         }
-    }
-
-    // Skip bundled recipe stages — their interpolation keys are used internally
-    if is_bundled_recipe_type(stage) {
-        return;
     }
 
     // Only leaf stages with an interpolation map need checking
@@ -423,17 +397,15 @@ fn validate_stage_interpolation(stage: &serde_yaml::Value, errors: &mut Vec<Sche
             continue;
         }
 
-        // Check $KEY — must not be followed by '{' to avoid ${OTHER}
+        // Check $KEY — must not be followed by an identifier-continuation character
         let dollar_form = format!("${key_str}");
         if text.contains(&dollar_form) {
-            // Verify it's not actually ${key_str}something (already checked above)
-            // Also check that $KEY is not followed by a '{' character
             let mut found = false;
             let mut pos = 0;
             while let Some(idx) = text[pos..].find(&dollar_form) {
                 let abs_idx = pos + idx;
                 let after = abs_idx + dollar_form.len();
-                if after >= text.len() || text.as_bytes().get(after) != Some(&b'{') {
+                if after >= text.len() || !text.as_bytes().get(after).is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'_') {
                     found = true;
                     break;
                 }
