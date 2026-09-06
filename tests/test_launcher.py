@@ -61,8 +61,9 @@ def lenv_with_gh(tmp_path, monkeypatch, lenv):
 
     overlay = lenv.repo / ".gremlins"
     overlay.mkdir(parents=True, exist_ok=True)
-    for yaml_file in PIPELINE_FIXTURES_DIR.glob("*.yaml"):
-        shutil.copy2(yaml_file, overlay / yaml_file.name)
+    for fixture_file in PIPELINE_FIXTURES_DIR.iterdir():
+        if fixture_file.is_file():
+            shutil.copy2(fixture_file, overlay / fixture_file.name)
     return lenv
 
 
