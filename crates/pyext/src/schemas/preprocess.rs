@@ -11,19 +11,23 @@ struct PyResolver<'a> {
 }
 
 impl PipelineResolver for PyResolver<'_> {
-    fn resolve(&self, name: &str, _project_root: &std::path::Path) -> Result<PathBuf, SchemaError> {
-        let result = self.resolve_pipeline_name_fn.call1((name,)).map_err(|e| {
-            if e.is_instance_of::<pyo3::exceptions::PyFileNotFoundError>(
-                self.resolve_pipeline_name_fn.py(),
-            ) {
-                SchemaError::PipelineNotFound {
-                    name: name.to_string(),
-                    available: String::new(),
+    fn resolve(&self, name: &str, project_root: &std::path::Path) -> Result<PathBuf, SchemaError> {
+        let pr_str = project_root.to_str().unwrap_or("");
+        let result = self
+            .resolve_pipeline_name_fn
+            .call1((name, pr_str))
+            .map_err(|e| {
+                if e.is_instance_of::<pyo3::exceptions::PyFileNotFoundError>(
+                    self.resolve_pipeline_name_fn.py(),
+                ) {
+                    SchemaError::PipelineNotFound {
+                        name: name.to_string(),
+                        available: String::new(),
+                    }
+                } else {
+                    SchemaError::Generic(e.to_string())
                 }
-            } else {
-                SchemaError::Generic(e.to_string())
-            }
-        })?;
+            })?;
         if let Ok(s) = result.extract::<String>() {
             Ok(PathBuf::from(s))
         } else if let Ok(p) = result.extract::<PathBuf>() {

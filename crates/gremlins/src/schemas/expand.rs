@@ -466,20 +466,64 @@ fn _expand_entry(
                     "missing name after {GREMLINS_PREFIX:?}"
                 )));
             }
-            let recipe_def = load_bundled_recipe(recipe_name)?;
-            let mut direct_defs = stage_defs.clone();
-            direct_defs.insert(stage_type.to_string(), recipe_def);
-            return _expand_stage_def(
-                entry,
-                stage_type,
-                &direct_defs,
-                prompt_dir,
-                project_root,
-                chain,
-                named_prompts,
-                seen_defs,
-                resolver,
-            );
+            match load_bundled_recipe(recipe_name) {
+                Ok(recipe_def) => {
+                    let mut direct_defs = stage_defs.clone();
+                    direct_defs.insert(stage_type.to_string(), recipe_def);
+                    return _expand_stage_def(
+                        entry,
+                        stage_type,
+                        &direct_defs,
+                        prompt_dir,
+                        project_root,
+                        chain,
+                        named_prompts,
+                        seen_defs,
+                        resolver,
+                    );
+                }
+                Err(SchemaError::BundledRecipeNotFound { .. }) => {
+                    // Not a bundled recipe — try stage definition directories.
+                    for d in crate::config::stage_definition_dirs() {
+                        let candidate = d.join(format!("{}.yaml", recipe_name));
+                        if candidate.exists() {
+                            match load_yaml_file(&candidate) {
+                                Ok(recipe) => {
+                                    let mut direct_defs = stage_defs.clone();
+                                    direct_defs.insert(stage_type.to_string(), recipe);
+                                    return _expand_stage_def(
+                                        entry,
+                                        stage_type,
+                                        &direct_defs,
+                                        prompt_dir,
+                                        project_root,
+                                        chain,
+                                        named_prompts,
+                                        seen_defs,
+                                        resolver,
+                                    );
+                                }
+                                Err(e) => {
+                                    return Err(SchemaError::StageDef {
+                                        name: stage_type.to_string(),
+                                        msg: e.to_string(),
+                                    });
+                                }
+                            }
+                        }
+                    }
+                    // Not found anywhere — raise the original error
+                    return Err(SchemaError::BundledRecipeNotFound {
+                        name: format!("{GREMLINS_PREFIX}{recipe_name}"),
+                        available: assets::RECIPES
+                            .keys()
+                            .copied()
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                    });
+                }
+                Err(e) => return Err(e),
+            }
         }
         // Auto-resolve bundled stage-definitions by type name
         let underscored = stage_type.replace('-', "_");

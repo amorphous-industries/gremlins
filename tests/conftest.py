@@ -251,6 +251,19 @@ def sandbox(monkeypatch, request):
         for fixture_file in fixture_pipelines.iterdir():
             if fixture_file.is_file():
                 shutil.copy2(fixture_file, overlay_pipelines / fixture_file.name)
+        # Also copy stage definitions and prompts from the project root
+        # so pipeline YAMLs can resolve gremlins:... references.
+        # Prompts are copied flat into the overlay dir (not subdir) so that
+        # pipelines without prompt_dir can find them relative to the yaml dir.
+        src_stages = TESTS_DIR.parent / ".gremlins" / "stages"
+        if src_stages.is_dir():
+            dst_stages = overlay_pipelines / "stages"
+            shutil.copytree(str(src_stages), str(dst_stages), dirs_exist_ok=True)
+        src_prompts = TESTS_DIR.parent / ".gremlins" / "prompts"
+        if src_prompts.is_dir():
+            for prompt_file in src_prompts.iterdir():
+                if prompt_file.is_file():
+                    shutil.copy2(prompt_file, overlay_pipelines / prompt_file.name)
 
     request.node._sandbox = sb
     yield sb

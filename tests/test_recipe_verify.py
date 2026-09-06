@@ -12,8 +12,8 @@ from _gremlins_core.schemas import Pipeline
 from _gremlins_core.schemas import expand_pipeline as _expand_pipeline
 
 
-def _resolve(n, pr):
-    return _resolve_pipeline_name(n, pr)
+def _resolve(n, pr=None):
+    return _resolve_pipeline_name(n)
 
 
 def _make_pipeline(tmp_path: pathlib.Path, verify_entry: str) -> dict[str, Any]:

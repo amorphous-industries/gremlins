@@ -37,7 +37,15 @@ pub fn read_prompts(
                     "prompt {p:?} is missing a name after {GREMLINS_PREFIX:?}"
                 )));
             }
-            texts.push(read_bundled_prompt(name)?);
+            // Try bundled prompts first, then fall back to file-system lookup
+            match read_bundled_prompt(name) {
+                Ok(text) => texts.push(text),
+                Err(SchemaError::PromptFileNotFound { .. }) => {
+                    let path = prompt_dir.join(name);
+                    texts.push(read_prompt_file(&path)?);
+                }
+                Err(e) => return Err(e),
+            }
         } else if p.contains('\n') {
             texts.push(p.clone());
         } else {

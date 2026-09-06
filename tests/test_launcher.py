@@ -64,6 +64,20 @@ def lenv_with_gh(tmp_path, monkeypatch, lenv):
     for fixture_file in PIPELINE_FIXTURES_DIR.iterdir():
         if fixture_file.is_file():
             shutil.copy2(fixture_file, overlay / fixture_file.name)
+    # Copy stages and prompts from project root to the test overlay so
+    # pipeline YAMLs can resolve gremlins:... references.
+    # Prompts are copied flat (not into a subdir) to match pipelines that
+    # resolve prompt paths relative to the yaml directory.
+    src_root = pathlib.Path(__file__).resolve().parent.parent
+    src_stages = src_root / ".gremlins" / "stages"
+    if src_stages.is_dir():
+        dst_stages = overlay / "stages"
+        shutil.copytree(str(src_stages), str(dst_stages), dirs_exist_ok=True)
+    src_prompts = src_root / ".gremlins" / "prompts"
+    if src_prompts.is_dir():
+        for prompt_file in src_prompts.iterdir():
+            if prompt_file.is_file():
+                shutil.copy2(prompt_file, overlay / prompt_file.name)
     return lenv
 
 
