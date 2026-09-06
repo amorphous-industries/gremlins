@@ -248,8 +248,9 @@ def sandbox(monkeypatch, request):
     if fixture_pipelines.is_dir():
         overlay_pipelines = sb.project / ".gremlins"
         overlay_pipelines.mkdir(parents=True, exist_ok=True)
-        for yaml_file in fixture_pipelines.glob("*.yaml"):
-            shutil.copy2(yaml_file, overlay_pipelines / yaml_file.name)
+        for fixture_file in fixture_pipelines.iterdir():
+            if fixture_file.is_file():
+                shutil.copy2(fixture_file, overlay_pipelines / fixture_file.name)
 
     request.node._sandbox = sb
     yield sb

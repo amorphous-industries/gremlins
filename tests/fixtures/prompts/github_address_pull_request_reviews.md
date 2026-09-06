@@ -1,19 +1,14 @@
-<!-- placeholder: {pr} (the PR URL, resolved from the `pr` artifact via `in: {{pr: pr}}`) -->
+<!-- placeholder: {content} (review comments assembled by the gather stage) -->
+<!-- placeholder: {pr} (the PR URL, resolved from the `pr` artifact) -->
 You are addressing review comments on a GitHub pull request. Your job is to fix the issues raised by reviewers and reply to each comment thread.
 
 ## Pull Request
 
 {pr}
 
-Fetch PR metadata: `gh pr view {pr} --json number,title,body,author,baseRefName,headRefName`. Store the PR number for use in API calls below.
+## Review content
 
-## Review comments
-
-Fetch review comments by running: `gh api repos/{{owner}}/{{repo}}/pulls/<number>/comments --paginate` (strip any `#` prefix from the PR number).
-
-## Issue comments
-
-Fetch issue comments using `gh pr view <number-or-ref> --comments`.
+{content}
 
 ## Process
 
