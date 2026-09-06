@@ -47,7 +47,7 @@ fn _gremlins_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // _gremlins_core.artifacts.Uri.
     python::artifacts::register_artifacts_module(m)?;
 
-    // assets submodule — before schemas because schemas may need assets
+    // assets submodule
     python::assets::register_assets_module(m)?;
 
     // config submodule — must be registered before schemas because the

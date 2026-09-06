@@ -449,8 +449,9 @@ fn _expand_entry(
             );
         }
         // Auto-resolve bundled stage-definitions by type name
-        if assets::RECIPES.contains_key(&stage_type.replace('-', "_")) {
-            let auto_def = load_bundled_recipe(stage_type)?;
+        let underscored = stage_type.replace('-', "_");
+        if assets::RECIPES.contains_key(&underscored) {
+            let auto_def = load_bundled_recipe(&underscored)?;
             let mut auto_defs = stage_defs.clone();
             auto_defs.insert(stage_type.to_string(), auto_def);
             return _expand_stage_def(

@@ -27,9 +27,12 @@ def load_yaml_file(path: pathlib.Path) -> dict[str, Any]:
 
 def load_bundled_prompt(name: str) -> str:
     try:
-        return _load_bundled_prompt(name)
+        text = _load_bundled_prompt(name)
     except FileNotFoundError:
         raise PromptLoadError(f"bundled prompt not found: {name}") from None
+    if not text.strip():
+        raise PromptLoadError(f"bundled prompt is empty: {name}")
+    return text
 
 
 def render_bundled_prompt(name: str, **kwargs: Any) -> str:
