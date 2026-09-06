@@ -239,21 +239,27 @@ def test_resolve_pipeline_path_finds_project_dir_when_overlay_empty(
 
 
 def test_resolve_pipeline_name_no_overlay_env_falls_through(
-    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-
     monkeypatch.delenv("GREMLINS_OVERLAY_DIR", raising=False)
-    result = resolve_pipeline_name("local", pathlib.Path.cwd())
-    assert result.name == "local.yaml"
+    project_root = tmp_path / "project"
+    pipeline_dir = project_root / ".gremlins"
+    pipeline_dir.mkdir(parents=True)
+    (pipeline_dir / "local.yaml").write_text(_SAMPLE_YAML, encoding="utf-8")
+    result = resolve_pipeline_name("local", project_root)
+    assert result == (pipeline_dir / "local.yaml").resolve()
 
 
 def test_resolve_pipeline_path_no_overlay_env_falls_through(
-    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-
     monkeypatch.delenv("GREMLINS_OVERLAY_DIR", raising=False)
-    result = resolve_pipeline_path("local", pathlib.Path.cwd())
-    assert result.name == "local.yaml"
+    project_root = tmp_path / "project"
+    pipeline_dir = project_root / ".gremlins"
+    pipeline_dir.mkdir(parents=True)
+    (pipeline_dir / "local.yaml").write_text(_SAMPLE_YAML, encoding="utf-8")
+    result = resolve_pipeline_path("local", project_root)
+    assert result == (pipeline_dir / "local.yaml").resolve()
 
 
 def test_parallel_expansion_in_constructor(tmp_path: pathlib.Path) -> None:
