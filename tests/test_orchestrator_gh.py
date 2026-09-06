@@ -253,6 +253,14 @@ def _patch_common(
                 p.parent.mkdir(parents=True, exist_ok=True)
                 p.write_text("42\n")
                 return _subprocess_mod.CompletedProcess(cmd, 0, "", "")
+            # gather-github-review-content: intercept to write a fake
+            # github-review-content.md so the stage passes without a real gh CLI.
+            m4 = re.search(r'"([^"]+/github-review-content\.md)"', cmd)
+            if m4:
+                p = pathlib.Path(m4.group(1))
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_text("# PR Review Comments\n\nFake review content.\n")
+                return _subprocess_mod.CompletedProcess(cmd, 0, "", "")
         return await _orig_shell(cmd, cwd=cwd, env=env, timeout=timeout)
 
     monkeypatch.setattr(_proc_mod, "run_shell_async", _noop_gh_shell)
@@ -371,6 +379,7 @@ def test_gh_pipeline_stage_names():
         "github-review-pull-request",
         "github-discover-repo-2",
         "github-wait-copilot",
+        "gather-github-review-content",
         "github-address-pull-request-reviews",
         "ci-gate",
     ]
