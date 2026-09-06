@@ -285,7 +285,7 @@ fn fill_stage_clients_inner(
             if let Some(body) = body {
                 fill_stage_clients_inner(py, &body, default)?;
             }
-            continue;
+            // Fall through — parallel stage itself needs client set
         }
         let client: Option<Py<PyAny>> = stage.getattr(py, "client")?.extract(py)?;
         if client.is_none() {
