@@ -47,6 +47,9 @@ fn _gremlins_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // _gremlins_core.artifacts.Uri.
     python::artifacts::register_artifacts_module(m)?;
 
+    // assets submodule
+    python::assets::register_assets_module(m)?;
+
     // config submodule — must be registered before schemas because the
     // Python imports triggered by register_schemas_module also pull in
     // _gremlins_core.config.

@@ -12,8 +12,6 @@ from _gremlins_core.schemas import fill_names as _fill_names
 
 from gremlins.pipeline import Pipeline
 from gremlins.pipelines import BUNDLED_PIPELINE_DIR
-from gremlins.prompts import BUNDLED_PROMPT_DIR
-from gremlins.recipes import BUNDLED_STAGE_DEF_DIR
 
 
 def _resolve(n, pr):
@@ -24,8 +22,6 @@ def _expand(p: pathlib.Path, **kwargs) -> dict[str, Any]:
     return _expand_pipeline(
         str(p),
         kwargs.get("project_root"),
-        str(BUNDLED_STAGE_DEF_DIR),
-        str(BUNDLED_PROMPT_DIR),
         _resolve,
     )
 
@@ -464,7 +460,7 @@ def test_stage_definition_gremlins_recipe_path_traversal_raises(
           - { type: bad }
         """,
     )
-    with pytest.raises(ValueError, match="invalid bundled recipe name"):
+    with pytest.raises(FileNotFoundError, match="bundled recipe not found"):
         _expand(p)
 
 
@@ -525,7 +521,7 @@ def test_gremlins_prefix_type_path_traversal_raises(tmp_path: pathlib.Path) -> N
           - { type: "gremlins:../../etc/passwd" }
         """,
     )
-    with pytest.raises(ValueError, match="invalid bundled recipe name"):
+    with pytest.raises(FileNotFoundError, match="bundled recipe not found"):
         _expand(p)
 
 

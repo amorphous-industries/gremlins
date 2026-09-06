@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
+use crate::assets;
 use crate::schemas::error::SchemaError;
 use crate::schemas::expand::GREMLINS_PREFIX;
 
@@ -8,7 +9,6 @@ pub fn read_prompts(
     prompt_field: &serde_yaml::Value,
     prompt_dir: &Path,
     named_prompts: &HashMap<String, Vec<String>>,
-    bundled_prompt_dir: &Path,
 ) -> Result<Vec<String>, SchemaError> {
     let raw: Vec<String> = match prompt_field {
         serde_yaml::Value::String(s) => vec![s.clone()],
@@ -37,8 +37,7 @@ pub fn read_prompts(
                     "prompt {p:?} is missing a name after {GREMLINS_PREFIX:?}"
                 )));
             }
-            let path = bundled_prompt_dir.join(name);
-            texts.push(read_prompt_file(&path)?);
+            texts.push(read_bundled_prompt(name)?);
         } else if p.contains('\n') {
             texts.push(p.clone());
         } else {
@@ -63,6 +62,20 @@ pub fn read_prompts(
     Ok(texts)
 }
 
+pub fn read_bundled_prompt(name: &str) -> Result<String, SchemaError> {
+    let text = assets::PROMPTS
+        .get(name)
+        .ok_or_else(|| SchemaError::PromptFileNotFound {
+            path: name.to_string(),
+        })?;
+    if text.trim().is_empty() {
+        return Err(SchemaError::PromptFileEmpty {
+            path: name.to_string(),
+        });
+    }
+    Ok(text.to_string())
+}
+
 pub fn read_prompt_file(path: &std::path::PathBuf) -> Result<String, SchemaError> {
     if !path.exists() {
         return Err(SchemaError::PromptFileNotFound {
@@ -83,7 +96,6 @@ pub fn read_prompt_file(path: &std::path::PathBuf) -> Result<String, SchemaError
 pub fn parse_named_prompts(
     prompts_raw: Option<&serde_yaml::Value>,
     prompt_dir: &Path,
-    bundled_prompt_dir: &Path,
 ) -> Result<HashMap<String, Vec<String>>, SchemaError> {
     let mut named: HashMap<String, Vec<String>> = HashMap::new();
     if let Some(mapping) = prompts_raw.and_then(|v| v.as_mapping()) {
@@ -93,7 +105,7 @@ pub fn parse_named_prompts(
                 continue;
             }
             let empty: HashMap<String, Vec<String>> = HashMap::new();
-            let texts = read_prompts(v, prompt_dir, &empty, bundled_prompt_dir)?;
+            let texts = read_prompts(v, prompt_dir, &empty)?;
             named.insert(name, texts);
         }
     }
