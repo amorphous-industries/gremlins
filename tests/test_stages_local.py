@@ -4,7 +4,6 @@ import subprocess
 from typing import TYPE_CHECKING, cast
 
 from _gremlins_core.artifacts import Uri
-from _gremlins_core.assets import load_bundled_prompt
 from _gremlins_core.discovery import resolve_pipeline_path
 from conftest import MINIMAL_EVENTS, MockGremlin, ReviewCreatingClient
 
@@ -13,6 +12,7 @@ from gremlins.executor.state import StateData, build_state
 from gremlins.pipeline import Pipeline
 from gremlins.pipelines import BUNDLED_PIPELINE_DIR
 from gremlins.stages.agent import Agent
+from gremlins.utils.yaml_io import load_bundled_prompt
 
 if TYPE_CHECKING:
     from gremlins.executor.gremlin import Gremlin
