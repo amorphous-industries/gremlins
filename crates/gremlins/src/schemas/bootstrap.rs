@@ -102,16 +102,6 @@ impl InputSources {
                 None => false,
             };
 
-            let valid: HashSet<&str> = VALID_SOURCE_TYPES.iter().copied().collect();
-            for t in &types {
-                if !valid.contains(t.as_str()) {
-                    return Err(SchemaError::InputSource {
-                        name: key.to_string(),
-                        msg: format!("unknown type {t:?}. Supported types: filepath, string"),
-                    });
-                }
-            }
-
             sources.insert(
                 key.to_string(),
                 InputSource::new(key.to_string(), types, optional)?,
@@ -183,10 +173,10 @@ impl Bootstrap {
                 let source = mapping
                     .get(serde_yaml::Value::String("source".to_string()))
                     .map(|v| {
-                        v.as_mapping().ok_or_else(|| {
+                        let m = v.as_mapping().ok_or_else(|| {
                             SchemaError::Generic("'bootstrap.source' must be a mapping".to_string())
                         })?;
-                        InputSources::from_yaml(v.as_mapping().unwrap())
+                        InputSources::from_yaml(m)
                     })
                     .transpose()?;
 
@@ -203,23 +193,32 @@ impl Bootstrap {
                             let ks = k
                                 .as_str()
                                 .map(String::from)
-                                .unwrap_or_else(|| format!("{k:?}"));
-                            let vs = v
-                                .as_str()
-                                .map(String::from)
-                                .unwrap_or_else(|| format!("{v:?}"));
-                            out.insert(ks, vs);
+                                .ok_or_else(|| {
+                                    SchemaError::Generic(
+                                        "'bootstrap.cli_out' keys must be strings".to_string(),
+                                    )
+                                })?;
+                            let vs = v.as_str().ok_or_else(|| {
+                                SchemaError::Generic(format!(
+                                    "'bootstrap.cli_out.{ks}' must be a string"
+                                ))
+                            })?;
+                            out.insert(ks, vs.to_string());
                         }
                         Ok::<HashMap<String, String>, SchemaError>(out)
                     })
                     .transpose()?
                     .unwrap_or_default();
 
-                let env = mapping
-                    .get(serde_yaml::Value::String("env".to_string()))
-                    .and_then(|v| v.as_str())
-                    .map(String::from)
-                    .unwrap_or_default();
+                let env = match mapping.get(serde_yaml::Value::String("env".to_string())) {
+                    Some(v) => {
+                        let s = v.as_str().ok_or_else(|| {
+                            SchemaError::Generic("'bootstrap.env' must be a string".to_string())
+                        })?;
+                        s.to_string()
+                    }
+                    None => String::new(),
+                };
 
                 Ok(Bootstrap {
                     source,

@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyList, PyType};
 
+use crate::convert::pyval_to_serde;
 use crate::schemas::bootstrap::Bootstrap;
 use crate::schemas::error::into_pyerr;
 use crate::schemas::loader;
@@ -68,20 +69,22 @@ impl Pipeline {
 
         py.import("gremlins._clients_init")?;
 
-        // Determine project root: if path is inside .gremlins, go up one more level
-        let project_root = if path
-            .parent()
-            .and_then(|p| p.file_name())
-            .is_some_and(|n| n == ".gremlins")
-        {
-            path.parent()
-                .and_then(|p| p.parent())
-                .map(PathBuf::from)
-                .unwrap_or_else(|| PathBuf::from("."))
-        } else {
-            path.parent()
-                .map(PathBuf::from)
-                .unwrap_or_else(|| PathBuf::from("."))
+        // Determine project root: walk up parent chain to find .gremlins directory
+        let project_root = {
+            let mut p = path.parent();
+            let mut root = None;
+            while let Some(parent) = p {
+                if parent.file_name().is_some_and(|n| n == ".gremlins") {
+                    root = parent.parent().map(PathBuf::from);
+                    break;
+                }
+                p = parent.parent();
+            }
+            root.unwrap_or_else(|| {
+                path.parent()
+                    .map(PathBuf::from)
+                    .unwrap_or_else(|| PathBuf::from("."))
+            })
         };
 
         // Use Rust parse_pipeline_file directly — no Python callback
@@ -97,6 +100,7 @@ impl Pipeline {
 
         let default_client: Option<Py<PyAny>> = raw_dict
             .get_item("default_client")?
+            .filter(|v: &Bound<'_, PyAny>| !v.is_none())
             .map(|v: Bound<'_, PyAny>| {
                 let s: String = v.extract()?;
                 if s.is_empty() {
@@ -152,30 +156,27 @@ impl Pipeline {
 
         let bootstrap: Option<Py<PyAny>> = {
             let raw_bs = raw_dict.get_item("bootstrap")?;
-            let rust_bs = match raw_bs {
-                None => gremlins::schemas::bootstrap::Bootstrap::default(),
+            match raw_bs {
+                None => None,
+                Some(v) if v.is_none() => None,
                 Some(v) => {
-                    if v.is_none() {
-                        gremlins::schemas::bootstrap::Bootstrap::default()
-                    } else {
-                        let bootstrap_dict: &Bound<'_, PyDict> = v.cast().map_err(|_| {
-                            pyo3::exceptions::PyValueError::new_err("'bootstrap' must be a mapping")
-                        })?;
-                        let mut mapping = serde_yaml::Mapping::new();
-                        for (k, v) in bootstrap_dict.iter() {
-                            let k_str: String = k.extract()?;
-                            mapping.insert(serde_yaml::Value::String(k_str), pyval_to_serde(&v)?);
-                        }
-                        gremlins::schemas::bootstrap::Bootstrap::from_yaml(Some(
-                            &serde_yaml::Value::Mapping(mapping),
-                        ))
-                        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?
+                    let bootstrap_dict: &Bound<'_, PyDict> = v.cast().map_err(|_| {
+                        pyo3::exceptions::PyValueError::new_err("'bootstrap' must be a mapping")
+                    })?;
+                    let mut mapping = serde_yaml::Mapping::new();
+                    for (k, v) in bootstrap_dict.iter() {
+                        let k_str: String = k.extract()?;
+                        mapping.insert(serde_yaml::Value::String(k_str), pyval_to_serde(&v)?);
                     }
+                    let rust_bs = gremlins::schemas::bootstrap::Bootstrap::from_yaml(Some(
+                        &serde_yaml::Value::Mapping(mapping),
+                    ))
+                    .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+                    let bs = Bootstrap { inner: rust_bs };
+                    let bs_obj = Py::new(py, bs)?;
+                    Some(bs_obj.into_any())
                 }
-            };
-            let bs = Bootstrap { inner: rust_bs };
-            let bs_obj = Py::new(py, bs)?;
-            Some(bs_obj.into_any())
+            }
         };
 
         let land_stage: Option<Py<PyAny>> = raw_dict
@@ -272,6 +273,13 @@ fn fill_stage_clients_inner(
     default: &Py<PyAny>,
 ) -> PyResult<()> {
     for stage in stages {
+        let stage_type: Option<String> = stage
+            .getattr(py, "type")
+            .ok()
+            .and_then(|v| v.extract(py).ok());
+        if stage_type.as_deref() == Some("parallel") {
+            continue;
+        }
         let client: Option<Py<PyAny>> = stage.getattr(py, "client")?.extract(py)?;
         if client.is_none() {
             stage.setattr(py, "client", default)?;
@@ -355,33 +363,6 @@ fn serde_yaml_to_py(py: Python<'_>, value: &serde_yaml::Value) -> PyResult<Py<Py
             Ok(dict.into())
         }
         serde_yaml::Value::Tagged(t) => serde_yaml_to_py(py, &t.value),
-    }
-}
-
-fn pyval_to_serde(obj: &Bound<'_, PyAny>) -> PyResult<serde_yaml::Value> {
-    if obj.is_none() {
-        Ok(serde_yaml::Value::Null)
-    } else if let Ok(s) = obj.extract::<String>() {
-        Ok(serde_yaml::Value::String(s))
-    } else if let Ok(b) = obj.extract::<bool>() {
-        Ok(serde_yaml::Value::Bool(b))
-    } else if let Ok(i) = obj.extract::<i64>() {
-        Ok(serde_yaml::Value::Number(serde_yaml::Number::from(i)))
-    } else if let Ok(d) = obj.cast::<PyDict>() {
-        let mut mapping = serde_yaml::Mapping::new();
-        for (k, v) in d.iter() {
-            let k_str: String = k.extract()?;
-            mapping.insert(serde_yaml::Value::String(k_str), pyval_to_serde(&v)?);
-        }
-        Ok(serde_yaml::Value::Mapping(mapping))
-    } else if let Ok(l) = obj.cast::<PyList>() {
-        let mut seq = Vec::new();
-        for item in l.iter() {
-            seq.push(pyval_to_serde(&item)?);
-        }
-        Ok(serde_yaml::Value::Sequence(seq))
-    } else {
-        Ok(serde_yaml::Value::String(obj.to_string()))
     }
 }
 
