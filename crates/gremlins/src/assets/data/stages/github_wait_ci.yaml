@@ -21,7 +21,7 @@ stages:
           artifact.status?: "file://session/status"
           artifact.done?: "file://session/done"
           artifact.bail: "file://session/bail"
-          artifact.ci_log: "file://session/exec-poll.log"
+          artifact.ci_log: "file://session/ci_failure.txt"
         options:
           poll_timeout: "1200"
           poll_interval: "30"
@@ -149,7 +149,7 @@ stages:
                   else
                       printf '(no action run URL; details: %s)\n' "$details_url"
                   fi
-              done
+              done > "{artifact_dir}/ci_failure.txt"
               exit 1
 
       - name: fix

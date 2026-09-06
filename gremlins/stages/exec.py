@@ -175,7 +175,7 @@ class Exec(Stage):
                 timeout=timeout,
             )
             elapsed = time.monotonic() - _t0
-            log_path = state.artifact_dir / f"exec-{self.name}.log"
+            log_path = gremlin.state_dir / f"exec-{self.name}.log"
             raw_output = result.stdout + result.stderr
             log_path.write_text(raw_output or "(no output)\n", encoding="utf-8")
             shell_output = raw_output.strip()

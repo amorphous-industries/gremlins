@@ -367,11 +367,14 @@ if str(TESTS_DIR) not in sys.path:
 @dataclasses.dataclass
 class MockGremlin:
     state: State | None = None
+    state_dir: pathlib.Path | None = None
     registry: Any = dataclasses.field(default=None)
 
     def __post_init__(self) -> None:
         if self.state is not None and self.registry is None:
             self.registry = self.state.artifacts
+        if self.state_dir is None and self.state is not None:
+            self.state_dir = self.state.artifact_dir.parent
 
 
 def _make_gremlin_wrapper(state: State) -> MockGremlin:
