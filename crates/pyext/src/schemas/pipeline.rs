@@ -29,8 +29,6 @@ impl Pipeline {
     fn from_yaml(
         _cls: &Bound<'_, PyType>,
         path: PathBuf,
-        bundled_stage_def_dir: PathBuf,
-        bundled_prompt_dir: PathBuf,
         resolve_pipeline_name_fn: Py<PyAny>,
     ) -> PyResult<Self> {
         let py = _cls.py();
@@ -49,8 +47,6 @@ impl Pipeline {
             py,
             path.clone(),
             None,
-            bundled_stage_def_dir,
-            bundled_prompt_dir,
             resolve_pipeline_name_fn.bind(py),
         )?;
 

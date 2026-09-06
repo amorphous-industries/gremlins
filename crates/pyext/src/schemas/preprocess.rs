@@ -44,8 +44,6 @@ pub fn expand_pipeline(
     py: Python<'_>,
     yaml_path: PathBuf,
     project_root: Option<PathBuf>,
-    bundled_stage_def_dir: PathBuf,
-    bundled_prompt_dir: PathBuf,
     resolve_pipeline_name_fn: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyAny>> {
     let resolver = PyResolver {
@@ -54,8 +52,6 @@ pub fn expand_pipeline(
     let result = expand::expand_pipeline(
         &yaml_path,
         project_root.as_ref(),
-        &bundled_stage_def_dir,
-        &bundled_prompt_dir,
         &resolver,
     )
     .map_err(into_pyerr)?;

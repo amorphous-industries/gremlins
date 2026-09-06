@@ -58,8 +58,6 @@ class Pipeline:
 
         import gremlins._clients_init  # noqa: F401  # pyright: ignore[reportUnusedImport] — registers built-in providers
         from gremlins.pipelines import BUNDLED_PIPELINE_DIR
-        from gremlins.prompts import BUNDLED_PROMPT_DIR
-        from gremlins.recipes import BUNDLED_STAGE_DEF_DIR
 
         path = path.resolve()
         if not path.exists():
@@ -71,8 +69,6 @@ class Pipeline:
         raw = _expand_pipeline(
             str(path),
             None,
-            str(BUNDLED_STAGE_DEF_DIR),
-            str(BUNDLED_PROMPT_DIR),
             _resolve,
         )
         pipeline_name = path.stem

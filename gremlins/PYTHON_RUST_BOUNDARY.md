@@ -76,13 +76,14 @@ from `_gremlins_core.schemas`.
 
 ## Traps for the unwary
 
-### The `expand_pipeline` bundling trap
+### The `expand_pipeline` bundling trap (fixed)
 
 The Rust `expand_pipeline` in `crates/pyext/src/schemas/preprocess.rs`
-takes `yaml_path`, optional `project_root`, `bundled_stage_def_dir`,
-`bundled_prompt_dir`, and a resolver callback. The Python call sites pass
-the resolved YAML path, `BUNDLED_PROMPT_DIR`, `BUNDLED_STAGE_DEF_DIR`,
-and a resolver callback to the Rust function.
+used to take `yaml_path`, optional `project_root`, `bundled_stage_def_dir`,
+`bundled_prompt_dir`, and a resolver callback. The dir params have been
+removed — prompts and recipes are now embedded at compile time in
+`_gremlins_core.assets`. The Python call sites pass only `yaml_path`,
+optional `project_root`, and a resolver callback.
 
 ### The discovery name resolution trap
 
@@ -104,4 +105,8 @@ The Python `gremlins/pipeline/discovery.py` has been deleted.
 | `crates/gremlins/src/core/discovery/mod.rs` | Rust discovery implementation — **active** |
 | `crates/pyext/src/schemas/loader.rs` | Rust `parse_stage`, `parse_stages`, `fill_names`, `check_duplicate_producers` — **active** (replaces deleted `gremlins/pipeline/loader.py`) |
 | `crates/pyext/src/schemas/preprocess.rs` | Rust `expand_pipeline` — **active** |
+| `crates/gremlins/src/schemas/expand.rs` | Rust `expand_pipeline` implementation — **active** |
+| `gremlins/pipeline/preprocess.py` | ~~Pure Python `expand_pipeline` — **active**~~ **deleted** — all expansion is Rust; prompts/recipes embedded at compile time in `_gremlins_core.assets` |
+| `crates/pyext/src/python/assets.rs` | `_gremlins_core.assets.load_bundled_prompt`, `list_bundled_prompts` — **active** |
+| `crates/gremlins/src/assets/mod.rs` | Compile-time `phf::Map`s for prompts, recipes, pipelines — **active** |
 | `crates/pyext/src/lib.rs` | `#[pymodule]` — registers all `_gremlins_core.*` submodules |

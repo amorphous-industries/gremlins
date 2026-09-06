@@ -12,8 +12,6 @@ from _gremlins_core.schemas import expand_pipeline as _expand_pipeline
 
 from gremlins.pipeline import Pipeline
 from gremlins.pipelines import BUNDLED_PIPELINE_DIR
-from gremlins.prompts import BUNDLED_PROMPT_DIR
-from gremlins.recipes import BUNDLED_STAGE_DEF_DIR
 
 
 def _resolve(n, pr):
@@ -35,8 +33,6 @@ def _make_pipeline(tmp_path: pathlib.Path, verify_entry: str) -> dict[str, Any]:
     return _expand_pipeline(
         str(p),
         None,
-        str(BUNDLED_STAGE_DEF_DIR),
-        str(BUNDLED_PROMPT_DIR),
         _resolve,
     )
 

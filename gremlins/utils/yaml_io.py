@@ -4,8 +4,7 @@ import pathlib
 from typing import Any, cast
 
 import yaml
-
-from gremlins.prompts import BUNDLED_PROMPT_DIR
+from _gremlins_core.assets import load_bundled_prompt as _load_bundled_prompt
 
 
 class YamlLoadError(Exception):
@@ -27,16 +26,10 @@ def load_yaml_file(path: pathlib.Path) -> dict[str, Any]:
 
 
 def load_bundled_prompt(name: str) -> str:
-    path = BUNDLED_PROMPT_DIR / name
     try:
-        text = path.read_text(encoding="utf-8")
+        return _load_bundled_prompt(name)
     except FileNotFoundError:
         raise PromptLoadError(f"bundled prompt not found: {name}") from None
-    except (OSError, UnicodeDecodeError) as exc:
-        raise PromptLoadError(f"could not read bundled prompt {name}: {exc}") from exc
-    if not text.strip():
-        raise PromptLoadError(f"bundled prompt is empty: {name}")
-    return text
 
 
 def render_bundled_prompt(name: str, **kwargs: Any) -> str:

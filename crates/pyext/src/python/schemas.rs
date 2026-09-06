@@ -35,16 +35,12 @@ fn expand_pipeline(
     py: Python<'_>,
     yaml_path: PathBuf,
     project_root: Option<PathBuf>,
-    bundled_stage_def_dir: PathBuf,
-    bundled_prompt_dir: PathBuf,
     resolve_pipeline_name_fn: Py<PyAny>,
 ) -> PyResult<Py<PyAny>> {
     schemas::preprocess::expand_pipeline(
         py,
         yaml_path,
         project_root,
-        bundled_stage_def_dir,
-        bundled_prompt_dir,
         resolve_pipeline_name_fn.bind(py),
     )
 }

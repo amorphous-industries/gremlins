@@ -277,8 +277,6 @@ def _append_graft(
     from _gremlins_core.schemas import fill_names
 
     from gremlins.pipelines import BUNDLED_PIPELINE_DIR
-    from gremlins.prompts import BUNDLED_PROMPT_DIR
-    from gremlins.recipes import BUNDLED_STAGE_DEF_DIR
     from gremlins.utils.yaml_io import dump_yaml_text, load_yaml_file
 
     hermetic = state_dir / "pipeline.yaml"
@@ -295,8 +293,6 @@ def _append_graft(
     expanded = _expand_pipeline(
         str(graft_path),
         str(project_root),
-        str(BUNDLED_STAGE_DEF_DIR),
-        str(BUNDLED_PROMPT_DIR),
         _resolve,
     )
     graft_stages = list(expanded.get("stages") or [])
@@ -385,8 +381,6 @@ def _persist_expanded_pipeline(state_dir: pathlib.Path, pipeline_path: str) -> s
 
     from gremlins.cli.pipeline_args import load_prefix_clients
     from gremlins.pipelines import BUNDLED_PIPELINE_DIR
-    from gremlins.prompts import BUNDLED_PROMPT_DIR
-    from gremlins.recipes import BUNDLED_STAGE_DEF_DIR
     from gremlins.utils.yaml_io import dump_yaml_text
 
     def _resolve(n, pr):
@@ -395,8 +389,6 @@ def _persist_expanded_pipeline(state_dir: pathlib.Path, pipeline_path: str) -> s
     expanded = _expand_pipeline(
         str(pipeline_path),
         None,
-        str(BUNDLED_STAGE_DEF_DIR),
-        str(BUNDLED_PROMPT_DIR),
         _resolve,
     )
 

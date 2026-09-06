@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::LazyLock;
 
+use crate::assets;
 use crate::schemas::error::SchemaError;
 use crate::schemas::prompts;
 
@@ -36,46 +37,20 @@ pub fn load_yaml_file(path: &PathBuf) -> Result<serde_yaml::Value, SchemaError> 
 
 pub fn load_bundled_recipe(
     raw_name: &str,
-    bundled_stage_def_dir: &PathBuf,
 ) -> Result<serde_yaml::Value, SchemaError> {
     let name = raw_name.replace('-', "_");
-    let recipe_path = bundled_stage_def_dir.join(format!("{}.yaml", name));
-    let bundled_dir = bundled_stage_def_dir
-        .canonicalize()
-        .unwrap_or_else(|_| bundled_stage_def_dir.clone());
-
-    // Reject path traversal even when the file doesn't exist
-    if recipe_path
-        .components()
-        .any(|c| c == std::path::Component::ParentDir)
-    {
-        return Err(SchemaError::Generic(format!(
-            "invalid bundled recipe name: {raw_name:?}"
-        )));
-    }
-
-    let recipe_path = recipe_path.canonicalize().unwrap_or(recipe_path);
-    if !recipe_path.starts_with(&bundled_dir) {
-        return Err(SchemaError::Generic(format!(
-            "invalid bundled recipe name: {raw_name:?}"
-        )));
-    }
-    if !recipe_path.exists() {
-        let mut available = Vec::new();
-        if let Ok(entries) = std::fs::read_dir(bundled_stage_def_dir) {
-            for entry in entries.flatten() {
-                if let Some(stem) = entry.path().file_stem().and_then(|s| s.to_str()) {
-                    available.push(stem.to_string());
-                }
-            }
-        }
+    let yaml_str = assets::RECIPES.get(&name).ok_or_else(|| {
+        let mut available: Vec<_> = assets::RECIPES.keys().map(|k| *k).collect();
         available.sort();
-        return Err(SchemaError::BundledRecipeNotFound {
+        SchemaError::BundledRecipeNotFound {
             name: format!("{GREMLINS_PREFIX}{raw_name}"),
             available: available.join(", "),
-        });
-    }
-    load_yaml_file(&recipe_path)
+        }
+    })?;
+    serde_yaml::from_str(yaml_str).map_err(|e| SchemaError::YamlParse {
+        label: format!("gremlins:{raw_name}"),
+        msg: e.to_string(),
+    })
 }
 
 pub fn resolve_prompt_dir(
@@ -104,7 +79,6 @@ pub fn resolve_prompt_dir(
 
 pub fn parse_stage_definitions(
     raw: Option<&serde_yaml::Value>,
-    bundled_stage_def_dir: &PathBuf,
 ) -> Result<HashMap<String, serde_yaml::Value>, SchemaError> {
     let mut defs: HashMap<String, serde_yaml::Value> = HashMap::new();
     match raw {
@@ -124,7 +98,7 @@ pub fn parse_stage_definitions(
                                 msg: format!("missing name after {GREMLINS_PREFIX:?}"),
                             });
                         }
-                        match load_bundled_recipe(recipe_name, bundled_stage_def_dir) {
+                        match load_bundled_recipe(recipe_name) {
                             Ok(recipe) => {
                                 defs.insert(name, recipe);
                             }
@@ -297,8 +271,6 @@ pub fn parse_default(raw: &str) -> serde_yaml::Value {
 pub fn expand_pipeline(
     yaml_path: &PathBuf,
     project_root: Option<&PathBuf>,
-    bundled_stage_def_dir: &PathBuf,
-    bundled_prompt_dir: &PathBuf,
     resolver: &dyn PipelineResolver,
 ) -> Result<serde_yaml::Value, SchemaError> {
     let project_root = project_root.cloned().unwrap_or_else(|| {
@@ -318,8 +290,6 @@ pub fn expand_pipeline(
         yaml_path,
         &project_root,
         &chain,
-        bundled_stage_def_dir,
-        bundled_prompt_dir,
         resolver,
     )
 }
@@ -329,8 +299,6 @@ fn _expand(
     yaml_path: &PathBuf,
     project_root: &PathBuf,
     chain: &[PathBuf],
-    bundled_stage_def_dir: &PathBuf,
-    bundled_prompt_dir: &PathBuf,
     resolver: &dyn PipelineResolver,
 ) -> Result<serde_yaml::Value, SchemaError> {
     let resolved = yaml_path
@@ -368,10 +336,10 @@ fn _expand(
         .collect();
 
     let named_prompts =
-        prompts::parse_named_prompts(raw_mapping.get("prompts"), &prompt_dir, bundled_prompt_dir)?;
+        prompts::parse_named_prompts(raw_mapping.get("prompts"), &prompt_dir)?;
 
     let stage_defs =
-        parse_stage_definitions(raw_mapping.get("stage-definitions"), bundled_stage_def_dir)?;
+        parse_stage_definitions(raw_mapping.get("stage-definitions"))?;
 
     let stages_raw = raw_mapping.get("stages");
     let stages_list: Vec<serde_yaml::Value> = match stages_raw {
@@ -392,8 +360,6 @@ fn _expand(
             &named_prompts,
             &stage_defs,
             &HashSet::new(),
-            bundled_stage_def_dir,
-            bundled_prompt_dir,
             resolver,
         )?;
         expanded_stages.extend(expanded);
@@ -428,8 +394,6 @@ fn _expand_entry(
     named_prompts: &HashMap<String, Vec<String>>,
     stage_defs: &HashMap<String, serde_yaml::Value>,
     seen_defs: &HashSet<String>,
-    bundled_stage_def_dir: &PathBuf,
-    bundled_prompt_dir: &PathBuf,
     resolver: &dyn PipelineResolver,
 ) -> Result<Vec<serde_yaml::Value>, SchemaError> {
     let mapping = match entry.as_mapping() {
@@ -453,8 +417,6 @@ fn _expand_entry(
             &included_path,
             project_root,
             chain,
-            bundled_stage_def_dir,
-            bundled_prompt_dir,
             resolver,
         )?;
         let stages = match included.get("stages") {
@@ -476,8 +438,6 @@ fn _expand_entry(
                 chain,
                 named_prompts,
                 seen_defs,
-                bundled_stage_def_dir,
-                bundled_prompt_dir,
                 resolver,
             );
         }
@@ -487,7 +447,7 @@ fn _expand_entry(
                     "missing name after {GREMLINS_PREFIX:?}"
                 )));
             }
-            let recipe_def = load_bundled_recipe(recipe_name, bundled_stage_def_dir)?;
+            let recipe_def = load_bundled_recipe(recipe_name)?;
             let mut direct_defs = stage_defs.clone();
             direct_defs.insert(stage_type.to_string(), recipe_def);
             return _expand_stage_def(
@@ -499,16 +459,12 @@ fn _expand_entry(
                 chain,
                 named_prompts,
                 seen_defs,
-                bundled_stage_def_dir,
-                bundled_prompt_dir,
                 resolver,
             );
         }
         // Auto-resolve bundled stage-definitions by type name
-        let recipe_path =
-            bundled_stage_def_dir.join(format!("{}.yaml", stage_type.replace('-', "_")));
-        if recipe_path.exists() {
-            let auto_def = load_yaml_file(&recipe_path)?;
+        if assets::RECIPES.contains_key(&stage_type.replace('-', "_")) {
+            let auto_def = load_bundled_recipe(stage_type)?;
             let mut auto_defs = stage_defs.clone();
             auto_defs.insert(stage_type.to_string(), auto_def);
             return _expand_stage_def(
@@ -520,8 +476,6 @@ fn _expand_entry(
                 chain,
                 named_prompts,
                 seen_defs,
-                bundled_stage_def_dir,
-                bundled_prompt_dir,
                 resolver,
             );
         }
@@ -534,8 +488,6 @@ fn _expand_entry(
                         &included_path,
                         project_root,
                         chain,
-                        bundled_stage_def_dir,
-                        bundled_prompt_dir,
                         resolver,
                     )?;
                     let stages = match included.get("stages") {
@@ -558,7 +510,7 @@ fn _expand_entry(
     if entry_map.contains_key("prompt") {
         let prompt_val = entry_map.get("prompt").unwrap().clone();
         let texts =
-            prompts::read_prompts(&prompt_val, prompt_dir, named_prompts, bundled_prompt_dir)?;
+            prompts::read_prompts(&prompt_val, prompt_dir, named_prompts)?;
         entry_map.insert(
             serde_yaml::Value::String("prompt".to_string()),
             serde_yaml::Value::Sequence(texts.into_iter().map(serde_yaml::Value::String).collect()),
@@ -584,8 +536,6 @@ fn _expand_entry(
                     named_prompts,
                     stage_defs,
                     seen_defs,
-                    bundled_stage_def_dir,
-                    bundled_prompt_dir,
                     resolver,
                 )?;
 
@@ -634,8 +584,6 @@ fn _expand_entry(
                     named_prompts,
                     stage_defs,
                     seen_defs,
-                    bundled_stage_def_dir,
-                    bundled_prompt_dir,
                     resolver,
                 )?;
                 expanded_body.extend(expanded);
@@ -660,8 +608,6 @@ fn _expand_stage_def(
     chain: &[PathBuf],
     named_prompts: &HashMap<String, Vec<String>>,
     seen_defs: &HashSet<String>,
-    bundled_stage_def_dir: &PathBuf,
-    bundled_prompt_dir: &PathBuf,
     resolver: &dyn PipelineResolver,
 ) -> Result<Vec<serde_yaml::Value>, SchemaError> {
     if seen_defs.contains(def_name) {
@@ -744,7 +690,6 @@ fn _expand_stage_def(
                 call_site_map.get("prompt").unwrap(),
                 prompt_dir,
                 named_prompts,
-                bundled_prompt_dir,
             )?
         } else {
             Vec::new()
@@ -862,8 +807,6 @@ fn _expand_stage_def(
                 named_prompts,
                 stage_defs,
                 &new_seen,
-                bundled_stage_def_dir,
-                bundled_prompt_dir,
                 resolver,
             )?;
             result.extend(expanded);
@@ -904,8 +847,6 @@ fn _expand_stage_def(
         named_prompts,
         stage_defs,
         &new_seen,
-        bundled_stage_def_dir,
-        bundled_prompt_dir,
         resolver,
     )
 }
