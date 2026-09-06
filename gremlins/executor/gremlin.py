@@ -136,7 +136,13 @@ def _expand_stage_entries(raw_stages: Sequence[StageProtocol]) -> list[StageProt
                     raise ValueError(f"duplicate child stage name {child.name!r}")
                 child_names.add(child.name)
         if entry.name in seen:
-            raise ValueError(f"pipeline has duplicate stage name {entry.name!r}")
+            # Auto-rename duplicate as fill_names does in the Rust layer
+            n = 2
+            new_name = f"{entry.name}-{n}"
+            while new_name in seen:
+                n += 1
+                new_name = f"{entry.name}-{n}"
+            entry.name = new_name
         seen.add(entry.name)
         result.append(entry)
 

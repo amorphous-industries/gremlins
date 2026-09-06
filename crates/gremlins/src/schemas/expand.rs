@@ -76,8 +76,19 @@ pub fn resolve_prompt_dir(
     }
 }
 
+pub fn project_stage_def_dir(project_root: &Path) -> PathBuf {
+    project_root.join(".gremlins").join("stages")
+}
+
+pub fn stage_definition_dirs_with_project(project_root: &Path) -> Vec<PathBuf> {
+    let mut dirs = vec![project_stage_def_dir(project_root)];
+    dirs.extend(crate::config::stage_definition_dirs());
+    dirs
+}
+
 pub fn parse_stage_definitions(
     raw: Option<&serde_yaml::Value>,
+    project_root: Option<&PathBuf>,
 ) -> Result<HashMap<String, serde_yaml::Value>, SchemaError> {
     let mut defs: HashMap<String, serde_yaml::Value> = HashMap::new();
     match raw {
@@ -114,7 +125,14 @@ pub fn parse_stage_definitions(
                     } else {
                         // Try loading from stage-definition directories.
                         let mut found = false;
-                        for d in crate::config::stage_definition_dirs() {
+                        let search_dirs: Vec<PathBuf> = if let Some(pr) = project_root {
+                            let mut dirs = vec![project_stage_def_dir(pr)];
+                            dirs.extend(crate::config::stage_definition_dirs());
+                            dirs
+                        } else {
+                            crate::config::stage_definition_dirs()
+                        };
+                        for d in &search_dirs {
                             let candidate = d.join(format!("{}.yaml", s));
                             if candidate.exists() {
                                 match load_yaml_file(&candidate) {
@@ -363,7 +381,8 @@ fn _expand(
 
     let named_prompts = prompts::parse_named_prompts(raw_mapping.get("prompts"), &prompt_dir)?;
 
-    let stage_defs = parse_stage_definitions(raw_mapping.get("stage-definitions"))?;
+    let stage_defs =
+        parse_stage_definitions(raw_mapping.get("stage-definitions"), Some(project_root))?;
 
     let stages_raw = raw_mapping.get("stages");
     let stages_list: Vec<serde_yaml::Value> = match stages_raw {
@@ -484,7 +503,7 @@ fn _expand_entry(
                 }
                 Err(SchemaError::BundledRecipeNotFound { .. }) => {
                     // Not a bundled recipe — try stage definition directories.
-                    for d in crate::config::stage_definition_dirs() {
+                    for d in stage_definition_dirs_with_project(project_root) {
                         let candidate = d.join(format!("{}.yaml", recipe_name));
                         if candidate.exists() {
                             match load_yaml_file(&candidate) {
@@ -557,7 +576,32 @@ fn _expand_entry(
                 }
             }
             Err(SchemaError::PipelineNotFound { .. }) => {
-                // Not a pipeline — fall through to loader validation
+                // Not a pipeline — try stage definition directories
+                // (same as the gremlins: prefixed fallback above)
+                for d in stage_definition_dirs_with_project(project_root) {
+                    let candidate = d.join(format!("{}.yaml", stage_type));
+                    if candidate.exists() {
+                        match load_yaml_file(&candidate) {
+                            Ok(recipe) => {
+                                let mut direct_defs = stage_defs.clone();
+                                direct_defs.insert(stage_type.to_string(), recipe);
+                                return _expand_stage_def(
+                                    entry,
+                                    stage_type,
+                                    &direct_defs,
+                                    prompt_dir,
+                                    project_root,
+                                    chain,
+                                    named_prompts,
+                                    seen_defs,
+                                    resolver,
+                                );
+                            }
+                            Err(e) => return Err(e),
+                        }
+                    }
+                }
+                // Not found anywhere — fall through to loader validation
             }
             Err(e) => return Err(e),
         }

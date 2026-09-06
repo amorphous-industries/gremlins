@@ -20,16 +20,38 @@ pub struct StageNode {
 }
 
 pub fn fill_names(stages: &mut [StageEntry]) -> Result<(), SchemaError> {
-    let explicit: Vec<String> = stages
-        .iter()
-        .filter_map(|s| s.name.as_ref().filter(|n| !n.is_empty()).cloned())
-        .collect();
-    let mut used: HashSet<String> = explicit.iter().cloned().collect();
+    let mut used: HashSet<String> = HashSet::new();
+    let mut name_counts: HashMap<String, usize> = HashMap::new();
+    for stage in stages.iter() {
+        if let Some(ref name) = stage.name {
+            if !name.is_empty() {
+                let count = name_counts.entry(name.clone()).or_insert(0);
+                *count += 1;
+            }
+        }
+    }
+
     let mut counts: HashMap<String, usize> = HashMap::new();
 
     for stage in stages.iter_mut() {
         if let Some(ref name) = stage.name {
             if !name.is_empty() {
+                // If this explicit name is a duplicate, rename subsequent occurrences
+                let count = name_counts.get(name.as_str()).copied().unwrap_or(0);
+                if count > 1 && used.contains(name.as_str()) {
+                    // This is a duplicate — append -N suffix
+                    let base = name.clone();
+                    let mut n = 2;
+                    let mut candidate = format!("{base}-{n}");
+                    while used.contains(&candidate) {
+                        n += 1;
+                        candidate = format!("{base}-{n}");
+                    }
+                    stage.name = Some(candidate.clone());
+                    used.insert(candidate);
+                } else {
+                    used.insert(name.clone());
+                }
                 stage.auto_name = None;
                 continue;
             }
