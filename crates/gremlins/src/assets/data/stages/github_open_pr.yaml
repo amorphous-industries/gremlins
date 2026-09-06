@@ -1,0 +1,71 @@
+stages:
+  - name: resolve-pr-base
+    type: exec
+    interpolation:
+      prev_branch: artifact.pr-branch?
+    bind:
+      artifact.base_ref_to_open_pr: "file://session/pr-base-ref.txt"
+    options:
+      cmds:
+        - 'printf "%s" "${prev_branch:-{base_ref}}" > "{artifact_dir}/pr-base-ref.txt"'
+
+  - name: diff-summary
+    type: exec
+    interpolation:
+      base_ref_to_open_pr: artifact.base_ref_to_open_pr
+    bind:
+      artifact.diff_summary: "file://session/diff-summary.txt"
+    options:
+      cmds:
+        - |
+          {
+            if git merge-base --is-ancestor "{base_ref_to_open_pr}" HEAD 2>/dev/null; then
+              RANGE="{base_ref_to_open_pr}..HEAD"
+            elif git rev-parse --verify HEAD~10 >/dev/null 2>&1; then
+              RANGE="HEAD~10..HEAD"
+            else
+              ROOT=$(git rev-list --max-parents=0 HEAD)
+              RANGE="${ROOT}..HEAD"
+            fi
+            echo "Commits:"
+            git log --oneline "$RANGE" 2>/dev/null || echo "(no commits)"
+            echo ""
+            echo "Files changed:"
+            git diff --stat "$RANGE" 2>/dev/null || echo "(no diff)"
+          } > "{artifact_dir}/diff-summary.txt"
+
+  - name: compose-pr
+    type: agent
+    interpolation:
+      base_ref_to_open_pr: artifact.base_ref_to_open_pr
+      plan_source_issue_number: artifact.plan-source-issue-number?
+      plan: artifact.plan?
+      diff_summary: artifact.diff_summary
+    prompt:
+      - gremlins:github_open_pull_request.md
+    bind:
+      artifact.pr_title:  "file://session/pr-title.txt"
+      artifact.pr_body:   "file://session/pr-body.md"
+      artifact.pr_branch: "file://session/pr-branch.txt"
+
+  - name: push-and-open
+    type: exec
+    interpolation:
+      base_ref_to_open_pr: artifact.base_ref_to_open_pr
+      pr_branch: artifact.pr_branch
+      pr_title: artifact.pr_title
+    bind:
+      artifact.pr-number: "file://session/pr-number.txt"
+      artifact.pr-url:    "file://session/pr-url.txt"
+      artifact.pr-branch: "file://session/pr-branch.txt"
+      artifact.pr: "gh://pr/{read:pr-number}"
+    options:
+      cmds:
+        - |
+          SUFFIX=$([ "{loop_iteration}" -gt 1 ] && echo "-iter{loop_iteration}" || echo "") &&
+          BRANCH="$(printf '%s' "${pr_branch}")${SUFFIX}" &&
+          git push origin "HEAD:refs/heads/$BRANCH" &&
+          URL="$(gh pr create --head "$BRANCH" --base "$base_ref_to_open_pr" --title "$(printf '%s' "$pr_title")" --body-file "{artifact:pr_body}")" &&
+          printf "%s" "${URL##*/}" > "{artifact_dir}/pr-number.txt" &&
+          printf "%s" "$URL" > "{artifact_dir}/pr-url.txt" &&
+          printf "%s" "$BRANCH" > "{artifact_dir}/pr-branch.txt"
