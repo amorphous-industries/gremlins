@@ -38,7 +38,7 @@ def make_gremlin(
     else:
         temp_root = artifact_dir.parent
 
-    from gremlins.pipeline import Pipeline as PipelineData
+    from _gremlins_core.schemas import Pipeline as PipelineData
 
     if client is None:
         client = FakeClient(fixtures={}, model="fake")

@@ -11,7 +11,7 @@ import pytest
 from conftest import MockGremlin
 
 from gremlins.executor.state import StateData, build_state
-from gremlins.pipeline import Pipeline
+from _gremlins_core.schemas import Pipeline
 from gremlins.stages.outcome import Bail
 from tests.fake_client import FakeClient
 

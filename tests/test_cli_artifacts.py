@@ -7,7 +7,7 @@ import pytest
 
 import gremlins.cli as cli
 import gremlins.cli.artifacts as mod
-from gremlins.pipeline import Pipeline
+from _gremlins_core.schemas import Pipeline
 from gremlins.utils.yaml_io import YamlLoadError
 
 

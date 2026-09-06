@@ -11,7 +11,7 @@ from conftest import ReviewCreatingClient as _ReviewCreatingClient
 from conftest import common_local_patches as _common_patches
 
 from gremlins.executor.run import run_pipeline
-from gremlins.pipeline import Pipeline
+from _gremlins_core.schemas import Pipeline
 from tests.fake_client import FakeClient
 
 
@@ -383,7 +383,7 @@ def test_local_main_pipeline_default_client_model(tmp_path, monkeypatch):
     _common_patches(monkeypatch)
     # Override Pipeline.from_yaml to inject default_client: openai:gpt-4o and
     # re-fill stage clients so every stage inherits that model.
-    from gremlins.pipeline import _fill_stage_clients
+    from _gremlins_core.schemas import fill_stage_clients
 
     _real_from_yaml = Pipeline.from_yaml
 
@@ -397,11 +397,12 @@ def test_local_main_pipeline_default_client_model(tmp_path, monkeypatch):
         new_default = Client("openai", "gpt-4o")
         for s in pipeline.stages:
             _strip_clients(s)
-        _fill_stage_clients(pipeline.stages, new_default)
-        return dataclasses.replace(pipeline, default_client=new_default)
+        fill_stage_clients(pipeline.stages, new_default)
+        pipeline.default_client = new_default
+        return pipeline
 
     monkeypatch.setattr(
-        "gremlins.pipeline.Pipeline.from_yaml", _from_yaml_copilot_default
+        "_gremlins_core.schemas.Pipeline.from_yaml", _from_yaml_copilot_default
     )
 
     client = _ReviewCreatingClient(

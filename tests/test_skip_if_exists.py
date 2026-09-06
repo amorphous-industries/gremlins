@@ -11,7 +11,7 @@ from conftest import MockGremlin
 
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.executor.state import State, StateData, build_state
-from gremlins.pipeline import Pipeline
+from _gremlins_core.schemas import Pipeline
 from gremlins.stages.agent import Agent
 from gremlins.stages.base import Stage
 from gremlins.stages.outcome import Done, Outcome

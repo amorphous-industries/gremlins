@@ -5,6 +5,7 @@ use std::sync::LazyLock;
 use crate::assets;
 use crate::schemas::error::SchemaError;
 use crate::schemas::prompts;
+use crate::schemas::resolve::BuiltinResolver;
 
 pub const GREMLINS_PREFIX: &str = "gremlins:";
 
@@ -265,6 +266,18 @@ pub fn parse_default(raw: &str) -> serde_yaml::Value {
     serde_yaml::Value::String(s.to_string())
 }
 
+/// Parse a pipeline YAML file from disk, expanding includes, stage-definitions,
+/// and prompts. Returns the fully expanded YAML tree.
+pub fn parse_pipeline_file(
+    yaml_path: &PathBuf,
+    project_root: &PathBuf,
+) -> Result<serde_yaml::Value, SchemaError> {
+    let resolver = BuiltinResolver {
+        project_root: project_root.clone(),
+    };
+    expand_pipeline(yaml_path, Some(project_root), &resolver)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn expand_pipeline(
     yaml_path: &PathBuf,
@@ -479,7 +492,7 @@ fn _expand_entry(
                     return Ok(stages);
                 }
             }
-            Err(SchemaError::PipelineNotFound(_)) => {
+            Err(SchemaError::PipelineNotFound { .. }) => {
                 // Not a pipeline — fall through to loader validation
             }
             Err(e) => return Err(e),

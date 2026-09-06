@@ -15,7 +15,7 @@ from conftest import MockGremlin, make_parent_state
 
 from gremlins.executor.gremlin import run_stages
 from gremlins.executor.state import State, StateData, build_state
-from gremlins.pipeline import Pipeline
+from _gremlins_core.schemas import Pipeline
 from gremlins.stages.parallel import ParallelStage
 from tests.fake_client import FakeClient
 

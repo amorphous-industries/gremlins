@@ -19,7 +19,7 @@ from conftest import MINIMAL_EVENTS
 
 from gremlins.executor.run import _parse_args as _parse_gh_args
 from gremlins.executor.run import run_pipeline
-from gremlins.pipeline import Pipeline
+from _gremlins_core.schemas import Pipeline
 from tests.fake_client import FakeClient
 
 
@@ -1539,7 +1539,7 @@ def test_gh_main_pipeline_default_client_model(tmp_path, monkeypatch):
     # re-fill stage clients so every stage inherits that model.
     from _gremlins_core.clients import RustClient as Client
 
-    from gremlins.pipeline import _fill_stage_clients
+    from _gremlins_core.schemas import fill_stage_clients
 
     _real_from_yaml = Pipeline.from_yaml
 
@@ -1553,11 +1553,12 @@ def test_gh_main_pipeline_default_client_model(tmp_path, monkeypatch):
         new_default = Client("openai", "gpt-4o")
         for s in pipeline.stages:
             _strip_clients_2(s)
-        _fill_stage_clients(pipeline.stages, new_default)
-        return dataclasses.replace(pipeline, default_client=new_default)
+        fill_stage_clients(pipeline.stages, new_default)
+        pipeline.default_client = new_default
+        return pipeline
 
     monkeypatch.setattr(
-        "gremlins.pipeline.Pipeline.from_yaml", _from_yaml_copilot_default
+        "_gremlins_core.schemas.Pipeline.from_yaml", _from_yaml_copilot_default
     )
 
     monkeypatch.setattr(

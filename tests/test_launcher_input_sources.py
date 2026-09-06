@@ -4,7 +4,7 @@ import pathlib
 
 import pytest
 
-from gremlins.pipeline.bootstrap import (
+from _gremlins_core.schemas import (
     InputSource,
     InputSources,
     validate_source_values,

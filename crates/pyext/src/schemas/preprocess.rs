@@ -19,7 +19,10 @@ impl PipelineResolver for PyResolver<'_> {
                 if e.is_instance_of::<pyo3::exceptions::PyFileNotFoundError>(
                     self.resolve_pipeline_name_fn.py(),
                 ) {
-                    SchemaError::PipelineNotFound(e.to_string())
+                    SchemaError::PipelineNotFound {
+                    name: name.to_string(),
+                    available: String::new(),
+                }
                 } else {
                     SchemaError::Generic(e.to_string())
                 }

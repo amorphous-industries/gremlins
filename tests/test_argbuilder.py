@@ -7,8 +7,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from gremlins.cli.launch import build_launch_parser
-from gremlins.pipeline import Pipeline
-from gremlins.pipeline.bootstrap import Bootstrap, InputSource, InputSources
+from _gremlins_core.schemas import Pipeline
+from _gremlins_core.schemas import Bootstrap, InputSource, InputSources
 
 
 def _pipeline_with_source(

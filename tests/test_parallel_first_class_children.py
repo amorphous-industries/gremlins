@@ -169,7 +169,7 @@ def test_parallel_child_artifact_dir_is_full_copy(sandbox) -> None:
     import subprocess
 
     from gremlins.executor.gremlin import Gremlin
-    from gremlins.pipeline import Pipeline
+    from _gremlins_core.schemas import Pipeline
 
     # Create a temporary git repo
     tmp_repo = sandbox.root / "repo"
@@ -292,7 +292,7 @@ def test_fork_uses_parent_not_child_state_as_source(sandbox) -> None:
     import subprocess
 
     from gremlins.executor.gremlin import Gremlin
-    from gremlins.pipeline import Pipeline
+    from _gremlins_core.schemas import Pipeline
     from gremlins.stages.base import Stage
     from gremlins.stages.composite import child_state
 

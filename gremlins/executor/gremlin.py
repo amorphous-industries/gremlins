@@ -25,7 +25,7 @@ from gremlins.executor.state import (
     read_state_json,
     write_state,
 )
-from gremlins.pipeline import Pipeline as _PipelineData
+from _gremlins_core.schemas import Pipeline as _PipelineData
 from gremlins.protocols import StageProtocol
 from gremlins.stages.base import Stage
 from gremlins.utils import git as _git_mod

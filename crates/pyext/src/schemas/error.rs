@@ -6,7 +6,7 @@ pub fn into_pyerr(e: SchemaError) -> pyo3::PyErr {
     match &e {
         SchemaError::PipelineFileNotFound { .. }
         | SchemaError::PromptFileNotFound { .. }
-        | SchemaError::PipelineNotFound(_)
+        | SchemaError::PipelineNotFound { .. }
         | SchemaError::BundledRecipeNotFound { .. } => PyFileNotFoundError::new_err(e.to_string()),
         SchemaError::IncludeCycle(_)
         | SchemaError::PromptFileEmpty { .. }

@@ -923,7 +923,7 @@ def _load_pipeline_land_stage(state: dict[str, Any]):
     """Load and return the pipeline's land: exec stage, or None if not present."""
     from _gremlins_core.discovery import resolve_pipeline_path
 
-    from gremlins.pipeline import Pipeline
+    from _gremlins_core.schemas import Pipeline
 
     pipeline_path = str(state.get("pipeline_path") or "")
     _pr = str(state.get("project_root") or "")
@@ -1021,7 +1021,7 @@ def do_land(
     if pipeline_path and project_root:
         from _gremlins_core.discovery import resolve_pipeline_path
 
-        from gremlins.pipeline.bootstrap import Bootstrap
+        from _gremlins_core.schemas import Bootstrap
         from gremlins.utils.yaml_io import YamlLoadError, load_yaml_file
 
         project_dir = pathlib.Path(project_root)

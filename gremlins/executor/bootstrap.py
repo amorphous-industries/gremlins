@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any
 
 from _gremlins_core.artifacts import Uri
 
-from gremlins.pipeline.bootstrap import (
+from _gremlins_core.schemas import (
     Bootstrap,
     source_env,
     substitute_bootstrap_vars,

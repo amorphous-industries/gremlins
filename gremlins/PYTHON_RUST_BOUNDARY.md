@@ -60,13 +60,15 @@ from `_gremlins_core.schemas`.
 
 | Rust export | Status |
 |---|---|
-| `parse_stage` | **Active**. Imported in `gremlins/spawn/child.py` and `gremlins/pipeline/__init__.py`. |
-| `parse_stages` | **Active**. Imported in `gremlins/stages/sequence.py`, `gremlins/stages/loop.py`, `gremlins/stages/parallel.py`, and `gremlins/pipeline/__init__.py`. |
-| `fill_names` | **Active**. Imported in `gremlins/launcher.py` and `gremlins/pipeline/__init__.py`. |
-| `check_duplicate_producers` | **Active**. Imported in `gremlins/pipeline/__init__.py`. |
-| `expand_pipeline` | **Active**. Imported in `gremlins/pipeline/__init__.py` and `gremlins/launcher.py`. |
-| `Pipeline` class | Exposed at `_gremlins_core.schemas.Pipeline` but **not used**. Active: `gremlins/pipeline/__init__.py:Pipeline`. |
-| `InputSource` / `InputSources` | Exposed but **not called** from Python bootstrap code. |
+| `parse_stage` | **Active**. Imported in `gremlins/spawn/child.py` and `gremlins/stages/sequence.py`. |
+| `parse_stages` | **Active**. Imported in `gremlins/stages/sequence.py`, `gremlins/stages/loop.py`, `gremlins/stages/parallel.py`. |
+| `fill_names` | **Active**. Imported in `gremlins/launcher.py`. |
+| `check_duplicate_producers` | **Active**. Imported in `_gremlins_core.schemas.Pipeline.from_yaml`. |
+| `expand_pipeline` | **Active**. Imported in `gremlins/launcher.py`. |
+| `Pipeline` class | **Active**. `_gremlins_core.schemas.Pipeline` is the canonical Pipeline. |
+| `InputSource` / `InputSources` / `Bootstrap` | **Active**. `_gremlins_core.schemas.*` are the canonical implementations. |
+| `source_env` / `validate_source_values` / `substitute_bootstrap_vars` | **Active**. `_gremlins_core.schemas.*` are the canonical implementations. |
+| `fill_stage_clients` | **Active**. `_gremlins_core.schemas.fill_stage_clients` (public, no underscore). |
 
 ## How to check whether a Rust function is live
 
@@ -101,6 +103,8 @@ The Python `gremlins/pipeline/discovery.py` has been deleted.
 | `gremlins/clients/__init__.py` | Wraps `_gremlins_core.clients.RustClient` — **active** |
 | `gremlins/pipeline/discovery.py` | ~~Pure Python `list_pipelines`, `resolve_pipeline_name`, `resolve_pipeline_path` — **active**~~ **deleted** — replaced by `_gremlins_core.discovery.*` |
 | `gremlins/pipeline/loader.py` | ~~Pure Python `parse_stage`, `parse_stages`, `fill_names`, `check_duplicate_producers` — **active**~~ **deleted** — replaced by `_gremlins_core.schemas.*` |
+| `gremlins/pipeline/__init__.py` | ~~Python `Pipeline` class — **active**~~ **deleted** — replaced by `_gremlins_core.schemas.Pipeline` |
+| `gremlins/pipeline/bootstrap.py` | ~~Python `Bootstrap`, `InputSource`, `InputSources` — **active**~~ **deleted** — replaced by `_gremlins_core.schemas.*` |
 | `crates/pyext/src/python/discovery.rs` | Rust `list_pipelines`, `resolve_pipeline_name`, `resolve_pipeline_path` (wraps `crates/gremlins/src/core/discovery/mod.rs`) — **active** |
 | `crates/gremlins/src/core/discovery/mod.rs` | Rust discovery implementation — **active** |
 | `crates/pyext/src/schemas/loader.rs` | Rust `parse_stage`, `parse_stages`, `fill_names`, `check_duplicate_producers` — **active** (replaces deleted `gremlins/pipeline/loader.py`) |
