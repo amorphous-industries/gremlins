@@ -63,11 +63,11 @@ pub fn read_prompts(
 }
 
 pub fn read_bundled_prompt(name: &str) -> Result<String, SchemaError> {
-    let text = assets::PROMPTS.get(name).ok_or_else(|| {
-        SchemaError::PromptFileNotFound {
+    let text = assets::PROMPTS
+        .get(name)
+        .ok_or_else(|| SchemaError::PromptFileNotFound {
             path: name.to_string(),
-        }
-    })?;
+        })?;
     if text.trim().is_empty() {
         return Err(SchemaError::PromptFileEmpty {
             path: name.to_string(),
