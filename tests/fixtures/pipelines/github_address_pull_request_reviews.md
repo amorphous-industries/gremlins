@@ -1,1 +1,1 @@
-/var/folders/2g/5r4bmp5519g7vtv8w_lm8gjw0000gn/T/gremlins/aibg-gremlin.912299720142/tests/fixtures/prompts/github_address_pull_request_reviews.md
+../prompts/github_address_pull_request_reviews.md

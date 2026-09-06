@@ -233,7 +233,7 @@ def test_launch_unknown_kind_exits_nonzero_with_error(monkeypatch, capsys):
     def _raise(name):
         raise FileNotFoundError(f"pipeline {name!r} not found")
 
-    monkeypatch.setattr("_gremlins_core.discovery.resolve_pipeline_name", _raise)
+    monkeypatch.setattr("gremlins.cli.launch.resolve_pipeline_name", _raise)
     rc = main(["launch", "bogus"])
     assert rc != 0
     assert "bogus" in capsys.readouterr().err

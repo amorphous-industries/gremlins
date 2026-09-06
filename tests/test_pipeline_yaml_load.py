@@ -11,17 +11,9 @@ from _gremlins_core.schemas import expand_pipeline as _expand_pipeline
 from _gremlins_core.schemas import fill_names as _fill_names
 
 
-def _resolve(n, pr):
+def _resolve(n):
     from _gremlins_core.discovery import resolve_pipeline_name as rpn
 
-    # The Rust global resolver uses config::project_root() which may differ
-    # from pr in tests.  We first try the test-supplied project_root.
-    if pr:
-        import pathlib
-
-        candidate = pathlib.Path(pr) / ".gremlins" / f"{n}.yaml"
-        if candidate.exists():
-            return str(candidate.resolve())
     return rpn(n)
 
 

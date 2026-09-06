@@ -77,13 +77,34 @@ pub fn resolve_prompt_dir(
 }
 
 pub fn project_stage_def_dir(project_root: &Path) -> PathBuf {
-    project_root.join(".gremlins").join("stages")
+    crate::config::project_overlay_dir(project_root).join("stages")
 }
 
 pub fn stage_definition_dirs_with_project(project_root: &Path) -> Vec<PathBuf> {
     let mut dirs = vec![project_stage_def_dir(project_root)];
     dirs.extend(crate::config::stage_definition_dirs());
     dirs
+}
+
+pub fn load_stage_def_from_dirs(
+    name: &str,
+    project_root: Option<&Path>,
+) -> Result<Option<serde_yaml::Value>, SchemaError> {
+    let dirs: Vec<PathBuf> = if let Some(pr) = project_root {
+        stage_definition_dirs_with_project(pr)
+    } else {
+        crate::config::stage_definition_dirs()
+    };
+    for d in &dirs {
+        let candidate = d.join(format!("{}.yaml", name));
+        if candidate.exists() {
+            return match load_yaml_file(&candidate) {
+                Ok(recipe) => Ok(Some(recipe)),
+                Err(e) => Err(e),
+            };
+        }
+    }
+    Ok(None)
 }
 
 pub fn parse_stage_definitions(
@@ -123,38 +144,16 @@ pub fn parse_stage_definitions(
                             },
                         }
                     } else {
-                        // Try loading from stage-definition directories.
-                        let mut found = false;
-                        let search_dirs: Vec<PathBuf> = if let Some(pr) = project_root {
-                            let mut dirs = vec![project_stage_def_dir(pr)];
-                            dirs.extend(crate::config::stage_definition_dirs());
-                            dirs
-                        } else {
-                            crate::config::stage_definition_dirs()
-                        };
-                        for d in &search_dirs {
-                            let candidate = d.join(format!("{}.yaml", s));
-                            if candidate.exists() {
-                                match load_yaml_file(&candidate) {
-                                    Ok(recipe) => {
-                                        defs.insert(name.clone(), recipe);
-                                        found = true;
-                                        break;
-                                    }
-                                    Err(e) => {
-                                        return Err(SchemaError::StageDef {
-                                            name: name.clone(),
-                                            msg: e.to_string(),
-                                        });
-                                    }
-                                }
+                        match load_stage_def_from_dirs(s, project_root.map(|p| p.as_path()))? {
+                            Some(recipe) => {
+                                defs.insert(name.clone(), recipe);
                             }
-                        }
-                        if !found {
-                            return Err(SchemaError::StageDef {
-                                name: name.clone(),
-                                msg: format!("must be a dict, gremlins: reference, or file under stages/; tried {s:?}"),
-                            });
+                            None => {
+                                return Err(SchemaError::StageDef {
+                                    name: name.clone(),
+                                    msg: format!("must be a dict, gremlins: reference, or file under stages/; tried {s:?}"),
+                                });
+                            }
                         }
                     }
                 } else if v.is_mapping() {
@@ -503,33 +502,20 @@ fn _expand_entry(
                 }
                 Err(SchemaError::BundledRecipeNotFound { .. }) => {
                     // Not a bundled recipe — try stage definition directories.
-                    for d in stage_definition_dirs_with_project(project_root) {
-                        let candidate = d.join(format!("{}.yaml", recipe_name));
-                        if candidate.exists() {
-                            match load_yaml_file(&candidate) {
-                                Ok(recipe) => {
-                                    let mut direct_defs = stage_defs.clone();
-                                    direct_defs.insert(stage_type.to_string(), recipe);
-                                    return _expand_stage_def(
-                                        entry,
-                                        stage_type,
-                                        &direct_defs,
-                                        prompt_dir,
-                                        project_root,
-                                        chain,
-                                        named_prompts,
-                                        seen_defs,
-                                        resolver,
-                                    );
-                                }
-                                Err(e) => {
-                                    return Err(SchemaError::StageDef {
-                                        name: stage_type.to_string(),
-                                        msg: e.to_string(),
-                                    });
-                                }
-                            }
-                        }
+                    if let Some(recipe) = load_stage_def_from_dirs(recipe_name, Some(project_root))? {
+                        let mut direct_defs = stage_defs.clone();
+                        direct_defs.insert(stage_type.to_string(), recipe);
+                        return _expand_stage_def(
+                            entry,
+                            stage_type,
+                            &direct_defs,
+                            prompt_dir,
+                            project_root,
+                            chain,
+                            named_prompts,
+                            seen_defs,
+                            resolver,
+                        );
                     }
                     // Not found anywhere — raise the original error
                     return Err(SchemaError::BundledRecipeNotFound {
@@ -576,30 +562,21 @@ fn _expand_entry(
                 }
             }
             Err(SchemaError::PipelineNotFound { .. }) => {
-                // Not a pipeline — try stage definition directories
-                // (same as the gremlins: prefixed fallback above)
-                for d in stage_definition_dirs_with_project(project_root) {
-                    let candidate = d.join(format!("{}.yaml", stage_type));
-                    if candidate.exists() {
-                        match load_yaml_file(&candidate) {
-                            Ok(recipe) => {
-                                let mut direct_defs = stage_defs.clone();
-                                direct_defs.insert(stage_type.to_string(), recipe);
-                                return _expand_stage_def(
-                                    entry,
-                                    stage_type,
-                                    &direct_defs,
-                                    prompt_dir,
-                                    project_root,
-                                    chain,
-                                    named_prompts,
-                                    seen_defs,
-                                    resolver,
-                                );
-                            }
-                            Err(e) => return Err(e),
-                        }
-                    }
+                // Not a pipeline — try stage definition directories.
+                if let Some(recipe) = load_stage_def_from_dirs(stage_type, Some(project_root))? {
+                    let mut direct_defs = stage_defs.clone();
+                    direct_defs.insert(stage_type.to_string(), recipe);
+                    return _expand_stage_def(
+                        entry,
+                        stage_type,
+                        &direct_defs,
+                        prompt_dir,
+                        project_root,
+                        chain,
+                        named_prompts,
+                        seen_defs,
+                        resolver,
+                    );
                 }
                 // Not found anywhere — fall through to loader validation
             }

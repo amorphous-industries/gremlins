@@ -272,7 +272,7 @@ def _append_graft(
 
     graft_path = resolve_pipeline_name(graft_pipeline_name)
 
-    def _resolve(n, pr=""):
+    def _resolve(n):
         return resolve_pipeline_name(n)
 
     expanded = _expand_pipeline(
@@ -367,7 +367,7 @@ def _persist_expanded_pipeline(state_dir: pathlib.Path, pipeline_path: str) -> s
     from gremlins.cli.pipeline_args import load_prefix_clients
     from gremlins.utils.yaml_io import dump_yaml_text
 
-    def _resolve(n, pr=""):
+    def _resolve(n):
         return _resolve_pipeline_name(n)
 
     expanded = _expand_pipeline(

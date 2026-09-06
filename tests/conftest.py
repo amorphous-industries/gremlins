@@ -255,6 +255,8 @@ def sandbox(monkeypatch, request):
         # so pipeline YAMLs can resolve gremlins:... references.
         # Prompts are copied flat into the overlay dir (not subdir) so that
         # pipelines without prompt_dir can find them relative to the yaml dir.
+        # Also copy into prompts/ subdirectory for pipelines that set
+        # prompt_dir: prompts.
         src_stages = TESTS_DIR.parent / ".gremlins" / "stages"
         if src_stages.is_dir():
             dst_stages = overlay_pipelines / "stages"
@@ -264,6 +266,11 @@ def sandbox(monkeypatch, request):
             for prompt_file in src_prompts.iterdir():
                 if prompt_file.is_file():
                     shutil.copy2(prompt_file, overlay_pipelines / prompt_file.name)
+            dst_prompts_subdir = overlay_pipelines / "prompts"
+            dst_prompts_subdir.mkdir(parents=True, exist_ok=True)
+            for prompt_file in src_prompts.iterdir():
+                if prompt_file.is_file():
+                    shutil.copy2(prompt_file, dst_prompts_subdir / prompt_file.name)
 
     request.node._sandbox = sb
     yield sb
