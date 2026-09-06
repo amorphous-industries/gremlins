@@ -7,7 +7,6 @@ import time
 from typing import Any
 
 from _gremlins_core.config import get_config as _get_config
-from _gremlins_core.config import project_root as _project_root_fn
 from _gremlins_core.config import state_root as _state_root_fn
 from _gremlins_core.discovery import list_pipelines, resolve_pipeline_name
 from _gremlins_core.schemas import Pipeline
@@ -101,7 +100,7 @@ def build_launch_parser(
 
 def launch_main(argv: list[str]) -> int:
     if "--list" in argv:
-        for name, path in list_pipelines(pathlib.Path(_project_root_fn())):
+        for name, path in list_pipelines():
             try:
                 pipeline = Pipeline.from_yaml(path)
                 label = pipeline.name
@@ -117,7 +116,7 @@ def launch_main(argv: list[str]) -> int:
     name = argv[0]
 
     try:
-        pipeline_path = resolve_pipeline_name(name, pathlib.Path(_project_root_fn()))
+        pipeline_path = resolve_pipeline_name(name)
     except FileNotFoundError as exc:
         sys.stderr.write(f"error: {exc}\n")
         return 1

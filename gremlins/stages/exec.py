@@ -54,7 +54,7 @@ def _sub_artifact_paths(s: str, artifacts: ArtifactRegistry) -> str:
 
     Raises MissingArtifact when the key is not bound.
     Raises ValueError when the key is bound but does not resolve to a
-    file://session/ URI (e.g. gh:// or git:// artifacts).
+    file://session/ URI (e.g. git:// artifacts).
     """
 
     def _r(m: re.Match[str]) -> str:

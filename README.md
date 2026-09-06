@@ -195,7 +195,7 @@ bootstrap:                    # optional; CLI contract and setup commands
   cmds:
     - "uv sync"
   cli_out:
-    pr: "gh://pr/{read:pr-num}"
+    pr: "opaque://pr/{read:pr-num}"
 
 prompts:                      # optional; named prompt map
   code-style: gremlins:code_style.md
@@ -383,7 +383,7 @@ bootstrap:
   cmds:
     - "uv sync"
   cli_out:
-    pr: "gh://pr/{read:pr-num}"
+    pr: "opaque://pr/{read:pr-num}"
 ```
 
 | Key | Description |
@@ -391,7 +391,7 @@ bootstrap:
 | `source` | Declares CLI flags. Each key becomes a `--<key>` flag (required unless `optional: true`). Supported types: `filepath`, `string`. |
 | `launch_cmds` | Shell commands run once at launch. Supports the `gremlins:bind_artifact(source_key, artifact_key, uri)` DSL for resolving source values into artifacts. |
 | `cmds` | Shell commands run in every worktree (e.g. `uv sync` to set up the dev environment). |
-| `cli_out` | Artifact bindings computed at launch from source values (e.g. binding a `gh://pr/N` URI from a `--pr` flag). |
+| `cli_out` | Artifact bindings computed at launch from source values (e.g. binding a `file://session/pr-input.txt` URI from a `--pr` flag). |
 
 The `gremlins:bind_artifact` DSL resolves a source value (GitHub issue ref, filepath, or inline text) and binds it as an artifact in the registry. GitHub issue refs (`#N` or `owner/repo#N`) are downloaded via `gh issue view`.
 
@@ -558,8 +558,8 @@ stages:
 - `git://ref/<name>` — Git ref name (e.g., `git://ref/main` returns the string `main`)
 - `git://commit/<sha>` — Commit SHA (e.g., `git://commit/abc123def` returns the full SHA)
 - `git://range/<base>..<head>` — Commit range/log between two refs
-- `gh://pr/<n>` — Opaque GitHub PR identifier. Resolution returns `{"uri": "gh://pr/<n>"}`
-  (the URI string itself) without calling `gh`; downstream stages pass it to shell
+- `opaque://pr/<n>` — Opaque PR identifier. Resolution returns `{"uri": "opaque://pr/<n>"}`
+  (the URI string itself) without calling external tools; downstream stages pass it to shell
   commands that need the PR number (e.g., `${uri##*/}` to extract `<n>`)
 - `git://range` — Special shorthand: the `exec` stage snapshots HEAD before running and binds the resulting range afterwards
 

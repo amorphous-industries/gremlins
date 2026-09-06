@@ -11,10 +11,10 @@ struct PyResolver<'a> {
 }
 
 impl PipelineResolver for PyResolver<'_> {
-    fn resolve(&self, name: &str, project_root: &std::path::Path) -> Result<PathBuf, SchemaError> {
+    fn resolve(&self, name: &str, _project_root: &std::path::Path) -> Result<PathBuf, SchemaError> {
         let result = self
             .resolve_pipeline_name_fn
-            .call1((name, project_root.to_path_buf()))
+            .call1((name,))
             .map_err(|e| {
                 if e.is_instance_of::<pyo3::exceptions::PyFileNotFoundError>(
                     self.resolve_pipeline_name_fn.py(),

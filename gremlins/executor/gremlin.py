@@ -472,9 +472,7 @@ class Gremlin:
             pipeline_path = str(hermetic)
         elif kind:
             try:
-                filtered, resolved = resolve_pipeline(
-                    kind, tuple(pipeline_args), _project_root
-                )
+                filtered, resolved = resolve_pipeline(kind, tuple(pipeline_args))
                 pipeline_args = filtered
                 pipeline_path = resolved
             except FileNotFoundError:
@@ -485,10 +483,7 @@ class Gremlin:
         if pipeline_path or kind:
             try:
                 pipeline = _PipelineData.from_yaml(
-                    resolve_pipeline_path(
-                        pipeline_path or kind,
-                        pathlib.Path(_project_root),
-                    )
+                    resolve_pipeline_path(pipeline_path or kind)
                 )
             except FileNotFoundError:
                 # Pipeline not found (e.g., test or recovery scenario)
@@ -563,7 +558,7 @@ class Gremlin:
         client: Client | None = None,
     ) -> Gremlin:
         try:
-            pipeline_path = resolve_pipeline_path(pipeline_ref, project_dir)
+            pipeline_path = resolve_pipeline_path(pipeline_ref)
             # Inline client at launch: if a --client label was provided and the
             # pipeline YAML doesn't declare default_client, inject it so the
             # loader never sees None.

@@ -159,12 +159,12 @@ def test_bind_read_sub_resolves_uri(tmp_path):
         cmds=[f'echo 42 > "{foo_file}"'],
         bind_map={
             "foo": "file://session/foo.txt",
-            "bar": "gh://pr/{read:foo}",
+            "bar": "opaque://pr/{read:foo}",
         },
     )
     result = asyncio.run(stage.run(MockGremlin(state=state)))
     assert isinstance(result, Done)
-    assert state.artifacts.resolve("bar") == Uri.parse("gh://pr/42")
+    assert state.artifacts.resolve("bar") == Uri.parse("opaque://pr/42")
 
 
 def test_bind_read_sub_backward_ref_raises(tmp_path):
@@ -172,7 +172,7 @@ def test_bind_read_sub_backward_ref_raises(tmp_path):
     stage = _exec(
         cmds=["true"],
         bind_map={
-            "bar": "gh://pr/{read:foo}",
+            "bar": "opaque://pr/{read:foo}",
             "foo": "file://session/foo.txt",
         },
     )
@@ -182,7 +182,7 @@ def test_bind_read_sub_backward_ref_raises(tmp_path):
 
 def test_bind_read_sub_unbound_key_raises(tmp_path):
     state = _make_state(tmp_path)
-    stage = _exec(cmds=["true"], bind_map={"bar": "gh://pr/{read:nonexistent}"})
+    stage = _exec(cmds=["true"], bind_map={"bar": "opaque://pr/{read:nonexistent}"})
     with pytest.raises(MissingArtifact):
         asyncio.run(stage.run(MockGremlin(state=state)))
 
@@ -216,7 +216,7 @@ def test_registry_path_for_resolves_file_session(tmp_path):
 
 def test_registry_path_for_returns_none_for_non_file_uri(tmp_path):
     registry = ArtifactRegistry(tmp_path / "artifacts", cwd=tmp_path)
-    registry.bind("x", Uri.parse("gh://pr/42"))
+    registry.bind("x", Uri.parse("opaque://pr/42"))
     assert registry.path_for("x") is None
 
 

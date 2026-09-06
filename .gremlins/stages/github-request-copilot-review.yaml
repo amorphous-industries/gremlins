@@ -1,5 +1,5 @@
 stages:
-  - { type: gremlins:github-discover-repo }
+  - { type: github-discover-repo }
   - name: github-request-copilot-review
     type: exec
     interpolation:

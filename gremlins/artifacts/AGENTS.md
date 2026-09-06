@@ -21,8 +21,6 @@ from _gremlins_core.artifacts import Uri
 | `git://range/<base>..<head>` | `git://range/abc123..def456` | Commit range (SHAs) |
 | `git://ref/<name>` | `git://ref/main` | Git ref name (string) |
 | `git://commit/<sha>` | `git://commit/abc123` | Single commit SHA (string) |
-| `gh://pr/<n>` | `gh://pr/42` | GitHub PR → `{"url", "number", "branch", "uri"}` |
-| `gh://issue/<n>` | `gh://issue/7` | GitHub issue → `{"url", "number", "body", "uri"}` |
 
 ## Registry API
 
@@ -38,7 +36,7 @@ r.write("meta", {"count": 3})
 
 r.produced("plan")          # True
 r.resolve("plan")           # Uri(scheme="file", path="session/plan.md")
-r.read("plan")              # resolved value — file content as str, or dict for gh://
+r.read("plan")              # resolved value — file content as str, or dict for opaque://
 r.keys()                    # iterable of bound keys
 ```
 
@@ -57,15 +55,13 @@ All values stored in the registry must be JSON-serializable. `write()` validates
 at write time via `json.dumps`. Producers and consumers own their pairwise contracts —
 the registry enforces nothing beyond serializability.
 
-URI strings stored as values (e.g. `"gh://pr/42"`) are resolved automatically on
+URI strings stored as values (e.g. ``opaque://pr/42``) are resolved automatically on
 `read()`. Consumers see the resolved content (a dict or string) rather than the raw URI.
 
 ## Read returns
 
 Scheme resolvers return plain JSON-compatible values:
 
-- `gh://pr/<n>` → `{"url": str, "number": int, "branch": str, "uri": str}`
-- `gh://issue/<n>` → `{"url": str, "number": int, "body": str, "uri": str}`
 - `git://range/<base>..<head>` → `[{"sha": str, "subject": str}, ...]`
 - `git://ref/<name>` → `name` (string)
 - `git://commit/<sha>` → sha (string)
@@ -96,7 +92,7 @@ token is replaced with the stripped content of the already-bound artifact at `KE
 ```yaml
 out:
   pr-number: file://session/pr-number.txt   # bound first
-  pr: gh://pr/{read:pr-number}              # reads pr-number, expands to gh://pr/42
+  pr: opaque://pr/{read:pr-number}              # reads pr-number, expands to opaque://pr/42
 ```
 
 The referenced key must appear **earlier** in the `out:` map; forward references raise

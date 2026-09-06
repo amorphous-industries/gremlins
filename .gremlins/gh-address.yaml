@@ -13,6 +13,9 @@ prompts:
   terse: terse_style.md
   dev-env: dev-env-howto.md
 
+stage-definitions:
+  github-wait-ci: github-wait-ci
+
 # Usage:
 #   gremlins resume --graft gh-address <gremlin_id>
 #
@@ -92,7 +95,7 @@ stages:
       - code-style
       - terse
       - dev-env
-      - gremlins:github_address_pull_request_reviews.md
+      - github_address_pull_request_reviews.md
       - gremlins:bail_section.md
   - type: exec
     options:
@@ -100,4 +103,4 @@ stages:
         - "ruff format ."
         - "git add -A"
         - "git diff --cached --quiet || git commit -m 'normalize'"
-  - { type: gremlins:github-wait-ci, prompt: [terse, dev-env, gremlins:ci_fix.md, gremlins:bail_section_fix.md] }
+  - { type: github-wait-ci, prompt: [terse, dev-env, gremlins:ci_fix.md, gremlins:bail_section_fix.md] }

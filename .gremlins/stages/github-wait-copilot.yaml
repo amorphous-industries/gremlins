@@ -2,7 +2,7 @@
 # in pipeline positions where HEAD does not move between poll iterations.
 
 stages:
-  - { type: gremlins:github-discover-repo }
+  - { type: github-discover-repo }
   - name: github-wait-copilot
     type: loop
     max-iterations: "{{options.max_iterations | default(40)}}"

@@ -112,10 +112,32 @@ pub fn parse_stage_definitions(
                             },
                         }
                     } else {
-                        return Err(SchemaError::StageDef {
-                            name: name.clone(),
-                            msg: "must be a dict or gremlins: reference".to_string(),
-                        });
+                        // Try loading from stage-definition directories.
+                        let mut found = false;
+                        for d in crate::config::stage_definition_dirs() {
+                            let candidate = d.join(format!("{}.yaml", s));
+                            if candidate.exists() {
+                                match load_yaml_file(&candidate) {
+                                    Ok(recipe) => {
+                                            defs.insert(name.clone(), recipe);
+                                            found = true;
+                                            break;
+                                        }
+                                    Err(e) => {
+                                        return Err(SchemaError::StageDef {
+                                            name: name.clone(),
+                                            msg: e.to_string(),
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                        if !found {
+                            return Err(SchemaError::StageDef {
+                                name: name.clone(),
+                                msg: format!("must be a dict, gremlins: reference, or file under stages/; tried {s:?}"),
+                            });
+                        }
                     }
                 } else if v.is_mapping() {
                     defs.insert(name, v.clone());
@@ -272,9 +294,7 @@ pub fn parse_pipeline_file(
     yaml_path: &Path,
     project_root: &Path,
 ) -> Result<serde_yaml::Value, SchemaError> {
-    let resolver = BuiltinResolver {
-        project_root: project_root.to_path_buf(),
-    };
+    let resolver = BuiltinResolver;
     expand_pipeline(yaml_path, Some(project_root), &resolver)
 }
 

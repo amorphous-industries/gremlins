@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 def resolve_pipeline(
-    kind: str, pipeline_args: tuple[str, ...], project_root: str
+    kind: str, pipeline_args: tuple[str, ...]
 ) -> tuple[list[str], str]:
     args = list(pipeline_args)
     pipeline_val: str | None = None
@@ -30,7 +30,7 @@ def resolve_pipeline(
             filtered.append(args[i])
             i += 1
     name = pipeline_val or kind
-    resolved = str(resolve_pipeline_path(name, pathlib.Path(project_root)))
+    resolved = str(resolve_pipeline_path(name))
     return filtered, resolved
 
 

@@ -47,13 +47,11 @@ prompts:
   dev-env: dev-env-howto.md
 
 stage-definitions:
-  check-and-fix:
-    type: verify
-    options:
-      cmds:
-        - "make -j8 check && make -j8 test"
-      max_iterations: 7
-    prompt: verify
+  plan-gh: plan-gh
+  github-push-to-pr-branch: github-push-to-pr-branch
+  github-request-copilot-review: github-request-copilot-review
+  github-wait-copilot: github-wait-copilot
+  github-wait-ci: github-wait-ci
 
 # Usage:
 #   gremlins launch pr-extend --pr <num|url> --plan '#<issue>'
@@ -68,7 +66,7 @@ stages:
   - name: fetch-pr-info
     type: exec
     interpolation:
-      pr_uri: artifact.pr.uri
+      pr_uri: artifact.pr
     bind:
       artifact.pr-url:    "file://session/pr-url.txt"
       artifact.pr-branch: "file://session/pr-branch.txt"
@@ -76,18 +74,22 @@ stages:
     options:
       cmds:
         - |
-          PR_NUM="${pr_uri##*/}" &&  # gh://pr/N — strip trailing segment to get number
+          PR_NUM="${pr_uri}" &&
           PR_JSON="$(gh pr view "$PR_NUM" --json url,headRefName,number)" &&
           printf "%s" "$(printf '%s' "$PR_JSON" | jq -r '.url')" > "{artifact_dir}/pr-url.txt" &&
           printf "%s" "$(printf '%s' "$PR_JSON" | jq -r '.headRefName')" > "{artifact_dir}/pr-branch.txt" &&
           printf "%s" "$(printf '%s' "$PR_JSON" | jq -r '.number')" > "{artifact_dir}/pr-number.txt"
-  - { type: gremlins:plan-gh, prompt: [code-style, terse, gremlins:plan_gh.md] }
+  - { type: plan-gh, prompt: [code-style, terse, plan_gh.md] }
   - { type: gremlins:implement, prompt: [code-style, terse, dev-env, no_lint_in_implement.md, implement_pr_extension.md] }
-  - { type: check-and-fix }
-  - { name: push, type: gremlins:github-push-to-pr-branch }
-
-  - { type: gremlins:github-request-copilot-review,  interpolation: {pr: artifact.pr-url} }
-
+  - name: check-and-fix
+    type: verify
+    options:
+      cmds:
+        - "make -j8 check && make -j8 test"
+      max_iterations: 7
+    prompt: verify
+  - { name: push, type: github-push-to-pr-branch }
+  - { type: github-request-copilot-review,  interpolation: {pr: artifact.pr-url} }
   - name: fetch-pr-diff
     type: exec
     interpolation: {pr: artifact.pr-url}
@@ -96,11 +98,9 @@ stages:
     options:
       cmds:
         - "gh pr diff --name-only \"{pr}\" > \"{artifact_dir}/diff.txt\""
-
   - parallel:
-      - { type: gremlins:github-wait-copilot,          interpolation: {pr: artifact.pr-url} }
-      - { name: github-review-pull-request,          type: agent, interpolation: {pr: artifact.pr-url, plan: artifact.plan, diff: artifact.pr-diff}, prompt: [code-style, terse, dev-env, gremlins:github_review_pull_request.md] }
+      - { type: github-wait-copilot,          interpolation: {pr: artifact.pr-url} }
+      - { name: github-review-pull-request,          type: agent, interpolation: {pr: artifact.pr-url, plan: artifact.plan, diff: artifact.pr-diff}, prompt: [code-style, terse, dev-env, github_review_pull_request.md] }
       - { name: github-review-pull-request-complexity, type: agent, interpolation: {pr: artifact.pr-url, plan: artifact.plan, diff: artifact.pr-diff}, prompt: [code-style, terse, dev-env, complexity_review.md] }
-
-  - { name: github-address-pull-request-reviews, type: agent, interpolation: {pr: artifact.pr-url}, prompt: [code-style, terse, dev-env, gremlins:github_address_pull_request_reviews.md, gremlins:bail_section.md] }
-  - { type: gremlins:github-wait-ci, interpolation: {pr: artifact.pr-url}, prompt: [terse, dev-env, gremlins:ci_fix.md, gremlins:bail_section_fix.md] }
+  - { name: github-address-pull-request-reviews, type: agent, interpolation: {pr: artifact.pr-url}, prompt: [code-style, terse, dev-env, github_address_pull_request_reviews.md, gremlins:bail_section.md] }
+  - { type: github-wait-ci, interpolation: {pr: artifact.pr-url}, prompt: [terse, dev-env, gremlins:ci_fix.md, gremlins:bail_section_fix.md] }

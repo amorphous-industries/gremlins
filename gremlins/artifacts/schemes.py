@@ -85,7 +85,7 @@ class GitResolver:
 class OpaqueResolver:
     """Resolves opaque URIs: returns {"uri": <uri-string>} without calling any
     external tool.  Used for built-in URI schemes that have no concrete resolver
-    (currently ``gh://``).  Pipeline authors can store custom-scheme values via
+    (e.g. custom opaque schemes defined by pipeline authors).  Pipeline authors can store custom-scheme values via
     ``registry.write(key, "custom://value")`` which are returned as raw strings."""
 
     def read(self, uri: Uri) -> dict[str, str]:

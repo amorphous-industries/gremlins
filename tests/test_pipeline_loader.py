@@ -827,7 +827,7 @@ stages:
     type: exec
     skip_if_exists: plan-issue-number
     bind:
-      artifact.plan: "gh://issue/123"
+      artifact.plan: "opaque://issue/123"
 """,
     )
     pipeline = Pipeline.from_yaml(yaml_path)
