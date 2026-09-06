@@ -21,7 +21,7 @@ from conftest import MINIMAL_EVENTS
 from gremlins.executor.run import _parse_args as _parse_gh_args
 from gremlins.executor.run import run_pipeline
 from gremlins.pipeline import Pipeline
-from gremlins.pipelines import BUNDLED_PIPELINE_DIR
+
 from tests.fake_client import FakeClient
 
 
@@ -58,8 +58,10 @@ def _async(fn: Callable[..., Any]) -> Callable[..., Any]:
     return _w
 
 
-def _gh_pipeline_path(cwd):
-    return resolve_pipeline_path("gh", cwd, BUNDLED_PIPELINE_DIR)
+def _gh_pipeline_path():
+    from conftest import PIPELINE_FIXTURES_DIR
+
+    return PIPELINE_FIXTURES_DIR / "gh.yaml"
 
 
 # ---------------------------------------------------------------------------
@@ -345,9 +347,11 @@ def test_parse_resume_from_commit():
     assert args.resume_from == "commit"
 
 
-def test_gh_pipeline_stage_names(tmp_path):
+def test_gh_pipeline_stage_names():
+    from conftest import PIPELINE_FIXTURES_DIR
+
     pipeline = Pipeline.from_yaml(
-        resolve_pipeline_path("gh", tmp_path, BUNDLED_PIPELINE_DIR)
+        PIPELINE_FIXTURES_DIR / "gh.yaml"
     )
     names = [s.name for s in pipeline.stages]
     assert names == [
@@ -465,7 +469,7 @@ def test_plan_mode_skips_plan_stage(tmp_path, monkeypatch):
 
     result = asyncio.run(
         run_pipeline(
-            _gh_pipeline_path(tmp_path), argv=[], gremlin_id="gr-test", client=client
+            _gh_pipeline_path(), argv=[], gremlin_id="gr-test", client=client
         )
     )
     assert result == 0
@@ -505,7 +509,7 @@ def test_plan_skip_if_exists_on_resume(tmp_path, monkeypatch):
 
     result = asyncio.run(
         run_pipeline(
-            _gh_pipeline_path(tmp_path), argv=[], gremlin_id="gr-test", client=client
+            _gh_pipeline_path(), argv=[], gremlin_id="gr-test", client=client
         )
     )
     assert result == 0
@@ -564,7 +568,7 @@ def test_publish_as_issue_skip_when_source_bound(tmp_path, monkeypatch):
 
     result = asyncio.run(
         run_pipeline(
-            _gh_pipeline_path(tmp_path), argv=[], gremlin_id="gr-test", client=client
+            _gh_pipeline_path(), argv=[], gremlin_id="gr-test", client=client
         )
     )
     assert result == 0
@@ -658,7 +662,7 @@ def test_plan_stage_uses_bundled_prompt_not_slash_command(tmp_path, monkeypatch)
 
     result = asyncio.run(
         run_pipeline(
-            _gh_pipeline_path(tmp_path), argv=[], gremlin_id="gr-test", client=client
+            _gh_pipeline_path(), argv=[], gremlin_id="gr-test", client=client
         )
     )
     assert result == 0
@@ -700,7 +704,7 @@ def test_model_forwarded_to_all_stages(tmp_path, monkeypatch):
 
     result = asyncio.run(
         run_pipeline(
-            _gh_pipeline_path(tmp_path),
+            _gh_pipeline_path(),
             argv=[],
             gremlin_id="gr-test",
             client=client,
@@ -748,7 +752,7 @@ def test_gh_main_defaults_to_pipeline_model(tmp_path, monkeypatch):
     # Invoke with NO --model.
     result = asyncio.run(
         run_pipeline(
-            _gh_pipeline_path(tmp_path), argv=[], gremlin_id="gr-test", client=client
+            _gh_pipeline_path(), argv=[], gremlin_id="gr-test", client=client
         )
     )
     assert result == 0
@@ -797,7 +801,7 @@ def test_gh_main_client_specifier_model(tmp_path, monkeypatch):
 
     result = asyncio.run(
         run_pipeline(
-            _gh_pipeline_path(tmp_path),
+            _gh_pipeline_path(),
             argv=[],
             gremlin_id="gr-test",
             client=client,
@@ -852,7 +856,7 @@ def test_resume_from_implement(tmp_path, monkeypatch):
 
     result = asyncio.run(
         run_pipeline(
-            _gh_pipeline_path(tmp_path),
+            _gh_pipeline_path(),
             argv=["--resume-from", "implement"],
             gremlin_id="gr-test",
             client=client,
@@ -901,7 +905,7 @@ def test_resume_from_github_review_pull_request(tmp_path, monkeypatch):
 
     result = asyncio.run(
         run_pipeline(
-            _gh_pipeline_path(tmp_path),
+            _gh_pipeline_path(),
             argv=["--resume-from", "github-review-pull-request"],
             gremlin_id="gr-test",
             client=client,
@@ -1032,7 +1036,7 @@ def test_plan_file_path_includes_plan_title_cost_in_total(tmp_path, monkeypatch)
     )
     result = asyncio.run(
         run_pipeline(
-            _gh_pipeline_path(tmp_path), argv=[], gremlin_id="gr-test", client=client
+            _gh_pipeline_path(), argv=[], gremlin_id="gr-test", client=client
         )
     )
     assert result == 0
@@ -1097,7 +1101,7 @@ def test_resume_from_open_pr(tmp_path, monkeypatch):
 
     result = asyncio.run(
         run_pipeline(
-            _gh_pipeline_path(tmp_path),
+            _gh_pipeline_path(),
             argv=["--resume-from", "open-pr"],
             gremlin_id="gr-test",
             client=client,
@@ -1164,7 +1168,7 @@ def test_github_wait_copilot_stage_argument_wiring(tmp_path, monkeypatch):
 
     result = asyncio.run(
         run_pipeline(
-            _gh_pipeline_path(tmp_path),
+            _gh_pipeline_path(),
             argv=[],
             gremlin_id="gr-test",
             client=client,
@@ -1224,7 +1228,7 @@ def test_github_wait_ci_stage_argument_wiring(tmp_path, monkeypatch):
 
     result = asyncio.run(
         run_pipeline(
-            _gh_pipeline_path(tmp_path),
+            _gh_pipeline_path(),
             argv=[],
             gremlin_id="gr-test",
             client=client,
@@ -1276,7 +1280,7 @@ def test_github_wait_ci_stage_ordering(tmp_path, monkeypatch):
 
     result = asyncio.run(
         run_pipeline(
-            _gh_pipeline_path(tmp_path), argv=[], gremlin_id="gr-test", client=client
+            _gh_pipeline_path(), argv=[], gremlin_id="gr-test", client=client
         )
     )
     assert result == 0
@@ -1320,7 +1324,7 @@ def test_resume_from_ci_gate(tmp_path, monkeypatch):
 
     result = asyncio.run(
         run_pipeline(
-            _gh_pipeline_path(tmp_path),
+            _gh_pipeline_path(),
             argv=["--resume-from", "ci-gate"],
             client=client,
         )
@@ -1383,7 +1387,7 @@ def test_verify_stage_argument_wiring(tmp_path, monkeypatch):
 
     result = asyncio.run(
         run_pipeline(
-            _gh_pipeline_path(tmp_path),
+            _gh_pipeline_path(),
             argv=[],
             gremlin_id="gr-test",
             client=client,
@@ -1442,7 +1446,7 @@ def test_resume_from_verify(tmp_path, monkeypatch):
 
     result = asyncio.run(
         run_pipeline(
-            _gh_pipeline_path(tmp_path),
+            _gh_pipeline_path(),
             argv=["--resume-from", "verify-check"],
             gremlin_id="gr-test",
             client=client,
@@ -1484,7 +1488,7 @@ def test_gh_main_writes_stage_to_state(tmp_path, monkeypatch):
 
     result = asyncio.run(
         run_pipeline(
-            _gh_pipeline_path(tmp_path),
+            _gh_pipeline_path(),
             argv=[],
             gremlin_id="gr-test",
             client=client,
@@ -1525,7 +1529,7 @@ def test_gh_main_state_client_tracks_effective_model(tmp_path, monkeypatch):
 
     result = asyncio.run(
         run_pipeline(
-            _gh_pipeline_path(tmp_path),
+            _gh_pipeline_path(),
             argv=[],
             gremlin_id="gr-test",
             client=client,
@@ -1597,7 +1601,7 @@ def test_gh_main_pipeline_default_client_model(tmp_path, monkeypatch):
 
     result = asyncio.run(
         run_pipeline(
-            _gh_pipeline_path(tmp_path), argv=[], gremlin_id="gr-test", client=client
+            _gh_pipeline_path(), argv=[], gremlin_id="gr-test", client=client
         )
     )
     assert result == 0
@@ -1667,7 +1671,7 @@ def test_publish_as_issue_runs_when_no_source_bound(tmp_path, monkeypatch):
 
     result = asyncio.run(
         run_pipeline(
-            _gh_pipeline_path(tmp_path), argv=[], gremlin_id="gr-test", client=client
+            _gh_pipeline_path(), argv=[], gremlin_id="gr-test", client=client
         )
     )
     assert result == 0

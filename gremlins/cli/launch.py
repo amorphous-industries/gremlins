@@ -13,7 +13,6 @@ from _gremlins_core.discovery import list_pipelines, resolve_pipeline_name
 
 from gremlins.launcher import launch
 from gremlins.pipeline import Pipeline
-from gremlins.pipelines import BUNDLED_PIPELINE_DIR
 from gremlins.utils.yaml_io import YamlLoadError
 
 _INFRA_ARGS = frozenset(
@@ -103,7 +102,7 @@ def build_launch_parser(
 def launch_main(argv: list[str]) -> int:
     if "--list" in argv:
         for name, path in list_pipelines(
-            pathlib.Path(_project_root_fn()), BUNDLED_PIPELINE_DIR
+            pathlib.Path(_project_root_fn())
         ):
             try:
                 pipeline = Pipeline.from_yaml(path)
@@ -121,7 +120,7 @@ def launch_main(argv: list[str]) -> int:
 
     try:
         pipeline_path = resolve_pipeline_name(
-            name, pathlib.Path(_project_root_fn()), BUNDLED_PIPELINE_DIR
+            name, pathlib.Path(_project_root_fn())
         )
     except FileNotFoundError as exc:
         sys.stderr.write(f"error: {exc}\n")

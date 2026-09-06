@@ -11,11 +11,11 @@ from _gremlins_core.discovery import resolve_pipeline_name as _resolve_pipeline_
 from _gremlins_core.schemas import expand_pipeline as _expand_pipeline
 
 from gremlins.pipeline import Pipeline
-from gremlins.pipelines import BUNDLED_PIPELINE_DIR
+
 
 
 def _resolve(n, pr):
-    return _resolve_pipeline_name(n, pr, BUNDLED_PIPELINE_DIR)
+    return _resolve_pipeline_name(n, pr)
 
 
 def _make_pipeline(tmp_path: pathlib.Path, verify_entry: str) -> dict[str, Any]:

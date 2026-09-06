@@ -6,17 +6,16 @@ use crate::convert::discovery_error_to_pyerr;
 use gremlins::core::discovery;
 
 #[pyfunction]
-fn list_pipelines(project_root: PathBuf, bundled_pipelines_dir: PathBuf) -> Vec<(String, PathBuf)> {
-    discovery::list_pipelines(project_root, bundled_pipelines_dir)
+fn list_pipelines(project_root: PathBuf) -> Vec<(String, PathBuf)> {
+    discovery::list_pipelines(project_root)
 }
 
 #[pyfunction]
 fn resolve_pipeline_name(
     name: &str,
     project_root: PathBuf,
-    bundled_pipelines_dir: PathBuf,
 ) -> PyResult<PathBuf> {
-    discovery::resolve_pipeline_name(name, project_root, bundled_pipelines_dir)
+    discovery::resolve_pipeline_name(name, project_root)
         .map_err(discovery_error_to_pyerr)
 }
 
@@ -24,9 +23,8 @@ fn resolve_pipeline_name(
 fn resolve_pipeline_path(
     name_or_path: &str,
     base_dir: PathBuf,
-    bundled_pipelines_dir: PathBuf,
 ) -> PyResult<PathBuf> {
-    discovery::resolve_pipeline_path(name_or_path, base_dir, bundled_pipelines_dir)
+    discovery::resolve_pipeline_path(name_or_path, base_dir)
         .map_err(discovery_error_to_pyerr)
 }
 

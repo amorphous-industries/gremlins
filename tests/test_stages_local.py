@@ -10,7 +10,7 @@ from conftest import MINIMAL_EVENTS, MockGremlin, ReviewCreatingClient
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.executor.state import StateData, build_state
 from gremlins.pipeline import Pipeline
-from gremlins.pipelines import BUNDLED_PIPELINE_DIR
+
 from gremlins.stages.agent import Agent
 from gremlins.utils.yaml_io import load_bundled_prompt
 
@@ -18,9 +18,11 @@ if TYPE_CHECKING:
     from gremlins.executor.gremlin import Gremlin
 
 
-def test_local_yaml_loads_and_validates(tmp_path):
+def test_local_yaml_loads_and_validates():
+    from conftest import PIPELINE_FIXTURES_DIR
+
     pipeline = Pipeline.from_yaml(
-        resolve_pipeline_path("local", tmp_path, BUNDLED_PIPELINE_DIR)
+        PIPELINE_FIXTURES_DIR / "local.yaml"
     )
     assert len(pipeline.stages) == 10
     names = [s.name for s in pipeline.stages]

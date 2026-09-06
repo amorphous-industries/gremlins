@@ -11,7 +11,6 @@ from _gremlins_core.discovery import resolve_pipeline_name
 
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.pipeline import Pipeline
-from gremlins.pipelines import BUNDLED_PIPELINE_DIR
 from gremlins.utils.yaml_io import YamlLoadError
 
 
@@ -29,7 +28,7 @@ def artifacts_main(argv: list[str]) -> int:
             return 0
     try:
         ppath = resolve_pipeline_name(
-            target, pathlib.Path(project_root()), BUNDLED_PIPELINE_DIR
+            target, pathlib.Path(project_root())
         )
         pipe = Pipeline.from_yaml(ppath)
         _print_static(pipe)

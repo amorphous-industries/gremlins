@@ -1,5 +1,2 @@
-from gremlins import PACKAGE_ROOT
-
-BUNDLED_PIPELINE_DIR = PACKAGE_ROOT / "pipelines"
-
-__all__ = ["BUNDLED_PIPELINE_DIR"]
+# Bundled pipelines concept has been removed.
+# Pipeline YAMLs are now test fixtures in tests/fixtures/pipelines/.

@@ -242,6 +242,15 @@ def sandbox(monkeypatch, request):
 
     _init_git_repo(sb.project)
 
+    # Copy fixture pipelines into the project overlay so tests that pass
+    # bare pipeline names (e.g. "local", "gh") can resolve them.
+    fixture_pipelines = TESTS_DIR / "fixtures" / "pipelines"
+    if fixture_pipelines.is_dir():
+        overlay_pipelines = sb.project / ".gremlins"
+        overlay_pipelines.mkdir(parents=True, exist_ok=True)
+        for yaml_file in fixture_pipelines.glob("*.yaml"):
+            shutil.copy2(yaml_file, overlay_pipelines / yaml_file.name)
+
     request.node._sandbox = sb
     yield sb
 
@@ -342,6 +351,12 @@ def child_sandbox(sandbox, request):
 
 
 TESTS_DIR = pathlib.Path(__file__).resolve().parent
+PIPELINE_FIXTURES_DIR = TESTS_DIR / "fixtures" / "pipelines"
+
+
+@pytest.fixture
+def pipeline_fixtures_dir() -> pathlib.Path:
+    return PIPELINE_FIXTURES_DIR
 
 
 if str(TESTS_DIR) not in sys.path:

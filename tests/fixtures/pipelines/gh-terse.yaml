@@ -1,6 +1,8 @@
 default_client: 'xai:grok-4'
 
-base_ref: current
+base_ref: main
+
+github_integration: true
 
 bootstrap:
   source:
@@ -14,21 +16,32 @@ bootstrap:
     - gremlins:bind_artifact(plan, plan, file://session/plan.md)
     - gremlins:bind_artifact(instructions, instructions, file://session/instructions.txt)
 
+land:
+  interpolation:
+    PR_URL: artifact.pr-url
+  options:
+    cmds:
+      - gh pr merge --squash --delete-branch "$PR_URL"
+
 prompts:
   code-style: gremlins:code_style.md
   verify: [gremlins:verify_fix.md, gremlins:bail_section_fix.md]
 
-stages:
-  - { type: gremlins:plan,       prompt: [code-style, gremlins:plan.md] }
-  - { type: gremlins:implement,  prompt: [code-style, gremlins:implement_local.md] }
-  - { type: review-code,  prompt: [code-style, gremlins:review/detail.md] }
-  - { name: address-code, type: agent, prompt: [code-style, gremlins:address.md, gremlins:bail_section.md], interpolation: {text: artifact.review-code} }
-  - name: normalize
+stage-definitions:
+  normalize:
     type: exec
     options:
       cmds:
         - "ruff format . && ruff check --fix . && git add -A && (git diff --cached --quiet || git commit -m 'normalize')"
+
+stages:
+  - { type: gremlins:plan-gh, prompt: [code-style, gremlins:plan_gh.md] }
+  - { type: gremlins:implement, prompt: [code-style, gremlins:implement_gh.md] }
+  - name: normalize
+    type: normalize
     bind:
       artifact.normalize-commits: git://range
   - { name: verify-check, type: verify, options: { cmds: ["make check"] }, prompt: verify }
   - { name: verify-test,  type: verify, options: { cmds: ["make test"] },  prompt: verify }
+  - { name: open-pr,   type: gremlins:github-open-pr }
+  - { name: ci-gate,   type: gremlins:github-wait-ci,  prompt: [gremlins:ci_fix.md, gremlins:bail_section_fix.md] }

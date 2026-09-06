@@ -13,12 +13,14 @@ from conftest import common_local_patches as _common_patches
 
 from gremlins.executor.run import run_pipeline
 from gremlins.pipeline import Pipeline
-from gremlins.pipelines import BUNDLED_PIPELINE_DIR
+
 from tests.fake_client import FakeClient
 
 
-def _local_pipeline_path(cwd):
-    return resolve_pipeline_path("local", cwd, BUNDLED_PIPELINE_DIR)
+def _local_pipeline_path():
+    from conftest import PIPELINE_FIXTURES_DIR
+
+    return PIPELINE_FIXTURES_DIR / "local.yaml"
 
 
 # ---------------------------------------------------------------------------
@@ -51,7 +53,7 @@ def test_local_main_plan_mode(tmp_path, monkeypatch):
 
     result = asyncio.run(
         run_pipeline(
-            _local_pipeline_path(tmp_path),
+            _local_pipeline_path(),
             argv=[],
             gremlin_id=gremlin_id,
             client=client,
@@ -89,7 +91,7 @@ def test_local_main_resume_from_review_code_requires_git_changes(
     with pytest.raises(SystemExit):
         asyncio.run(
             run_pipeline(
-                _local_pipeline_path(tmp_path),
+                _local_pipeline_path(),
                 argv=["--resume-from", "review-code"],
                 client=FakeClient(fixtures={}),
             )
@@ -130,7 +132,7 @@ def test_local_main_resume_from_review_code_allows_existing_git_changes(
 
     result = asyncio.run(
         run_pipeline(
-            _local_pipeline_path(tmp_path),
+            _local_pipeline_path(),
             argv=["--resume-from", "review-code"],
             gremlin_id=gremlin_id,
             client=client,
@@ -173,7 +175,7 @@ def test_local_main_injected_client_model(tmp_path, monkeypatch):
 
     result = asyncio.run(
         run_pipeline(
-            _local_pipeline_path(tmp_path),
+            _local_pipeline_path(),
             argv=[],
             gremlin_id=gremlin_id,
             client=client,
@@ -186,9 +188,11 @@ def test_local_main_injected_client_model(tmp_path, monkeypatch):
     assert client.calls[1].model == "gpt-4o"
 
 
-def test_local_pipeline_stage_names(tmp_path):
+def test_local_pipeline_stage_names():
+    from conftest import PIPELINE_FIXTURES_DIR
+
     pipeline = Pipeline.from_yaml(
-        resolve_pipeline_path("local", tmp_path, BUNDLED_PIPELINE_DIR)
+        PIPELINE_FIXTURES_DIR / "local.yaml"
     )
     names = [s.name for s in pipeline.stages]
     assert names == [
@@ -226,7 +230,7 @@ def test_local_main_writes_stage_to_state(tmp_path, monkeypatch):
 
     result = asyncio.run(
         run_pipeline(
-            _local_pipeline_path(tmp_path),
+            _local_pipeline_path(),
             argv=[],
             client=client,
             gremlin_id=gremlin_id,
@@ -415,7 +419,7 @@ def test_local_main_pipeline_default_client_model(tmp_path, monkeypatch):
 
     result = asyncio.run(
         run_pipeline(
-            _local_pipeline_path(tmp_path),
+            _local_pipeline_path(),
             argv=[],
             gremlin_id=gremlin_id,
             client=client,
@@ -453,7 +457,7 @@ def test_plan_skip_if_exists_on_resume(tmp_path, monkeypatch):
 
     result = asyncio.run(
         run_pipeline(
-            _local_pipeline_path(tmp_path),
+            _local_pipeline_path(),
             argv=[],
             gremlin_id=gremlin_id,
             client=client,
@@ -478,7 +482,7 @@ def test_startup_fails_in_non_git_dir(tmp_path, monkeypatch, capsys):
     with pytest.raises(SystemExit):
         asyncio.run(
             run_pipeline(
-                _local_pipeline_path(tmp_path),
+                _local_pipeline_path(),
                 argv=[],
                 client=FakeClient(fixtures={}),
             )

@@ -57,14 +57,13 @@ class Pipeline:
         )
 
         import gremlins._clients_init  # noqa: F401  # pyright: ignore[reportUnusedImport] — registers built-in providers
-        from gremlins.pipelines import BUNDLED_PIPELINE_DIR
 
         path = path.resolve()
         if not path.exists():
             raise FileNotFoundError(f"pipeline file not found: {path}")
 
         def _resolve(n, pr):
-            return _resolve_pipeline_name(n, pr, BUNDLED_PIPELINE_DIR)
+            return _resolve_pipeline_name(n, pr)
 
         raw = _expand_pipeline(
             str(path),

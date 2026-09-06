@@ -11,11 +11,11 @@ from _gremlins_core.schemas import expand_pipeline as _expand_pipeline
 from _gremlins_core.schemas import fill_names as _fill_names
 
 from gremlins.pipeline import Pipeline
-from gremlins.pipelines import BUNDLED_PIPELINE_DIR
+
 
 
 def _resolve(n, pr):
-    return _resolve_pipeline_name(n, pr, BUNDLED_PIPELINE_DIR)
+    return _resolve_pipeline_name(n, pr)
 
 
 def _expand(p: pathlib.Path, **kwargs) -> dict[str, Any]:
@@ -27,7 +27,7 @@ def _expand(p: pathlib.Path, **kwargs) -> dict[str, Any]:
 
 
 _BUNDLED_LOCAL = (
-    pathlib.Path(__file__).parent.parent / "gremlins" / "pipelines" / "local.yaml"
+    pathlib.Path(__file__).parent / "fixtures" / "pipelines" / "local.yaml"
 )
 
 _LOCAL_STAGE_NAMES = [
