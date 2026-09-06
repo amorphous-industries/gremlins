@@ -14,6 +14,7 @@ pub fn into_pyerr(e: SchemaError) -> pyo3::PyErr {
         | SchemaError::Stage { .. }
         | SchemaError::InputSource { .. }
         | SchemaError::MissingDefaultClient
+        | SchemaError::UnusedInterpolationKey { .. }
         | SchemaError::YamlParse { .. }
         | SchemaError::YamlNotMapping { .. } => PyValueError::new_err(e.to_string()),
         SchemaError::Generic(_) => PyValueError::new_err(e.to_string()),

@@ -29,6 +29,9 @@ pub enum SchemaError {
     #[error("input source {name}: {msg}")]
     InputSource { name: String, msg: String },
 
+    #[error("stage {stage}: interpolation key {key:?} is not referenced in any prompt or command")]
+    UnusedInterpolationKey { stage: String, key: String },
+
     #[error("pipeline is missing 'default_client' — every pipeline must declare one")]
     MissingDefaultClient,
 

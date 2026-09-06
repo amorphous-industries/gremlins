@@ -305,6 +305,177 @@ pub fn parse_default(raw: &str) -> serde_yaml::Value {
     serde_yaml::Value::String(s.to_string())
 }
 
+/// Validate that every key declared in each stage's `interpolation:` map is
+/// actually referenced as `{KEY}`, `$KEY`, or `${KEY}` somewhere in the
+/// stage's prompts or commands. Stages whose `type` is a bundled recipe
+/// (gremlins:xxx or a bare name that resolves to a bundled recipe) are
+/// skipped because their interpolation keys are used internally by the recipe.
+pub fn validate_interpolation_keys(
+    expanded_yaml: &serde_yaml::Value,
+) -> Result<(), Vec<SchemaError>> {
+    let mut errors = Vec::new();
+
+    // Validate the `land` stage if present
+    if let Some(land) = expanded_yaml.get("land") {
+        validate_stage_interpolation(land, &mut errors);
+    }
+
+    // Validate each stage in `stages` — only top-level stages, not recipe-internal
+    // children (those inside body/parallel of recipe-expanded stages).
+    if let Some(stages) = expanded_yaml.get("stages").and_then(|v| v.as_sequence()) {
+        for stage in stages {
+            validate_stage_interpolation(stage, &mut errors);
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
+fn validate_stage_interpolation(stage: &serde_yaml::Value, errors: &mut Vec<SchemaError>) {
+    let mapping = match stage.as_mapping() {
+        Some(m) => m,
+        None => return,
+    };
+
+    // Only leaf stages with an interpolation map need checking
+    let interp = match mapping.get("interpolation").and_then(|v| v.as_mapping()) {
+        Some(m) => m,
+        None => return,
+    };
+
+    let stage_name = mapping.get("name").and_then(|v| v.as_str()).unwrap_or("?");
+
+    // Collect all text to search: this stage's prompts + commands,
+    // plus all text from descendant stages (body, parallel, etc.)
+    let mut text = String::new();
+
+    // Own prompts
+    if let Some(prompts) = mapping.get("prompt").and_then(|v| v.as_sequence()) {
+        for p in prompts {
+            if let Some(s) = p.as_str() {
+                text.push_str(s);
+                text.push('\n');
+            }
+        }
+    }
+
+    // Own commands
+    if let Some(options) = mapping.get("options").and_then(|v| v.as_mapping()) {
+        if let Some(cmds) = options.get("cmds").and_then(|v| v.as_sequence()) {
+            for cmd in cmds {
+                if let Some(s) = cmd.as_str() {
+                    text.push_str(s);
+                    text.push('\n');
+                }
+            }
+        }
+    }
+
+    // Collect text from body children (loop stages)
+    if let Some(body) = mapping.get("body").and_then(|v| v.as_sequence()) {
+        for child in body {
+            collect_stage_text(child, &mut text);
+        }
+    }
+
+    // Collect text from parallel children
+    if let Some(parallel) = mapping.get("parallel").and_then(|v| v.as_sequence()) {
+        for child in parallel {
+            collect_stage_text(child, &mut text);
+        }
+    }
+
+    for key in interp.keys() {
+        let key_str = match key.as_str() {
+            Some(k) => k,
+            None => continue,
+        };
+
+        // Check for {KEY}
+        let brace_form = format!("{{{key_str}}}");
+        // Check for ${KEY} and all shell parameter expansion forms:
+        // ${KEY}, ${KEY:-default}, ${KEY-default}, ${KEY+alt}, ${KEY?err}, ${KEY=val}
+        let dollar_brace_form = String::from("${") + key_str;
+
+        if text.contains(&brace_form) || text.contains(&dollar_brace_form) {
+            continue;
+        }
+
+        // Check $KEY — must not be followed by an identifier-continuation character
+        let dollar_form = format!("${key_str}");
+        if text.contains(&dollar_form) {
+            let mut found = false;
+            let mut pos = 0;
+            while let Some(idx) = text[pos..].find(&dollar_form) {
+                let abs_idx = pos + idx;
+                let after = abs_idx + dollar_form.len();
+                if after >= text.len()
+                    || !text
+                        .as_bytes()
+                        .get(after)
+                        .is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'_')
+                {
+                    found = true;
+                    break;
+                }
+                pos = after;
+            }
+            if found {
+                continue;
+            }
+        }
+
+        errors.push(SchemaError::UnusedInterpolationKey {
+            stage: stage_name.to_string(),
+            key: key_str.to_string(),
+        });
+    }
+}
+
+/// Recursively collect all prompt and command text from a stage and its descendants.
+fn collect_stage_text(stage: &serde_yaml::Value, out: &mut String) {
+    let mapping = match stage.as_mapping() {
+        Some(m) => m,
+        None => return,
+    };
+
+    if let Some(prompts) = mapping.get("prompt").and_then(|v| v.as_sequence()) {
+        for p in prompts {
+            if let Some(s) = p.as_str() {
+                out.push_str(s);
+                out.push('\n');
+            }
+        }
+    }
+
+    if let Some(options) = mapping.get("options").and_then(|v| v.as_mapping()) {
+        if let Some(cmds) = options.get("cmds").and_then(|v| v.as_sequence()) {
+            for cmd in cmds {
+                if let Some(s) = cmd.as_str() {
+                    out.push_str(s);
+                    out.push('\n');
+                }
+            }
+        }
+    }
+
+    if let Some(body) = mapping.get("body").and_then(|v| v.as_sequence()) {
+        for child in body {
+            collect_stage_text(child, out);
+        }
+    }
+
+    if let Some(parallel) = mapping.get("parallel").and_then(|v| v.as_sequence()) {
+        for child in parallel {
+            collect_stage_text(child, out);
+        }
+    }
+}
+
 /// Parse a pipeline YAML file from disk, expanding includes, stage-definitions,
 /// and prompts. Returns the fully expanded YAML tree.
 pub fn parse_pipeline_file(
@@ -312,7 +483,14 @@ pub fn parse_pipeline_file(
     project_root: &Path,
 ) -> Result<serde_yaml::Value, SchemaError> {
     let resolver = BuiltinResolver;
-    expand_pipeline(yaml_path, Some(project_root), &resolver)
+    let expanded = expand_pipeline(yaml_path, Some(project_root), &resolver)?;
+
+    // Validate interpolation keys are referenced
+    if let Err(errors) = validate_interpolation_keys(&expanded) {
+        return Err(errors.into_iter().next().unwrap());
+    }
+
+    Ok(expanded)
 }
 
 #[allow(clippy::too_many_arguments)]
