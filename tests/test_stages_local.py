@@ -12,13 +12,10 @@ from gremlins.executor.state import StateData, build_state
 from gremlins.pipeline import Pipeline
 from gremlins.pipelines import BUNDLED_PIPELINE_DIR
 from gremlins.stages.agent import Agent
+from gremlins.utils.yaml_io import load_bundled_prompt
 
 if TYPE_CHECKING:
     from gremlins.executor.gremlin import Gremlin
-
-_BUNDLED_PROMPTS = (
-    pathlib.Path(__file__).resolve().parent.parent / "gremlins" / "prompts"
-)
 
 
 def test_local_yaml_loads_and_validates(tmp_path):
@@ -90,8 +87,8 @@ def _make_review_code_stage(client: ReviewCreatingClient) -> Agent:
     return Agent(
         "review-code",
         [
-            (_BUNDLED_PROMPTS / "code_style.md").read_text(encoding="utf-8"),
-            (_BUNDLED_PROMPTS / "review" / "detail.md").read_text(encoding="utf-8"),
+            load_bundled_prompt("code_style.md"),
+            load_bundled_prompt("review/detail.md"),
             "`{review-code}` is the canonical and required location.",
         ],
         {},
@@ -125,7 +122,7 @@ def test_review_code_stage_includes_style_from_prompts(tmp_path):
         "review-code",
         [
             "Be good.",
-            (_BUNDLED_PROMPTS / "review" / "detail.md").read_text(encoding="utf-8"),
+            load_bundled_prompt("review/detail.md"),
             "`{review-code}` is the canonical and required location.",
         ],
         {},

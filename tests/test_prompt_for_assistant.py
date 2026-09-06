@@ -1,22 +1,19 @@
 from gremlins.cli import main
-from gremlins.prompts import BUNDLED_PROMPT_DIR
+from gremlins.utils.yaml_io import load_bundled_prompt
 
 
 def test_prompt_for_assistant_matches_bundled_file(capsys):
     rc = main(["prompt-for-assistant"])
     assert rc == 0
 
-    bundled_content = (BUNDLED_PROMPT_DIR / "assistant" / "setup.md").read_text(
-        encoding="utf-8"
-    )
+    bundled_content = load_bundled_prompt("assistant/setup.md")
     out, err = capsys.readouterr()
     assert out == bundled_content
     assert err == ""
 
 
 def _output() -> str:
-    bundled = BUNDLED_PROMPT_DIR / "assistant" / "setup.md"
-    return bundled.read_text(encoding="utf-8")
+    return load_bundled_prompt("assistant/setup.md")
 
 
 def test_recommends_both_skills():
