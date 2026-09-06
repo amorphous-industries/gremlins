@@ -332,10 +332,7 @@ pub fn validate_interpolation_keys(
     }
 }
 
-fn validate_stage_interpolation(
-    stage: &serde_yaml::Value,
-    errors: &mut Vec<SchemaError>,
-) {
+fn validate_stage_interpolation(stage: &serde_yaml::Value, errors: &mut Vec<SchemaError>) {
     let mapping = match stage.as_mapping() {
         Some(m) => m,
         None => return,
@@ -359,10 +356,7 @@ fn validate_stage_interpolation(
         None => return,
     };
 
-    let stage_name = mapping
-        .get("name")
-        .and_then(|v| v.as_str())
-        .unwrap_or("?");
+    let stage_name = mapping.get("name").and_then(|v| v.as_str()).unwrap_or("?");
 
     // Collect all text to search: prompts + commands
     let mut text = String::new();
