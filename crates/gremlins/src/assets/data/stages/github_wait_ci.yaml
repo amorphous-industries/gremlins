@@ -149,7 +149,7 @@ stages:
                   else
                       printf '(no action run URL; details: %s)\n' "$details_url"
                   fi
-              done > "{artifact_dir}/ci_failure.txt"
+              done > "{artifact_dir}/ci_failure.txt" 2>&1
               exit 1
 
       - name: fix
