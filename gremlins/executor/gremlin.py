@@ -481,7 +481,9 @@ class Gremlin:
                 if _project_root:
                     os.environ["GREMLINS_PROJECT_ROOT"] = _project_root
                     try:
-                        filtered, resolved = resolve_pipeline(kind, tuple(pipeline_args))
+                        filtered, resolved = resolve_pipeline(
+                            kind, tuple(pipeline_args)
+                        )
                     finally:
                         del os.environ["GREMLINS_PROJECT_ROOT"]
                 else:
