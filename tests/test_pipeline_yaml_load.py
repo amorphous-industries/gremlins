@@ -133,7 +133,7 @@ def test_pipeline_name_optional_defaults_to_type(tmp_path: pathlib.Path) -> None
         default_client: openai:gpt-4o
         prompts:
           fix: |
-            Fix the issue.
+            Fix the issue. Check {verify_output}.
         stages:
           - { type: agent }
           - { type: agent, prompt: [] }

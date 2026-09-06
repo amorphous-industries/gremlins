@@ -305,14 +305,148 @@ pub fn parse_default(raw: &str) -> serde_yaml::Value {
     serde_yaml::Value::String(s.to_string())
 }
 
+/// Validate that every key declared in each stage's `interpolation:` map is
+/// actually referenced as `{KEY}`, `$KEY`, or `${KEY}` somewhere in the
+/// stage's prompts or commands.
+pub fn validate_interpolation_keys(
+    expanded_yaml: &serde_yaml::Value,
+) -> Result<(), Vec<SchemaError>> {
+    let mut errors = Vec::new();
+
+    // Validate the `land` stage if present
+    if let Some(land) = expanded_yaml.get("land") {
+        validate_stage_interpolation(land, &mut errors);
+    }
+
+    // Validate each stage in `stages`
+    if let Some(stages) = expanded_yaml.get("stages").and_then(|v| v.as_sequence()) {
+        for stage in stages {
+            validate_stage_interpolation(stage, &mut errors);
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
+fn validate_stage_interpolation(
+    stage: &serde_yaml::Value,
+    errors: &mut Vec<SchemaError>,
+) {
+    let mapping = match stage.as_mapping() {
+        Some(m) => m,
+        None => return,
+    };
+
+    // Recurse into composite stages
+    if let Some(body) = mapping.get("body").and_then(|v| v.as_sequence()) {
+        for child in body {
+            validate_stage_interpolation(child, errors);
+        }
+    }
+    if let Some(parallel) = mapping.get("parallel").and_then(|v| v.as_sequence()) {
+        for child in parallel {
+            validate_stage_interpolation(child, errors);
+        }
+    }
+
+    // Only leaf stages with an interpolation map need checking
+    let interp = match mapping.get("interpolation").and_then(|v| v.as_mapping()) {
+        Some(m) => m,
+        None => return,
+    };
+
+    let stage_name = mapping
+        .get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("?");
+
+    // Collect all text to search: prompts + commands
+    let mut text = String::new();
+
+    if let Some(prompts) = mapping.get("prompt").and_then(|v| v.as_sequence()) {
+        for p in prompts {
+            if let Some(s) = p.as_str() {
+                text.push_str(s);
+                text.push('\n');
+            }
+        }
+    }
+
+    if let Some(options) = mapping.get("options").and_then(|v| v.as_mapping()) {
+        if let Some(cmds) = options.get("cmds").and_then(|v| v.as_sequence()) {
+            for cmd in cmds {
+                if let Some(s) = cmd.as_str() {
+                    text.push_str(s);
+                    text.push('\n');
+                }
+            }
+        }
+    }
+
+    for key in interp.keys() {
+        let key_str = match key.as_str() {
+            Some(k) => k,
+            None => continue,
+        };
+
+        // Check for {KEY}, $KEY (not followed by {), and ${KEY}
+        let brace_form = format!("{{{key_str}}}");
+        let dollar_brace_form = format!("${{{key_str}}}");
+
+        if text.contains(&brace_form) || text.contains(&dollar_brace_form) {
+            continue;
+        }
+
+        // Check $KEY — must not be followed by '{' to avoid ${OTHER}
+        let dollar_form = format!("${key_str}");
+        if text.contains(&dollar_form) {
+            // Verify it's not actually ${key_str}something (already checked above)
+            // Also check that $KEY is not followed by a '{' character
+            let mut found = false;
+            let mut pos = 0;
+            while let Some(idx) = text[pos..].find(&dollar_form) {
+                let abs_idx = pos + idx;
+                let after = abs_idx + dollar_form.len();
+                if after >= text.len() || text.as_bytes().get(after) != Some(&b'{') {
+                    found = true;
+                    break;
+                }
+                pos = after;
+            }
+            if found {
+                continue;
+            }
+        }
+
+        errors.push(SchemaError::UnusedInterpolationKey {
+            stage: stage_name.to_string(),
+            key: key_str.to_string(),
+        });
+    }
+}
+
 /// Parse a pipeline YAML file from disk, expanding includes, stage-definitions,
 /// and prompts. Returns the fully expanded YAML tree.
 pub fn parse_pipeline_file(
     yaml_path: &Path,
     project_root: &Path,
 ) -> Result<serde_yaml::Value, SchemaError> {
-    let resolver = BuiltinResolver;
-    expand_pipeline(yaml_path, Some(project_root), &resolver)
+    let resolver = BuiltinResolver {
+        project_root: project_root.to_path_buf(),
+    };
+    let expanded = expand_pipeline(yaml_path, Some(project_root), &resolver)?;
+
+    // Validate interpolation keys before returning
+    if let Err(errors) = validate_interpolation_keys(&expanded) {
+        let messages: Vec<String> = errors.iter().map(|e| e.to_string()).collect();
+        return Err(SchemaError::Generic(messages.join("\n")));
+    }
+
+    Ok(expanded)
 }
 
 #[allow(clippy::too_many_arguments)]
