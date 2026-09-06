@@ -452,6 +452,15 @@ def write_done_from_shell_cmd(cmd: str) -> None:
         _p.parent.mkdir(parents=True, exist_ok=True)
         _p.write_text("done")
 
+    # Also create verify_output.txt so the verify stage's verify_produced
+    # check passes (the noop shell doesn't actually run the command that
+    # would write it).
+    _m2 = _re.search(r">\s*[\"\']([^\"\']+/verify_output\.txt)[\"\']", cmd)
+    if _m2:
+        _vp = pathlib.Path(_m2.group(1))
+        _vp.parent.mkdir(parents=True, exist_ok=True)
+        _vp.write_text("(noop)\n")
+
 
 def common_local_patches(monkeypatch):
     """Apply monkeypatches shared across local-orchestrator smoke tests."""
