@@ -395,16 +395,13 @@ fn validate_stage_interpolation(stage: &serde_yaml::Value, errors: &mut Vec<Sche
             None => continue,
         };
 
-        // Check for {KEY}, $KEY (not followed by { or identifier chars), and ${KEY}
+        // Check for {KEY}
         let brace_form = format!("{{{key_str}}}");
-        let dollar_brace_form = format!("${{{key_str}}}");
-        // Also check for shell parameter expansion: ${key_str:-default} or ${key_str+alt}
-        let dollar_brace_colon = format!("${{{key_str}:");
+        // Check for ${KEY} and all shell parameter expansion forms:
+        // ${KEY}, ${KEY:-default}, ${KEY-default}, ${KEY+alt}, ${KEY?err}, ${KEY=val}
+        let dollar_brace_form = String::from("${") + key_str;
 
-        if text.contains(&brace_form)
-            || text.contains(&dollar_brace_form)
-            || text.contains(&dollar_brace_colon)
-        {
+        if text.contains(&brace_form) || text.contains(&dollar_brace_form) {
             continue;
         }
 
@@ -490,12 +487,7 @@ pub fn parse_pipeline_file(
 
     // Validate interpolation keys are referenced
     if let Err(errors) = validate_interpolation_keys(&expanded) {
-        let msg = errors
-            .iter()
-            .map(|e| e.to_string())
-            .collect::<Vec<_>>()
-            .join("; ");
-        return Err(SchemaError::Generic(msg));
+        return Err(errors.into_iter().next().unwrap());
     }
 
     Ok(expanded)

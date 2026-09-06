@@ -1,23 +1,18 @@
-import tempfile
 from pathlib import Path
 
 import pytest
 from _gremlins_core.schemas import Pipeline
 
-
-def _write_pipeline(content: str) -> Path:
-    tmp = tempfile.NamedTemporaryFile(
-        mode="w", suffix=".yaml", delete=False, prefix="test_pipeline_"
-    )
-    tmp.write(content)
-    tmp.close()
-    return Path(tmp.name)
-
-
 CLIENT = "openai:gpt-4o"
 
 
-def test_unused_interpolation_key_raises():
+def _write_pipeline(tmp_path: Path, content: str) -> Path:
+    path = tmp_path / "pipeline.yaml"
+    path.write_text(content)
+    return path
+
+
+def test_unused_interpolation_key_raises(tmp_path: Path):
     yaml_content = f"""
 default_client: {CLIENT}
 stages:
@@ -28,12 +23,12 @@ stages:
     interpolation:
       plan: artifact.plan
 """
-    path = _write_pipeline(yaml_content)
-    with pytest.raises(Exception, match="not referenced"):
+    path = _write_pipeline(tmp_path, yaml_content)
+    with pytest.raises(ValueError, match="not referenced"):
         Pipeline.from_yaml(path)
 
 
-def test_valid_pipeline_passes():
+def test_valid_pipeline_passes(tmp_path: Path):
     yaml_content = f"""
 default_client: {CLIENT}
 stages:
@@ -44,11 +39,11 @@ stages:
     interpolation:
       plan: artifact.plan
 """
-    path = _write_pipeline(yaml_content)
+    path = _write_pipeline(tmp_path, yaml_content)
     Pipeline.from_yaml(path)
 
 
-def test_key_in_prompt_text_passes():
+def test_key_in_prompt_text_passes(tmp_path: Path):
     yaml_content = f"""
 default_client: {CLIENT}
 stages:
@@ -59,11 +54,11 @@ stages:
     interpolation:
       plan: artifact.plan
 """
-    path = _write_pipeline(yaml_content)
+    path = _write_pipeline(tmp_path, yaml_content)
     Pipeline.from_yaml(path)
 
 
-def test_key_in_command_string_passes():
+def test_key_in_command_string_passes(tmp_path: Path):
     yaml_content = f"""
 default_client: {CLIENT}
 stages:
@@ -77,11 +72,11 @@ stages:
     interpolation:
       plan: artifact.plan
 """
-    path = _write_pipeline(yaml_content)
+    path = _write_pipeline(tmp_path, yaml_content)
     Pipeline.from_yaml(path)
 
 
-def test_key_in_shell_dollar_form_passes():
+def test_key_in_shell_dollar_form_passes(tmp_path: Path):
     yaml_content = f"""
 default_client: {CLIENT}
 stages:
@@ -95,11 +90,11 @@ stages:
     interpolation:
       plan: artifact.plan
 """
-    path = _write_pipeline(yaml_content)
+    path = _write_pipeline(tmp_path, yaml_content)
     Pipeline.from_yaml(path)
 
 
-def test_key_in_shell_dollar_brace_form_passes():
+def test_key_in_shell_dollar_brace_form_passes(tmp_path: Path):
     yaml_content = f"""
 default_client: {CLIENT}
 stages:
@@ -113,11 +108,11 @@ stages:
     interpolation:
       plan: artifact.plan
 """
-    path = _write_pipeline(yaml_content)
+    path = _write_pipeline(tmp_path, yaml_content)
     Pipeline.from_yaml(path)
 
 
-def test_multiple_keys_one_unused_raises():
+def test_multiple_keys_one_unused_raises(tmp_path: Path):
     yaml_content = f"""
 default_client: {CLIENT}
 stages:
@@ -129,6 +124,6 @@ stages:
       plan: artifact.plan
       unused_key: artifact.unused
 """
-    path = _write_pipeline(yaml_content)
-    with pytest.raises(Exception, match="not referenced"):
+    path = _write_pipeline(tmp_path, yaml_content)
+    with pytest.raises(ValueError, match="not referenced"):
         Pipeline.from_yaml(path)
