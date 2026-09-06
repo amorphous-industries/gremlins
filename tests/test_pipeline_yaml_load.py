@@ -525,7 +525,10 @@ def test_gremlins_prefix_type_path_traversal_raises(tmp_path: pathlib.Path) -> N
 # --- type: <pipeline-name> tests ---
 
 
-def test_type_resolves_to_pipeline_file(tmp_path: pathlib.Path) -> None:
+def test_type_resolves_to_pipeline_file(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("GREMLINS_PROJECT_ROOT", str(tmp_path))
     gremlins_dir = tmp_path / ".gremlins"
     gremlins_dir.mkdir()
     sub = gremlins_dir / "sub.yaml"
