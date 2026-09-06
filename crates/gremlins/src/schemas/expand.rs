@@ -405,7 +405,12 @@ fn validate_stage_interpolation(stage: &serde_yaml::Value, errors: &mut Vec<Sche
             while let Some(idx) = text[pos..].find(&dollar_form) {
                 let abs_idx = pos + idx;
                 let after = abs_idx + dollar_form.len();
-                if after >= text.len() || !text.as_bytes().get(after).is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'_') {
+                if after >= text.len()
+                    || !text
+                        .as_bytes()
+                        .get(after)
+                        .is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'_')
+                {
                     found = true;
                     break;
                 }
