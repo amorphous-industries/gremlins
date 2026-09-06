@@ -20,13 +20,13 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 from _gremlins_core.artifacts import Uri
-
 from _gremlins_core.schemas import (
     Bootstrap,
     source_env,
     substitute_bootstrap_vars,
     validate_source_values,
 )
+
 from gremlins.utils import proc
 
 if TYPE_CHECKING:

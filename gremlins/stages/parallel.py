@@ -21,8 +21,9 @@ from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.executor.parallel_state import ParallelGroupState
 
 if TYPE_CHECKING:
-    from gremlins.executor.gremlin import Gremlin, State
     from _gremlins_core.schemas import Pipeline
+
+    from gremlins.executor.gremlin import Gremlin, State
 from gremlins.stages.base import Stage
 from gremlins.stages.composite import child_state as _child_state
 from gremlins.stages.outcome import Bail, Done, Outcome

@@ -54,15 +54,15 @@ impl InputSources {
             let key = key_val
                 .as_str()
                 .ok_or_else(|| SchemaError::Generic("source keys must be strings".to_string()))?;
-            let entry_map = entry_val.as_mapping().ok_or_else(|| {
-                SchemaError::InputSource {
+            let entry_map = entry_val
+                .as_mapping()
+                .ok_or_else(|| SchemaError::InputSource {
                     name: key.to_string(),
                     msg: format!("expected a mapping, got {:?}", entry_val),
-                }
-            })?;
+                })?;
 
             let type_raw = entry_map
-                .get(&serde_yaml::Value::String("type".to_string()))
+                .get(serde_yaml::Value::String("type".to_string()))
                 .ok_or_else(|| SchemaError::InputSource {
                     name: key.to_string(),
                     msg: "missing required 'type' field".to_string(),
@@ -79,12 +79,12 @@ impl InputSources {
                 }
                 seq.iter()
                     .map(|v| {
-                        v.as_str().map(String::from).ok_or_else(|| {
-                            SchemaError::InputSource {
+                        v.as_str()
+                            .map(String::from)
+                            .ok_or_else(|| SchemaError::InputSource {
                                 name: key.to_string(),
                                 msg: "all type entries must be strings".to_string(),
-                            }
-                        })
+                            })
                     })
                     .collect::<Result<Vec<_>, _>>()?
             } else {
@@ -94,13 +94,11 @@ impl InputSources {
                 });
             };
 
-            let optional = match entry_map.get(&serde_yaml::Value::String("optional".to_string())) {
-                Some(v) => {
-                    v.as_bool().ok_or_else(|| SchemaError::InputSource {
-                        name: key.to_string(),
-                        msg: "'optional' must be a boolean".to_string(),
-                    })?
-                }
+            let optional = match entry_map.get(serde_yaml::Value::String("optional".to_string())) {
+                Some(v) => v.as_bool().ok_or_else(|| SchemaError::InputSource {
+                    name: key.to_string(),
+                    msg: "'optional' must be a boolean".to_string(),
+                })?,
                 None => false,
             };
 
@@ -145,6 +143,7 @@ impl InputSources {
 }
 
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct Bootstrap {
     pub source: Option<InputSources>,
     pub launch_cmds: Vec<String>,
@@ -164,7 +163,7 @@ impl Bootstrap {
                     )
                 })?;
 
-                if mapping.contains_key(&serde_yaml::Value::String("out".to_string())) {
+                if mapping.contains_key(serde_yaml::Value::String("out".to_string())) {
                     return Err(SchemaError::Generic(
                         "'bootstrap.out' is not valid; use 'cli_out'".to_string(),
                     ));
@@ -183,7 +182,7 @@ impl Bootstrap {
                 }
 
                 let source = mapping
-                    .get(&serde_yaml::Value::String("source".to_string()))
+                    .get(serde_yaml::Value::String("source".to_string()))
                     .map(|v| {
                         v.as_mapping().ok_or_else(|| {
                             SchemaError::Generic("'bootstrap.source' must be a mapping".to_string())
@@ -193,7 +192,7 @@ impl Bootstrap {
                     .transpose()?;
 
                 let cli_out = mapping
-                    .get(&serde_yaml::Value::String("cli_out".to_string()))
+                    .get(serde_yaml::Value::String("cli_out".to_string()))
                     .map(|v| {
                         let m = v.as_mapping().ok_or_else(|| {
                             SchemaError::Generic(
@@ -218,7 +217,7 @@ impl Bootstrap {
                     .unwrap_or_default();
 
                 let env = mapping
-                    .get(&serde_yaml::Value::String("env".to_string()))
+                    .get(serde_yaml::Value::String("env".to_string()))
                     .and_then(|v| v.as_str())
                     .map(String::from)
                     .unwrap_or_default();
@@ -226,11 +225,11 @@ impl Bootstrap {
                 Ok(Bootstrap {
                     source,
                     launch_cmds: string_list(
-                        mapping.get(&serde_yaml::Value::String("launch_cmds".to_string())),
+                        mapping.get(serde_yaml::Value::String("launch_cmds".to_string())),
                         "bootstrap.launch_cmds",
                     )?,
                     cmds: string_list(
-                        mapping.get(&serde_yaml::Value::String("cmds".to_string())),
+                        mapping.get(serde_yaml::Value::String("cmds".to_string())),
                         "bootstrap.cmds",
                     )?,
                     cli_out,
@@ -241,17 +240,6 @@ impl Bootstrap {
     }
 }
 
-impl Default for Bootstrap {
-    fn default() -> Self {
-        Bootstrap {
-            source: None,
-            launch_cmds: Vec::new(),
-            cmds: Vec::new(),
-            cli_out: HashMap::new(),
-            env: String::new(),
-        }
-    }
-}
 
 fn string_list(raw: Option<&serde_yaml::Value>, label: &str) -> Result<Vec<String>, SchemaError> {
     match raw {
@@ -311,7 +299,10 @@ pub fn validate_source_values(
                 }
             }
             Some(v) => {
-                if src.types.len() == 1 && src.types[0] == "filepath" && !std::path::Path::new(v).is_file() {
+                if src.types.len() == 1
+                    && src.types[0] == "filepath"
+                    && !std::path::Path::new(v).is_file()
+                {
                     return Err(SchemaError::Generic(format!(
                         "bootstrap.source {key:?}: expected an existing file, got {v:?}"
                     )));

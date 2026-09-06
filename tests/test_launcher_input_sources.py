@@ -3,7 +3,6 @@
 import pathlib
 
 import pytest
-
 from _gremlins_core.schemas import (
     InputSource,
     InputSources,

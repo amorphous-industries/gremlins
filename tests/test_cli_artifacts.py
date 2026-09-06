@@ -4,10 +4,10 @@ import pathlib
 from unittest.mock import MagicMock, patch
 
 import pytest
+from _gremlins_core.schemas import Pipeline
 
 import gremlins.cli as cli
 import gremlins.cli.artifacts as mod
-from _gremlins_core.schemas import Pipeline
 from gremlins.utils.yaml_io import YamlLoadError
 
 

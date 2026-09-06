@@ -10,11 +10,11 @@ import subprocess
 
 import pytest
 from _gremlins_core.artifacts import Uri
+from _gremlins_core.schemas import Pipeline
 
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.executor.gremlin import Gremlin
 from gremlins.executor.state import StateData
-from _gremlins_core.schemas import Pipeline
 from gremlins.stages.exec import Exec
 
 TRIVIAL_PIPELINE = """\

@@ -119,14 +119,15 @@ impl InputSources {
                 serde_yaml::Value::Mapping(entry_map),
             );
         }
-        let inner = rust_bootstrap::InputSources::from_yaml(&mapping).map_err(|e| {
-            pyo3::exceptions::PyValueError::new_err(e.to_string())
-        })?;
+        let inner = rust_bootstrap::InputSources::from_yaml(&mapping)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
         Ok(InputSources { inner })
     }
 
     fn get(&self, key: &str) -> Option<InputSource> {
-        self.inner.get(key).map(|s| InputSource { inner: s.clone() })
+        self.inner
+            .get(key)
+            .map(|s| InputSource { inner: s.clone() })
     }
 
     fn all_sources(&self) -> Vec<String> {
@@ -183,17 +184,13 @@ impl Bootstrap {
                 let mut mapping = serde_yaml::Mapping::new();
                 for (k, v) in d.iter() {
                     let k_str: String = k.extract()?;
-                    mapping.insert(
-                        serde_yaml::Value::String(k_str),
-                        pyval_to_serde(&v)?,
-                    );
+                    mapping.insert(serde_yaml::Value::String(k_str), pyval_to_serde(&v)?);
                 }
                 Some(serde_yaml::Value::Mapping(mapping))
             }
         };
-        let inner = rust_bootstrap::Bootstrap::from_yaml(raw_value.as_ref()).map_err(|e| {
-            pyo3::exceptions::PyValueError::new_err(e.to_string())
-        })?;
+        let inner = rust_bootstrap::Bootstrap::from_yaml(raw_value.as_ref())
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
         Ok(Bootstrap { inner })
     }
 
@@ -316,10 +313,6 @@ pub fn validate_source_values(
 
 #[pyfunction]
 #[pyo3(signature = (cmd, *, artifact_dir, cwd))]
-pub fn substitute_bootstrap_vars(
-    cmd: String,
-    artifact_dir: PathBuf,
-    cwd: PathBuf,
-) -> String {
+pub fn substitute_bootstrap_vars(cmd: String, artifact_dir: PathBuf, cwd: PathBuf) -> String {
     rust_bootstrap::substitute_bootstrap_vars(&cmd, &artifact_dir, &cwd)
 }

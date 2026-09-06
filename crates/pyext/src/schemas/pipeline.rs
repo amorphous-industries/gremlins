@@ -69,10 +69,19 @@ impl Pipeline {
         py.import("gremlins._clients_init")?;
 
         // Determine project root: if path is inside .gremlins, go up one more level
-        let project_root = if path.parent().and_then(|p| p.file_name()).is_some_and(|n| n == ".gremlins") {
-            path.parent().and_then(|p| p.parent()).map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."))
+        let project_root = if path
+            .parent()
+            .and_then(|p| p.file_name())
+            .is_some_and(|n| n == ".gremlins")
+        {
+            path.parent()
+                .and_then(|p| p.parent())
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("."))
         } else {
-            path.parent().map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."))
+            path.parent()
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("."))
         };
 
         // Use Rust parse_pipeline_file directly — no Python callback
@@ -155,13 +164,12 @@ impl Pipeline {
                         let mut mapping = serde_yaml::Mapping::new();
                         for (k, v) in bootstrap_dict.iter() {
                             let k_str: String = k.extract()?;
-                            mapping.insert(
-                                serde_yaml::Value::String(k_str),
-                                pyval_to_serde(&v)?,
-                            );
+                            mapping.insert(serde_yaml::Value::String(k_str), pyval_to_serde(&v)?);
                         }
-                        gremlins::schemas::bootstrap::Bootstrap::from_yaml(Some(&serde_yaml::Value::Mapping(mapping)))
-                            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?
+                        gremlins::schemas::bootstrap::Bootstrap::from_yaml(Some(
+                            &serde_yaml::Value::Mapping(mapping),
+                        ))
+                        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?
                     }
                 }
             };
@@ -201,7 +209,9 @@ impl Pipeline {
         let default_client = match (default_client, default_client_override) {
             (None, Some(override_str)) => {
                 let client_cls = py.import("_gremlins_core.clients")?.getattr("RustClient")?;
-                let client: Py<PyAny> = client_cls.call_method1("parse", (override_str,))?.extract()?;
+                let client: Py<PyAny> = client_cls
+                    .call_method1("parse", (override_str,))?
+                    .extract()?;
                 Some(client)
             }
             (dc, _) => dc,
@@ -256,7 +266,11 @@ impl Pipeline {
     }
 }
 
-fn fill_stage_clients_inner(py: Python<'_>, stages: &[Py<PyAny>], default: &Py<PyAny>) -> PyResult<()> {
+fn fill_stage_clients_inner(
+    py: Python<'_>,
+    stages: &[Py<PyAny>],
+    default: &Py<PyAny>,
+) -> PyResult<()> {
     for stage in stages {
         let client: Option<Py<PyAny>> = stage.getattr(py, "client")?.extract(py)?;
         if client.is_none() {
@@ -283,12 +297,18 @@ pub fn fill_stage_clients(stages: &Bound<'_, PyList>, default: &Bound<'_, PyAny>
 }
 
 /// Convert a serde_yaml::Value mapping to a PyDict.
-fn serde_yaml_value_to_py_dict<'a>(py: Python<'a>, value: &'a serde_yaml::Value) -> PyResult<Bound<'a, PyDict>> {
+fn serde_yaml_value_to_py_dict<'a>(
+    py: Python<'a>,
+    value: &'a serde_yaml::Value,
+) -> PyResult<Bound<'a, PyDict>> {
     let dict = PyDict::new(py);
     match value {
         serde_yaml::Value::Mapping(m) => {
             for (k, v) in m {
-                let key_str = k.as_str().map(String::from).unwrap_or_else(|| format!("{k:?}"));
+                let key_str = k
+                    .as_str()
+                    .map(String::from)
+                    .unwrap_or_else(|| format!("{k:?}"));
                 let val = serde_yaml_to_py(py, v)?;
                 dict.set_item(key_str, val)?;
             }
@@ -326,7 +346,10 @@ fn serde_yaml_to_py(py: Python<'_>, value: &serde_yaml::Value) -> PyResult<Py<Py
         serde_yaml::Value::Mapping(m) => {
             let dict = PyDict::new(py);
             for (k, v) in m {
-                let key_str = k.as_str().map(String::from).unwrap_or_else(|| format!("{k:?}"));
+                let key_str = k
+                    .as_str()
+                    .map(String::from)
+                    .unwrap_or_else(|| format!("{k:?}"));
                 dict.set_item(key_str, serde_yaml_to_py(py, v)?)?;
             }
             Ok(dict.into())

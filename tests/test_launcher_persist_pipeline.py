@@ -6,7 +6,6 @@ import json
 import pathlib
 
 import yaml
-
 from _gremlins_core.schemas import Pipeline
 
 # ---------------------------------------------------------------------------

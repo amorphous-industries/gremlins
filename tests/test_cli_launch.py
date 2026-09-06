@@ -6,12 +6,12 @@ import argparse
 import sys
 from unittest.mock import MagicMock, patch
 
+from _gremlins_core.schemas import Bootstrap, InputSource, InputSources, Pipeline
+
 from gremlins.cli.launch import (
     _self_background_main,  # type: ignore[reportPrivateUsage]
     build_launch_parser,  # type: ignore[reportPrivateUsage]
 )
-from _gremlins_core.schemas import Pipeline
-from _gremlins_core.schemas import Bootstrap, InputSource, InputSources
 
 
 def _pipeline_with_source(

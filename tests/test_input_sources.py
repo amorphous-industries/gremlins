@@ -4,9 +4,7 @@ import pathlib
 import textwrap
 
 import pytest
-
-from _gremlins_core.schemas import Pipeline
-from _gremlins_core.schemas import InputSource, InputSources
+from _gremlins_core.schemas import InputSource, InputSources, Pipeline
 
 
 class TestInputSources:

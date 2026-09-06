@@ -5,10 +5,9 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
+from _gremlins_core.schemas import Bootstrap, InputSource, InputSources, Pipeline
 
 from gremlins.cli.launch import build_launch_parser
-from _gremlins_core.schemas import Pipeline
-from _gremlins_core.schemas import Bootstrap, InputSource, InputSources
 
 
 def _pipeline_with_source(

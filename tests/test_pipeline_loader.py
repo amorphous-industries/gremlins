@@ -6,7 +6,6 @@ import pathlib
 import shutil
 
 import pytest
-
 from _gremlins_core.schemas import Pipeline
 
 
@@ -917,9 +916,8 @@ stages:
 
 def test_boss_yaml_loads() -> None:
     """boss.yaml loads with loop/handoff sequence structure."""
-    from conftest import PIPELINE_FIXTURES_DIR
-
     from _gremlins_core.schemas import Pipeline
+    from conftest import PIPELINE_FIXTURES_DIR
 
     pipeline = Pipeline.from_yaml(PIPELINE_FIXTURES_DIR / "boss.yaml")
     names = [s.name for s in pipeline.stages]

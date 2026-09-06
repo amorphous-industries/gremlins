@@ -20,9 +20,9 @@ impl PipelineResolver for PyResolver<'_> {
                     self.resolve_pipeline_name_fn.py(),
                 ) {
                     SchemaError::PipelineNotFound {
-                    name: name.to_string(),
-                    available: String::new(),
-                }
+                        name: name.to_string(),
+                        available: String::new(),
+                    }
                 } else {
                     SchemaError::Generic(e.to_string())
                 }

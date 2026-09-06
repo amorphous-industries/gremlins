@@ -5,7 +5,6 @@ Uses FakeClient throughout — no real claude subprocess or gh CLI calls
 """
 
 import asyncio
-import dataclasses
 import json
 import pathlib
 import re
@@ -15,11 +14,11 @@ from collections.abc import Callable
 from typing import Any
 
 import pytest
+from _gremlins_core.schemas import Pipeline
 from conftest import MINIMAL_EVENTS
 
 from gremlins.executor.run import _parse_args as _parse_gh_args
 from gremlins.executor.run import run_pipeline
-from _gremlins_core.schemas import Pipeline
 from tests.fake_client import FakeClient
 
 
@@ -1538,7 +1537,6 @@ def test_gh_main_pipeline_default_client_model(tmp_path, monkeypatch):
     # Override Pipeline.from_yaml to inject default_client: openai:gpt-4o and
     # re-fill stage clients so every stage inherits that model.
     from _gremlins_core.clients import RustClient as Client
-
     from _gremlins_core.schemas import fill_stage_clients
 
     _real_from_yaml = Pipeline.from_yaml
