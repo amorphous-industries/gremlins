@@ -151,7 +151,7 @@ def test_snapshotted_parent_keys_skipped(tmp_path: pathlib.Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# non-file:// artifact (e.g. gh://) is bound directly
+# non-file:// artifact (e.g. opaque://) is bound directly
 # ---------------------------------------------------------------------------
 
 
@@ -160,7 +160,7 @@ def test_non_file_artifact_bound_directly(tmp_path: pathlib.Path) -> None:
     _make_child_dir(
         tmp_path,
         "p4--grp--child",
-        bindings={"pr": "gh://pr/42"},
+        bindings={"pr": "opaque://pr/42"},
         files={},
     )
 
@@ -168,7 +168,7 @@ def test_non_file_artifact_bound_directly(tmp_path: pathlib.Path) -> None:
     ex._gather_child_artifacts()
 
     assert parent.artifacts.produced("pr")
-    assert str(parent.artifacts.resolve("pr")) == "gh://pr/42"
+    assert str(parent.artifacts.resolve("pr")) == "opaque://pr/42"
 
 
 # ---------------------------------------------------------------------------

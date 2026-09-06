@@ -89,9 +89,10 @@ def _write_pipeline(path: pathlib.Path, stages: list) -> None:
     )
 
 
-def test_append_graft_adds_stages_flat(tmp_path):
+def test_append_graft_adds_stages_flat(tmp_path, monkeypatch):
     from gremlins.launcher import _append_graft
 
+    monkeypatch.setenv("GREMLINS_PROJECT_ROOT", str(tmp_path))
     hermetic = tmp_path / "state" / "pipeline.yaml"
     hermetic.parent.mkdir()
     _write_pipeline(hermetic, [{"name": "plan", "type": "plan"}])
@@ -113,9 +114,10 @@ def test_append_graft_adds_stages_flat(tmp_path):
     assert result == "address"
 
 
-def test_append_graft_disambiguates_collision(tmp_path):
+def test_append_graft_disambiguates_collision(tmp_path, monkeypatch):
     from gremlins.launcher import _append_graft
 
+    monkeypatch.setenv("GREMLINS_PROJECT_ROOT", str(tmp_path))
     hermetic = tmp_path / "state" / "pipeline.yaml"
     hermetic.parent.mkdir()
     _write_pipeline(
@@ -140,9 +142,10 @@ def test_append_graft_disambiguates_collision(tmp_path):
     assert result == "address-2"
 
 
-def test_append_graft_unnamed_first_stage_gets_type_name(tmp_path):
+def test_append_graft_unnamed_first_stage_gets_type_name(tmp_path, monkeypatch):
     from gremlins.launcher import _append_graft
 
+    monkeypatch.setenv("GREMLINS_PROJECT_ROOT", str(tmp_path))
     hermetic = tmp_path / "state" / "pipeline.yaml"
     hermetic.parent.mkdir()
     _write_pipeline(hermetic, [{"name": "plan", "type": "plan"}])
@@ -162,9 +165,10 @@ def test_append_graft_unnamed_first_stage_gets_type_name(tmp_path):
     assert loaded["stages"][-1]["name"] == "address"
 
 
-def test_append_graft_existing_parallel_child_blocks_graft_name(tmp_path):
+def test_append_graft_existing_parallel_child_blocks_graft_name(tmp_path, monkeypatch):
     from gremlins.launcher import _append_graft
 
+    monkeypatch.setenv("GREMLINS_PROJECT_ROOT", str(tmp_path))
     hermetic = tmp_path / "state" / "pipeline.yaml"
     hermetic.parent.mkdir()
     # Existing pipeline has a parallel stage with child named "check".

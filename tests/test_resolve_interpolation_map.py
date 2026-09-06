@@ -104,14 +104,14 @@ def test_empty_segment_raises(tmp_path):
         resolve_interpolation_map(reg, {"x": "pr."})
 
 
-# --- gh:// opaque URI returns {"uri": ...} ---
+# --- opaque:// opaque URI returns {"uri": ...} ---
 
 
-def test_gh_opaque_uri_attribute(tmp_path):
+def test_opaque_uri_attribute(tmp_path):
     reg = _make_registry(tmp_path)
-    reg.bind("plan", Uri.parse("gh://issue/42"))
+    reg.bind("plan", Uri.parse("opaque://issue/42"))
     result = resolve_interpolation_map(reg, {"ref": "plan.uri"})
-    assert result == {"ref": "gh://issue/42"}
+    assert result == {"ref": "opaque://issue/42"}
 
 
 # --- exec integration: dotted key becomes env var ---

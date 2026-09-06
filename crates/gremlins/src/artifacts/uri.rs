@@ -1,6 +1,6 @@
 use std::fmt;
 
-const BUILTIN_SCHEMES: &[&str] = &["file", "git", "gh"];
+const BUILTIN_SCHEMES: &[&str] = &["file", "git", "opaque"];
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Uri {
@@ -83,15 +83,15 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_roundtrip_gh_pr() {
-        let uri = Uri::parse("gh://pr/42").unwrap();
-        assert_eq!(uri.to_string(), "gh://pr/42");
+    fn test_parse_roundtrip_opaque_pr() {
+        let uri = Uri::parse("opaque://pr/42").unwrap();
+        assert_eq!(uri.to_string(), "opaque://pr/42");
     }
 
     #[test]
-    fn test_parse_roundtrip_gh_issue() {
-        let uri = Uri::parse("gh://issue/7").unwrap();
-        assert_eq!(uri.to_string(), "gh://issue/7");
+    fn test_parse_roundtrip_opaque_issue() {
+        let uri = Uri::parse("opaque://issue/7").unwrap();
+        assert_eq!(uri.to_string(), "opaque://issue/7");
     }
 
     #[test]

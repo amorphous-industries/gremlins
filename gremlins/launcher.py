@@ -90,9 +90,7 @@ class _Inputs:
 
 
 def _reject_pipeline_collision(gremlin_id: str) -> None:
-    pipeline_names = {
-        name for name, _ in list_pipelines(pathlib.Path(_project_root_fn()))
-    }
+    pipeline_names = {name for name, _ in list_pipelines()}
     if gremlin_id in pipeline_names:
         raise ValueError(
             f"--gremlin-id {gremlin_id!r} shadows the name of a pipeline. Pick a different id."
@@ -180,14 +178,10 @@ def _resolve_inputs(
 
     resolved_gremlin_id = _resolve_gremlin_id(slug, gremlin_id)
 
-    resolved_pipeline_args, pipeline_path = resolve_pipeline(
-        kind, pipeline_args, project_root
-    )
+    resolved_pipeline_args, pipeline_path = resolve_pipeline(kind, pipeline_args)
 
     try:
-        loaded_pipeline = _PipelineData.from_yaml(
-            resolve_pipeline_path(pipeline_path, pathlib.Path(project_root))
-        )
+        loaded_pipeline = _PipelineData.from_yaml(resolve_pipeline_path(pipeline_path))
     except (FileNotFoundError, OSError, ValueError):
         pass
 
@@ -276,10 +270,10 @@ def _append_graft(
     if not hermetic.is_file():
         raise RuntimeError(f"no persisted pipeline.yaml in {state_dir} — cannot graft")
 
-    graft_path = resolve_pipeline_name(graft_pipeline_name, pathlib.Path(project_root))
+    graft_path = resolve_pipeline_name(graft_pipeline_name)
 
-    def _resolve(n, pr):
-        return resolve_pipeline_name(n, pr)
+    def _resolve(n):
+        return resolve_pipeline_name(n)
 
     expanded = _expand_pipeline(
         str(graft_path),
@@ -373,8 +367,8 @@ def _persist_expanded_pipeline(state_dir: pathlib.Path, pipeline_path: str) -> s
     from gremlins.cli.pipeline_args import load_prefix_clients
     from gremlins.utils.yaml_io import dump_yaml_text
 
-    def _resolve(n, pr):
-        return _resolve_pipeline_name(n, pr)
+    def _resolve(n):
+        return _resolve_pipeline_name(n)
 
     expanded = _expand_pipeline(
         str(pipeline_path),

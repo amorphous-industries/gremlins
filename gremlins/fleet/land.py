@@ -928,9 +928,8 @@ def _load_pipeline_land_stage(state: dict[str, Any]):
     _pr = str(state.get("project_root") or "")
     if not pipeline_path:
         return None
-    project_dir = pathlib.Path(_pr) if _pr else pathlib.Path(_project_root_fn())
     try:
-        p = resolve_pipeline_path(pipeline_path, project_dir)
+        p = resolve_pipeline_path(pipeline_path)
         pipeline = Pipeline.from_yaml(p)
         return pipeline.land
     except Exception as exc:
@@ -1023,9 +1022,15 @@ def do_land(
 
         from gremlins.utils.yaml_io import YamlLoadError, load_yaml_file
 
-        project_dir = pathlib.Path(project_root)
         try:
-            p = resolve_pipeline_path(pipeline_path, project_dir)
+            if project_root:
+                os.environ["GREMLINS_PROJECT_ROOT"] = project_root
+                try:
+                    p = resolve_pipeline_path(pipeline_path)
+                finally:
+                    del os.environ["GREMLINS_PROJECT_ROOT"]
+            else:
+                p = resolve_pipeline_path(pipeline_path)
             raw_yaml = load_yaml_file(p)
             bootstrap = Bootstrap.from_yaml(raw_yaml.get("bootstrap"))
             env_script = bootstrap.env

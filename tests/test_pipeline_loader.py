@@ -422,8 +422,10 @@ stages:
       - {name: r1, type: exec}
 """,
     )
-    with pytest.raises(ValueError, match="duplicate child name"):
-        Pipeline.from_yaml(tmp_path / "pipeline.yaml")
+    pipeline = Pipeline.from_yaml(tmp_path / "pipeline.yaml")
+    reviews = [s for s in pipeline.stages if s.name == "reviews"][0]
+    child_names = [c.name for c in reviews.body]
+    assert child_names == ["r1", "r1-2"]
 
 
 def test_nested_parallel_raises(tmp_path: pathlib.Path) -> None:
@@ -827,7 +829,7 @@ stages:
     type: exec
     skip_if_exists: plan-issue-number
     bind:
-      artifact.plan: "gh://issue/123"
+      artifact.plan: "opaque://issue/123"
 """,
     )
     pipeline = Pipeline.from_yaml(yaml_path)

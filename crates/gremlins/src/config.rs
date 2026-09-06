@@ -376,6 +376,14 @@ pub fn project_overlay_dir(project_root: &Path) -> PathBuf {
     resolve_project_overlay_dir(overrides.as_ref(), project_root)
 }
 
+/// Directories searched for stage-definition .yaml files (e.g. in
+/// ``stage-definitions:`` blocks).  Returns overlay ``stages/`` subdirectory;
+/// bundled recipes live in ``assets::RECIPES`` and are resolved separately.
+pub fn stage_definition_dirs() -> Vec<PathBuf> {
+    let overlay = resolve_project_overlay_dir(None, &project_root());
+    vec![overlay.join("stages")]
+}
+
 pub fn scratch_root(gremlin_id: Option<&str>) -> PathBuf {
     let overrides = get_global().map(|c| c.path_overrides().clone());
     resolve_scratch_root(overrides.as_ref(), gremlin_id)

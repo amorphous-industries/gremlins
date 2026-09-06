@@ -98,9 +98,9 @@ def test_init_loads_from_persist_file(tmp_path: pathlib.Path) -> None:
 def test_persist_survives_roundtrip(tmp_path: pathlib.Path) -> None:
     artifact_dir = tmp_path / "artifacts"
     r1 = ArtifactRegistry(artifact_dir=artifact_dir)
-    r1.bind("pr", Uri.parse("gh://pr/42"))
+    r1.bind("pr", Uri.parse("opaque://pr/42"))
     r2 = ArtifactRegistry(artifact_dir=artifact_dir)
-    assert r2.resolve("pr") == Uri.parse("gh://pr/42")
+    assert r2.resolve("pr") == Uri.parse("opaque://pr/42")
 
 
 def test_unbind_removes_binding(tmp_path: pathlib.Path) -> None:

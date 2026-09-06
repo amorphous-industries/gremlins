@@ -66,6 +66,13 @@ pub fn resolve_pipeline_name(name: &str, project_root: PathBuf) -> Result<PathBu
         }
     }
 
+    // Also search .gremlins/stages/ for stage-definition YAMLs.
+    let stages_dir = project_overlay_dir(&project_root).join("stages");
+    let candidate = stages_dir.join(format!("{}.yaml", name));
+    if candidate.exists() {
+        return Ok(candidate.canonicalize().unwrap_or(candidate));
+    }
+
     let mut names: Vec<String> = Vec::new();
     for d in project_pipeline_dirs(&project_root) {
         if d.exists() {
@@ -80,6 +87,17 @@ pub fn resolve_pipeline_name(name: &str, project_root: PathBuf) -> Result<PathBu
                 names.extend(stems);
             }
         }
+    }
+    // Include stages/ names in error listing.
+    if let Ok(entries) = std::fs::read_dir(&stages_dir) {
+        let mut stems: Vec<String> = entries
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .filter(|p| p.extension().is_some_and(|ext| ext == "yaml"))
+            .filter_map(|p| p.file_stem().and_then(|s| s.to_str()).map(String::from))
+            .collect();
+        stems.sort();
+        names.extend(stems);
     }
     let mut seen = HashSet::new();
     names.retain(|n| seen.insert(n.clone()));
@@ -113,8 +131,16 @@ pub fn resolve_pipeline_path(
         }
     }
 
+    // Also search .gremlins/stages/ for stage-definition YAMLs.
+    let stages_dir = project_overlay_dir(&base_dir).join("stages");
+    let candidate = stages_dir.join(format!("{}.yaml", name_or_path));
+    if candidate.exists() {
+        return Ok(candidate.canonicalize().unwrap_or(candidate));
+    }
+
     let dirs: Vec<String> = project_pipeline_dirs(&base_dir)
         .iter()
+        .chain(std::iter::once(&stages_dir))
         .map(|d| d.display().to_string())
         .collect();
     Err(DiscoveryError::Path {
@@ -231,5 +257,32 @@ mod tests {
         let project = setup_dirs();
         let err = resolve_pipeline_path("nope.yaml", project.path().to_path_buf()).unwrap_err();
         assert!(err.to_string().contains("not found"));
+    }
+
+    #[test]
+    fn test_resolve_pipeline_name_from_stages_dir() {
+        let project = setup_dirs();
+        let stages = project.path().join(".gremlins").join("stages");
+        fs::create_dir_all(&stages).unwrap();
+        fs::write(stages.join("foo.yaml"), "stages: []").unwrap();
+
+        let result = resolve_pipeline_name("foo", project.path().to_path_buf()).unwrap();
+        assert!(result.ends_with("foo.yaml"));
+        assert!(result.to_str().unwrap().contains("stages"));
+    }
+
+    #[test]
+    fn test_list_pipelines_excludes_stages() {
+        let project = setup_dirs();
+        let overlay = project.path().join(".gremlins");
+        fs::write(overlay.join("pipeline.yaml"), "stages: []").unwrap();
+        let stages = overlay.join("stages");
+        fs::create_dir_all(&stages).unwrap();
+        fs::write(stages.join("foo.yaml"), "stages: []").unwrap();
+
+        let result = list_pipelines(project.path().to_path_buf());
+        let names: Vec<&str> = result.iter().map(|(n, _)| n.as_str()).collect();
+        assert!(names.contains(&"pipeline"));
+        assert!(!names.contains(&"foo"));
     }
 }

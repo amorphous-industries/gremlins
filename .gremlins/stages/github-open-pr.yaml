@@ -42,7 +42,7 @@ stages:
       plan: artifact.plan?
       diff_summary: artifact.diff_summary
     prompt:
-      - gremlins:github_open_pull_request.md
+      - github_open_pull_request.md
     bind:
       artifact.pr_title:  "file://session/pr-title.txt"
       artifact.pr_body:   "file://session/pr-body.md"
@@ -58,7 +58,6 @@ stages:
       artifact.pr-number: "file://session/pr-number.txt"
       artifact.pr-url:    "file://session/pr-url.txt"
       artifact.pr-branch: "file://session/pr-branch.txt"
-      artifact.pr: "gh://pr/{read:pr-number}"
     options:
       cmds:
         - |

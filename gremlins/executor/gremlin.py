@@ -136,7 +136,13 @@ def _expand_stage_entries(raw_stages: Sequence[StageProtocol]) -> list[StageProt
                     raise ValueError(f"duplicate child stage name {child.name!r}")
                 child_names.add(child.name)
         if entry.name in seen:
-            raise ValueError(f"pipeline has duplicate stage name {entry.name!r}")
+            # Auto-rename duplicate as fill_names does in the Rust layer
+            n = 2
+            new_name = f"{entry.name}-{n}"
+            while new_name in seen:
+                n += 1
+                new_name = f"{entry.name}-{n}"
+            entry.name = new_name
         seen.add(entry.name)
         result.append(entry)
 
@@ -472,9 +478,16 @@ class Gremlin:
             pipeline_path = str(hermetic)
         elif kind:
             try:
-                filtered, resolved = resolve_pipeline(
-                    kind, tuple(pipeline_args), _project_root
-                )
+                if _project_root:
+                    os.environ["GREMLINS_PROJECT_ROOT"] = _project_root
+                    try:
+                        filtered, resolved = resolve_pipeline(
+                            kind, tuple(pipeline_args)
+                        )
+                    finally:
+                        del os.environ["GREMLINS_PROJECT_ROOT"]
+                else:
+                    filtered, resolved = resolve_pipeline(kind, tuple(pipeline_args))
                 pipeline_args = filtered
                 pipeline_path = resolved
             except FileNotFoundError:
@@ -485,10 +498,7 @@ class Gremlin:
         if pipeline_path or kind:
             try:
                 pipeline = _PipelineData.from_yaml(
-                    resolve_pipeline_path(
-                        pipeline_path or kind,
-                        pathlib.Path(_project_root),
-                    )
+                    resolve_pipeline_path(pipeline_path or kind)
                 )
             except FileNotFoundError:
                 # Pipeline not found (e.g., test or recovery scenario)
@@ -563,7 +573,7 @@ class Gremlin:
         client: Client | None = None,
     ) -> Gremlin:
         try:
-            pipeline_path = resolve_pipeline_path(pipeline_ref, project_dir)
+            pipeline_path = resolve_pipeline_path(pipeline_ref)
             # Inline client at launch: if a --client label was provided and the
             # pipeline YAML doesn't declare default_client, inject it so the
             # loader never sees None.

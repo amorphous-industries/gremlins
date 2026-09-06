@@ -40,6 +40,11 @@ prompts:
   dev-env: dev-env-howto.md
 
 stage-definitions:
+  plan-gh: plan-gh
+  github-open-pr: github-open-pr
+  github-request-copilot-review: github-request-copilot-review
+  github-wait-copilot: github-wait-copilot
+  github-wait-ci: github-wait-ci
   check-and-fix:
     type: sequence
     body:
@@ -67,8 +72,8 @@ stage-definitions:
             - git diff --cached --quiet || git commit -m "fix checks"
 
 stages:
-  - { type: gremlins:plan-gh, prompt: [code-style, terse, gremlins:plan_gh.md] }
-  - { type: gremlins:implement, prompt: [code-style, terse, dev-env, no_lint_in_implement.md, gremlins:implement_gh.md] }
+  - { type: plan-gh, prompt: [code-style, terse, plan_gh.md] }
+  - { type: gremlins:implement, prompt: [code-style, terse, dev-env, no_lint_in_implement.md, implement_gh.md] }
   - { type: check-and-fix }
 
   - name: compute-diff
@@ -103,9 +108,9 @@ stages:
       review-two: artifact.local-review-two
 
   - { type: check-and-fix }
-  - { type: gremlins:github-open-pr }
-  - { type: gremlins:github-request-copilot-review }
-  - { type: gremlins:github-wait-copilot, interpolation: {pr: artifact.pr-url} }
+  - { type: github-open-pr }
+  - { type: github-request-copilot-review }
+  - { type: github-wait-copilot, interpolation: {pr: artifact.pr-url} }
   - name: gather-github-review-content
     type: exec
     interpolation:
@@ -159,7 +164,7 @@ stages:
       - code-style
       - terse
       - dev-env
-      - gremlins:github_address_pull_request_reviews.md
+      - github_address_pull_request_reviews.md
       - gremlins:bail_section.md
   - { type: check-and-fix }
-  - { type: gremlins:github-wait-ci, interpolation: {pr: artifact.pr-url}, prompt: [terse, dev-env, gremlins:ci_fix.md, gremlins:bail_section_fix.md] }
+  - { type: github-wait-ci, interpolation: {pr: artifact.pr-url}, prompt: [terse, dev-env, gremlins:ci_fix.md, gremlins:bail_section_fix.md] }

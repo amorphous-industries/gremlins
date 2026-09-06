@@ -6,14 +6,15 @@ from typing import Any
 
 import pytest
 from _gremlins_core.clients import RustClient as Client
-from _gremlins_core.discovery import resolve_pipeline_name as _resolve_pipeline_name
 from _gremlins_core.schemas import Pipeline
 from _gremlins_core.schemas import expand_pipeline as _expand_pipeline
 from _gremlins_core.schemas import fill_names as _fill_names
 
 
-def _resolve(n, pr):
-    return _resolve_pipeline_name(n, pr)
+def _resolve(n):
+    from _gremlins_core.discovery import resolve_pipeline_name as rpn
+
+    return rpn(n)
 
 
 def _expand(p: pathlib.Path, **kwargs) -> dict[str, Any]:
@@ -524,7 +525,10 @@ def test_gremlins_prefix_type_path_traversal_raises(tmp_path: pathlib.Path) -> N
 # --- type: <pipeline-name> tests ---
 
 
-def test_type_resolves_to_pipeline_file(tmp_path: pathlib.Path) -> None:
+def test_type_resolves_to_pipeline_file(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("GREMLINS_PROJECT_ROOT", str(tmp_path))
     gremlins_dir = tmp_path / ".gremlins"
     gremlins_dir.mkdir()
     sub = gremlins_dir / "sub.yaml"

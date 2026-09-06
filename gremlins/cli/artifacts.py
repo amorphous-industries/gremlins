@@ -6,7 +6,7 @@ import sys
 from typing import Any
 
 from _gremlins_core.artifacts import Uri
-from _gremlins_core.config import project_root, scratch_root, state_root
+from _gremlins_core.config import scratch_root, state_root
 from _gremlins_core.discovery import resolve_pipeline_name
 from _gremlins_core.schemas import Pipeline
 
@@ -27,7 +27,7 @@ def artifacts_main(argv: list[str]) -> int:
             _print_live(reg)
             return 0
     try:
-        ppath = resolve_pipeline_name(target, pathlib.Path(project_root()))
+        ppath = resolve_pipeline_name(target)
         pipe = Pipeline.from_yaml(ppath)
         _print_static(pipe)
         return 0
