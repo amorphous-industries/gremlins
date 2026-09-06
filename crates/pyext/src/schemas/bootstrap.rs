@@ -259,7 +259,13 @@ pub fn source_env(
     let mut vals = HashMap::new();
     for (k, v) in values.iter() {
         let k_str: String = k.extract()?;
+        if v.is_none() {
+            continue;
+        }
         let v_str: String = v.extract()?;
+        if v_str.is_empty() {
+            continue;
+        }
         vals.insert(k_str, v_str);
     }
     Ok(rust_bootstrap::source_env(src, &vals))
@@ -278,7 +284,13 @@ pub fn validate_source_values(
     let mut vals = HashMap::new();
     for (k, v) in values.iter() {
         let k_str: String = k.extract()?;
+        if v.is_none() {
+            continue;
+        }
         let v_str: String = v.extract()?;
+        if v_str.is_empty() {
+            continue;
+        }
         vals.insert(k_str, v_str);
     }
     rust_bootstrap::validate_source_values(src, &vals)

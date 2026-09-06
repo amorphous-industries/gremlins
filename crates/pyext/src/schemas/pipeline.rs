@@ -278,6 +278,13 @@ fn fill_stage_clients_inner(
             .ok()
             .and_then(|v| v.extract(py).ok());
         if stage_type.as_deref() == Some("parallel") {
+            let body: Option<Vec<Py<PyAny>>> = stage
+                .getattr(py, "body")
+                .ok()
+                .and_then(|v| v.extract(py).ok());
+            if let Some(body) = body {
+                fill_stage_clients_inner(py, &body, default)?;
+            }
             continue;
         }
         let client: Option<Py<PyAny>> = stage.getattr(py, "client")?.extract(py)?;
