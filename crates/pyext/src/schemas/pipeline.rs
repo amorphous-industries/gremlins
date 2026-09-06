@@ -156,9 +156,9 @@ impl Pipeline {
 
         let bootstrap: Option<Py<PyAny>> = {
             let raw_bs = raw_dict.get_item("bootstrap")?;
-            match raw_bs {
-                None => None,
-                Some(v) if v.is_none() => None,
+            let rust_bs = match raw_bs {
+                None => gremlins::schemas::bootstrap::Bootstrap::default(),
+                Some(v) if v.is_none() => gremlins::schemas::bootstrap::Bootstrap::default(),
                 Some(v) => {
                     let bootstrap_dict: &Bound<'_, PyDict> = v.cast().map_err(|_| {
                         pyo3::exceptions::PyValueError::new_err("'bootstrap' must be a mapping")
@@ -168,15 +168,15 @@ impl Pipeline {
                         let k_str: String = k.extract()?;
                         mapping.insert(serde_yaml::Value::String(k_str), pyval_to_serde(&v)?);
                     }
-                    let rust_bs = gremlins::schemas::bootstrap::Bootstrap::from_yaml(Some(
+                    gremlins::schemas::bootstrap::Bootstrap::from_yaml(Some(
                         &serde_yaml::Value::Mapping(mapping),
                     ))
-                    .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
-                    let bs = Bootstrap { inner: rust_bs };
-                    let bs_obj = Py::new(py, bs)?;
-                    Some(bs_obj.into_any())
+                    .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?
                 }
-            }
+            };
+            let bs = Bootstrap { inner: rust_bs };
+            let bs_obj = Py::new(py, bs)?;
+            Some(bs_obj.into_any())
         };
 
         let land_stage: Option<Py<PyAny>> = raw_dict
