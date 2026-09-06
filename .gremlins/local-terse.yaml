@@ -68,4 +68,4 @@ stages:
   - { type: check-and-fix }
   - { type: gremlins:review-code,  prompt: [code-style, terse, dev-env, local_review.md] }
   - { name: address-code, type: agent, interpolation: {text: artifact.review-code}, prompt: [code-style, terse, dev-env, gremlins:address.md, gremlins:bail_section.md] }
-  - { , type: check-and-fix }
+  - { type: check-and-fix }
