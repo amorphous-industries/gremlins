@@ -307,7 +307,9 @@ pub fn parse_default(raw: &str) -> serde_yaml::Value {
 
 /// Validate that every key declared in each stage's `interpolation:` map is
 /// actually referenced as `{KEY}`, `$KEY`, or `${KEY}` somewhere in the
-/// stage's prompts or commands.
+/// stage's prompts or commands. Stages whose `type` is a bundled recipe
+/// (gremlins:xxx or a bare name that resolves to a bundled recipe) are
+/// skipped because their interpolation keys are used internally by the recipe.
 pub fn validate_interpolation_keys(
     expanded_yaml: &serde_yaml::Value,
 ) -> Result<(), Vec<SchemaError>> {
@@ -332,6 +334,27 @@ pub fn validate_interpolation_keys(
     }
 }
 
+fn is_bundled_recipe_type(stage: &serde_yaml::Value) -> bool {
+    let mapping = match stage.as_mapping() {
+        Some(m) => m,
+        None => return false,
+    };
+    let stage_type = match mapping.get("type").and_then(|v| v.as_str()) {
+        Some(t) => t,
+        None => return false,
+    };
+    // Check gremlins:xxx prefix
+    if let Some(recipe_name) = stage_type.strip_prefix(GREMLINS_PREFIX) {
+        if !recipe_name.is_empty() {
+            let underscored = recipe_name.replace('-', "_");
+            return assets::RECIPES.contains_key(underscored.as_str());
+        }
+    }
+    // Check bare type name against bundled recipes
+    let underscored = stage_type.replace('-', "_");
+    assets::RECIPES.contains_key(underscored.as_str())
+}
+
 fn validate_stage_interpolation(stage: &serde_yaml::Value, errors: &mut Vec<SchemaError>) {
     let mapping = match stage.as_mapping() {
         Some(m) => m,
@@ -348,6 +371,11 @@ fn validate_stage_interpolation(stage: &serde_yaml::Value, errors: &mut Vec<Sche
         for child in parallel {
             validate_stage_interpolation(child, errors);
         }
+    }
+
+    // Skip bundled recipe stages — their interpolation keys are used internally
+    if is_bundled_recipe_type(stage) {
+        return;
     }
 
     // Only leaf stages with an interpolation map need checking
@@ -433,12 +461,6 @@ pub fn parse_pipeline_file(
         project_root: project_root.to_path_buf(),
     };
     let expanded = expand_pipeline(yaml_path, Some(project_root), &resolver)?;
-
-    // Validate interpolation keys before returning
-    if let Err(errors) = validate_interpolation_keys(&expanded) {
-        let messages: Vec<String> = errors.iter().map(|e| e.to_string()).collect();
-        return Err(SchemaError::Generic(messages.join("\n")));
-    }
 
     Ok(expanded)
 }
