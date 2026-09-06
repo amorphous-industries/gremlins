@@ -485,9 +485,7 @@ pub fn parse_pipeline_file(
     yaml_path: &Path,
     project_root: &Path,
 ) -> Result<serde_yaml::Value, SchemaError> {
-    let resolver = BuiltinResolver {
-        project_root: project_root.to_path_buf(),
-    };
+    let resolver = BuiltinResolver;
     let expanded = expand_pipeline(yaml_path, Some(project_root), &resolver)?;
 
     // Validate interpolation keys are referenced
