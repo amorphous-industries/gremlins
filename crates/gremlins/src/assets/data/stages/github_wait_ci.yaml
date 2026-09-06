@@ -114,6 +114,11 @@ stages:
                   sleep {poll_interval}
               done
 
+              if [ "$all_done" != "true" ]; then
+                  printf 'ci-gate: checks incomplete after timeout\n' > "{artifact_dir}/bail"
+                  exit 2
+              fi
+
               failed_json=$(printf '%s' "$status_json" | jq '[
                   .statusCheckRollup // [] | .[] |
                   select(if .__typename == "StatusContext"
