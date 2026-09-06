@@ -31,9 +31,7 @@ def resolve_pipeline(
             filtered.append(args[i])
             i += 1
     name = pipeline_val or kind
-    resolved = str(
-        resolve_pipeline_path(name, pathlib.Path(project_root))
-    )
+    resolved = str(resolve_pipeline_path(name, pathlib.Path(project_root)))
     return filtered, resolved
 
 

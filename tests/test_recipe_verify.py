@@ -13,7 +13,6 @@ from _gremlins_core.schemas import expand_pipeline as _expand_pipeline
 from gremlins.pipeline import Pipeline
 
 
-
 def _resolve(n, pr):
     return _resolve_pipeline_name(n, pr)
 

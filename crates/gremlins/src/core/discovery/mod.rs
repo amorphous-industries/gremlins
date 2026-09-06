@@ -4,8 +4,6 @@ use std::path::PathBuf;
 pub mod error;
 pub use error::DiscoveryError;
 
-
-
 fn project_overlay_dir(project_root: &std::path::Path) -> PathBuf {
     if let Ok(ov) = std::env::var("GREMLINS_OVERLAY_DIR") {
         if !ov.is_empty() {
@@ -30,9 +28,7 @@ fn project_pipeline_dirs(project_root: &std::path::Path) -> Vec<PathBuf> {
     dirs
 }
 
-pub fn list_pipelines(
-    project_root: PathBuf,
-) -> Vec<(String, PathBuf)> {
+pub fn list_pipelines(project_root: PathBuf) -> Vec<(String, PathBuf)> {
     let mut results: Vec<(String, PathBuf)> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
 
@@ -62,10 +58,7 @@ pub fn list_pipelines(
     results
 }
 
-pub fn resolve_pipeline_name(
-    name: &str,
-    project_root: PathBuf,
-) -> Result<PathBuf, DiscoveryError> {
+pub fn resolve_pipeline_name(name: &str, project_root: PathBuf) -> Result<PathBuf, DiscoveryError> {
     for d in project_pipeline_dirs(&project_root) {
         let candidate = d.join(format!("{}.yaml", name));
         if candidate.exists() {
@@ -218,8 +211,7 @@ mod tests {
         fs::write(&p, "stages: []").unwrap();
 
         let result =
-            resolve_pipeline_path(p.to_str().unwrap(), project.path().to_path_buf())
-                .unwrap();
+            resolve_pipeline_path(p.to_str().unwrap(), project.path().to_path_buf()).unwrap();
         assert!(result.ends_with("explicit.yaml"));
     }
 
@@ -237,8 +229,7 @@ mod tests {
     #[test]
     fn test_resolve_pipeline_path_missing() {
         let project = setup_dirs();
-        let err =
-            resolve_pipeline_path("nope.yaml", project.path().to_path_buf()).unwrap_err();
+        let err = resolve_pipeline_path("nope.yaml", project.path().to_path_buf()).unwrap_err();
         assert!(err.to_string().contains("not found"));
     }
 }

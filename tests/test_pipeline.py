@@ -7,7 +7,6 @@ from _gremlins_core.schemas import STAGE_TYPES
 
 from gremlins.executor.gremlin import Gremlin
 from gremlins.pipeline import Pipeline as _PipelineData
-
 from gremlins.stages.agent import Agent
 from gremlins.stages.base import Stage
 from gremlins.stages.parallel import ParallelStage
@@ -35,9 +34,7 @@ def _local(
 def test_pipeline_constructs_from_local_yaml(tmp_path: pathlib.Path) -> None:
     from conftest import PIPELINE_FIXTURES_DIR
 
-    pipeline_data = _PipelineData.from_yaml(
-        PIPELINE_FIXTURES_DIR / "local.yaml"
-    )
+    pipeline_data = _PipelineData.from_yaml(PIPELINE_FIXTURES_DIR / "local.yaml")
     gremlin = Gremlin(
         pipeline_data.stages,
         state_dir=tmp_path,
@@ -56,9 +53,7 @@ def test_pipeline_constructs_from_local_yaml(tmp_path: pathlib.Path) -> None:
 def test_pipeline_constructs_from_gh_yaml(tmp_path: pathlib.Path) -> None:
     from conftest import PIPELINE_FIXTURES_DIR
 
-    pipeline_data = _PipelineData.from_yaml(
-        PIPELINE_FIXTURES_DIR / "gh.yaml"
-    )
+    pipeline_data = _PipelineData.from_yaml(PIPELINE_FIXTURES_DIR / "gh.yaml")
     gremlin = Gremlin(
         pipeline_data.stages,
         state_dir=tmp_path,
@@ -202,9 +197,7 @@ def test_resolve_pipeline_name_uses_overlay_dir(
 ) -> None:
     overlay = _make_overlay(tmp_path, "mylocal")
     monkeypatch.setenv("GREMLINS_OVERLAY_DIR", str(overlay))
-    result = resolve_pipeline_name(
-        "mylocal", tmp_path / "project"
-    )
+    result = resolve_pipeline_name("mylocal", tmp_path / "project")
     assert result == (overlay / "mylocal.yaml").resolve()
 
 
@@ -213,9 +206,7 @@ def test_resolve_pipeline_path_uses_overlay_dir(
 ) -> None:
     overlay = _make_overlay(tmp_path, "mylocal")
     monkeypatch.setenv("GREMLINS_OVERLAY_DIR", str(overlay))
-    result = resolve_pipeline_path(
-        "mylocal", tmp_path / "project"
-    )
+    result = resolve_pipeline_path("mylocal", tmp_path / "project")
     assert result == (overlay / "mylocal.yaml").resolve()
 
 
@@ -250,7 +241,6 @@ def test_resolve_pipeline_path_finds_project_dir_when_overlay_empty(
 def test_resolve_pipeline_name_no_overlay_env_falls_through(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from conftest import PIPELINE_FIXTURES_DIR
 
     monkeypatch.delenv("GREMLINS_OVERLAY_DIR", raising=False)
     result = resolve_pipeline_name("local", pathlib.Path.cwd())
@@ -260,7 +250,6 @@ def test_resolve_pipeline_name_no_overlay_env_falls_through(
 def test_resolve_pipeline_path_no_overlay_env_falls_through(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from conftest import PIPELINE_FIXTURES_DIR
 
     monkeypatch.delenv("GREMLINS_OVERLAY_DIR", raising=False)
     result = resolve_pipeline_path("local", pathlib.Path.cwd())

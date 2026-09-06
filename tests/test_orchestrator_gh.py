@@ -15,13 +15,11 @@ from collections.abc import Callable
 from typing import Any
 
 import pytest
-from _gremlins_core.discovery import resolve_pipeline_path
 from conftest import MINIMAL_EVENTS
 
 from gremlins.executor.run import _parse_args as _parse_gh_args
 from gremlins.executor.run import run_pipeline
 from gremlins.pipeline import Pipeline
-
 from tests.fake_client import FakeClient
 
 
@@ -350,9 +348,7 @@ def test_parse_resume_from_commit():
 def test_gh_pipeline_stage_names():
     from conftest import PIPELINE_FIXTURES_DIR
 
-    pipeline = Pipeline.from_yaml(
-        PIPELINE_FIXTURES_DIR / "gh.yaml"
-    )
+    pipeline = Pipeline.from_yaml(PIPELINE_FIXTURES_DIR / "gh.yaml")
     names = [s.name for s in pipeline.stages]
     assert names == [
         "plan",
@@ -468,9 +464,7 @@ def test_plan_mode_skips_plan_stage(tmp_path, monkeypatch):
     )
 
     result = asyncio.run(
-        run_pipeline(
-            _gh_pipeline_path(), argv=[], gremlin_id="gr-test", client=client
-        )
+        run_pipeline(_gh_pipeline_path(), argv=[], gremlin_id="gr-test", client=client)
     )
     assert result == 0
 
@@ -508,9 +502,7 @@ def test_plan_skip_if_exists_on_resume(tmp_path, monkeypatch):
     )
 
     result = asyncio.run(
-        run_pipeline(
-            _gh_pipeline_path(), argv=[], gremlin_id="gr-test", client=client
-        )
+        run_pipeline(_gh_pipeline_path(), argv=[], gremlin_id="gr-test", client=client)
     )
     assert result == 0
     labels = [c.label for c in client.calls]
@@ -567,9 +559,7 @@ def test_publish_as_issue_skip_when_source_bound(tmp_path, monkeypatch):
     )
 
     result = asyncio.run(
-        run_pipeline(
-            _gh_pipeline_path(), argv=[], gremlin_id="gr-test", client=client
-        )
+        run_pipeline(_gh_pipeline_path(), argv=[], gremlin_id="gr-test", client=client)
     )
     assert result == 0
     assert not any("gh issue create" in cmd for cmd in shell_cmds)
@@ -661,9 +651,7 @@ def test_plan_stage_uses_bundled_prompt_not_slash_command(tmp_path, monkeypatch)
     )
 
     result = asyncio.run(
-        run_pipeline(
-            _gh_pipeline_path(), argv=[], gremlin_id="gr-test", client=client
-        )
+        run_pipeline(_gh_pipeline_path(), argv=[], gremlin_id="gr-test", client=client)
     )
     assert result == 0
 
@@ -751,9 +739,7 @@ def test_gh_main_defaults_to_pipeline_model(tmp_path, monkeypatch):
 
     # Invoke with NO --model.
     result = asyncio.run(
-        run_pipeline(
-            _gh_pipeline_path(), argv=[], gremlin_id="gr-test", client=client
-        )
+        run_pipeline(_gh_pipeline_path(), argv=[], gremlin_id="gr-test", client=client)
     )
     assert result == 0
 
@@ -1035,9 +1021,7 @@ def test_plan_file_path_includes_plan_title_cost_in_total(tmp_path, monkeypatch)
         fixtures=fixtures,
     )
     result = asyncio.run(
-        run_pipeline(
-            _gh_pipeline_path(), argv=[], gremlin_id="gr-test", client=client
-        )
+        run_pipeline(_gh_pipeline_path(), argv=[], gremlin_id="gr-test", client=client)
     )
     assert result == 0
 
@@ -1279,9 +1263,7 @@ def test_github_wait_ci_stage_ordering(tmp_path, monkeypatch):
     )
 
     result = asyncio.run(
-        run_pipeline(
-            _gh_pipeline_path(), argv=[], gremlin_id="gr-test", client=client
-        )
+        run_pipeline(_gh_pipeline_path(), argv=[], gremlin_id="gr-test", client=client)
     )
     assert result == 0
 
@@ -1600,9 +1582,7 @@ def test_gh_main_pipeline_default_client_model(tmp_path, monkeypatch):
     )
 
     result = asyncio.run(
-        run_pipeline(
-            _gh_pipeline_path(), argv=[], gremlin_id="gr-test", client=client
-        )
+        run_pipeline(_gh_pipeline_path(), argv=[], gremlin_id="gr-test", client=client)
     )
     assert result == 0
 
@@ -1670,9 +1650,7 @@ def test_publish_as_issue_runs_when_no_source_bound(tmp_path, monkeypatch):
     )
 
     result = asyncio.run(
-        run_pipeline(
-            _gh_pipeline_path(), argv=[], gremlin_id="gr-test", client=client
-        )
+        run_pipeline(_gh_pipeline_path(), argv=[], gremlin_id="gr-test", client=client)
     )
     assert result == 0
 

@@ -43,7 +43,6 @@ from gremlins.executor.run import run_pipeline
 from gremlins.executor.state import StateData
 
 
-
 def test_autouse_isolate_gremlin_id_unsets_gremlin_id_under_inherited_env(
     tmp_path, child_sandbox
 ):

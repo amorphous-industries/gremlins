@@ -921,9 +921,7 @@ def test_boss_yaml_loads() -> None:
 
     from gremlins.pipeline import Pipeline
 
-    pipeline = Pipeline.from_yaml(
-        resolve_pipeline_path("boss", pathlib.Path.cwd())
-    )
+    pipeline = Pipeline.from_yaml(resolve_pipeline_path("boss", pathlib.Path.cwd()))
     names = [s.name for s in pipeline.stages]
     assert names == ["chain", "review-chain", "address-chain"]
     chain_entry = pipeline.stages[0]
