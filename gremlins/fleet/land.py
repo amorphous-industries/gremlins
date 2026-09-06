@@ -1023,7 +1023,14 @@ def do_land(
         from gremlins.utils.yaml_io import YamlLoadError, load_yaml_file
 
         try:
-            p = resolve_pipeline_path(pipeline_path)
+            if project_root:
+                os.environ["GREMLINS_PROJECT_ROOT"] = project_root
+                try:
+                    p = resolve_pipeline_path(pipeline_path)
+                finally:
+                    del os.environ["GREMLINS_PROJECT_ROOT"]
+            else:
+                p = resolve_pipeline_path(pipeline_path)
             raw_yaml = load_yaml_file(p)
             bootstrap = Bootstrap.from_yaml(raw_yaml.get("bootstrap"))
             env_script = bootstrap.env

@@ -478,7 +478,14 @@ class Gremlin:
             pipeline_path = str(hermetic)
         elif kind:
             try:
-                filtered, resolved = resolve_pipeline(kind, tuple(pipeline_args))
+                if _project_root:
+                    os.environ["GREMLINS_PROJECT_ROOT"] = _project_root
+                    try:
+                        filtered, resolved = resolve_pipeline(kind, tuple(pipeline_args))
+                    finally:
+                        del os.environ["GREMLINS_PROJECT_ROOT"]
+                else:
+                    filtered, resolved = resolve_pipeline(kind, tuple(pipeline_args))
                 pipeline_args = filtered
                 pipeline_path = resolved
             except FileNotFoundError:

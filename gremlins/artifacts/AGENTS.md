@@ -69,9 +69,7 @@ Scheme resolvers return plain JSON-compatible values:
 
 ```python
 pr = state.artifacts.read("pr")
-pr["url"]     # https://github.com/…/pull/42
-pr["number"]  # 42
-pr["branch"]  # issue-42-some-slug
+pr["uri"]  # "opaque://pr/42"
 ```
 
 ## git://range helpers
