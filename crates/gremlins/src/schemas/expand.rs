@@ -320,7 +320,8 @@ pub fn validate_interpolation_keys(
         validate_stage_interpolation(land, &mut errors);
     }
 
-    // Validate each stage in `stages`
+    // Validate each stage in `stages` — only top-level stages, not recipe-internal
+    // children (those inside body/parallel of recipe-expanded stages).
     if let Some(stages) = expanded_yaml.get("stages").and_then(|v| v.as_sequence()) {
         for stage in stages {
             validate_stage_interpolation(stage, &mut errors);
@@ -340,18 +341,6 @@ fn validate_stage_interpolation(stage: &serde_yaml::Value, errors: &mut Vec<Sche
         None => return,
     };
 
-    // Recurse into composite stages
-    if let Some(body) = mapping.get("body").and_then(|v| v.as_sequence()) {
-        for child in body {
-            validate_stage_interpolation(child, errors);
-        }
-    }
-    if let Some(parallel) = mapping.get("parallel").and_then(|v| v.as_sequence()) {
-        for child in parallel {
-            validate_stage_interpolation(child, errors);
-        }
-    }
-
     // Only leaf stages with an interpolation map need checking
     let interp = match mapping.get("interpolation").and_then(|v| v.as_mapping()) {
         Some(m) => m,
@@ -360,9 +349,11 @@ fn validate_stage_interpolation(stage: &serde_yaml::Value, errors: &mut Vec<Sche
 
     let stage_name = mapping.get("name").and_then(|v| v.as_str()).unwrap_or("?");
 
-    // Collect all text to search: prompts + commands
+    // Collect all text to search: this stage's prompts + commands,
+    // plus all text from descendant stages (body, parallel, etc.)
     let mut text = String::new();
 
+    // Own prompts
     if let Some(prompts) = mapping.get("prompt").and_then(|v| v.as_sequence()) {
         for p in prompts {
             if let Some(s) = p.as_str() {
@@ -372,6 +363,7 @@ fn validate_stage_interpolation(stage: &serde_yaml::Value, errors: &mut Vec<Sche
         }
     }
 
+    // Own commands
     if let Some(options) = mapping.get("options").and_then(|v| v.as_mapping()) {
         if let Some(cmds) = options.get("cmds").and_then(|v| v.as_sequence()) {
             for cmd in cmds {
@@ -383,17 +375,36 @@ fn validate_stage_interpolation(stage: &serde_yaml::Value, errors: &mut Vec<Sche
         }
     }
 
+    // Collect text from body children (loop stages)
+    if let Some(body) = mapping.get("body").and_then(|v| v.as_sequence()) {
+        for child in body {
+            collect_stage_text(child, &mut text);
+        }
+    }
+
+    // Collect text from parallel children
+    if let Some(parallel) = mapping.get("parallel").and_then(|v| v.as_sequence()) {
+        for child in parallel {
+            collect_stage_text(child, &mut text);
+        }
+    }
+
     for key in interp.keys() {
         let key_str = match key.as_str() {
             Some(k) => k,
             None => continue,
         };
 
-        // Check for {KEY}, $KEY (not followed by {), and ${KEY}
+        // Check for {KEY}, $KEY (not followed by { or identifier chars), and ${KEY}
         let brace_form = format!("{{{key_str}}}");
         let dollar_brace_form = format!("${{{key_str}}}");
+        // Also check for shell parameter expansion: ${key_str:-default} or ${key_str+alt}
+        let dollar_brace_colon = format!("${{{key_str}:");
 
-        if text.contains(&brace_form) || text.contains(&dollar_brace_form) {
+        if text.contains(&brace_form)
+            || text.contains(&dollar_brace_form)
+            || text.contains(&dollar_brace_colon)
+        {
             continue;
         }
 
@@ -428,6 +439,46 @@ fn validate_stage_interpolation(stage: &serde_yaml::Value, errors: &mut Vec<Sche
     }
 }
 
+/// Recursively collect all prompt and command text from a stage and its descendants.
+fn collect_stage_text(stage: &serde_yaml::Value, out: &mut String) {
+    let mapping = match stage.as_mapping() {
+        Some(m) => m,
+        None => return,
+    };
+
+    if let Some(prompts) = mapping.get("prompt").and_then(|v| v.as_sequence()) {
+        for p in prompts {
+            if let Some(s) = p.as_str() {
+                out.push_str(s);
+                out.push('\n');
+            }
+        }
+    }
+
+    if let Some(options) = mapping.get("options").and_then(|v| v.as_mapping()) {
+        if let Some(cmds) = options.get("cmds").and_then(|v| v.as_sequence()) {
+            for cmd in cmds {
+                if let Some(s) = cmd.as_str() {
+                    out.push_str(s);
+                    out.push('\n');
+                }
+            }
+        }
+    }
+
+    if let Some(body) = mapping.get("body").and_then(|v| v.as_sequence()) {
+        for child in body {
+            collect_stage_text(child, out);
+        }
+    }
+
+    if let Some(parallel) = mapping.get("parallel").and_then(|v| v.as_sequence()) {
+        for child in parallel {
+            collect_stage_text(child, out);
+        }
+    }
+}
+
 /// Parse a pipeline YAML file from disk, expanding includes, stage-definitions,
 /// and prompts. Returns the fully expanded YAML tree.
 pub fn parse_pipeline_file(
@@ -438,6 +489,16 @@ pub fn parse_pipeline_file(
         project_root: project_root.to_path_buf(),
     };
     let expanded = expand_pipeline(yaml_path, Some(project_root), &resolver)?;
+
+    // Validate interpolation keys are referenced
+    if let Err(errors) = validate_interpolation_keys(&expanded) {
+        let msg = errors
+            .iter()
+            .map(|e| e.to_string())
+            .collect::<Vec<_>>()
+            .join("; ");
+        return Err(SchemaError::Generic(msg));
+    }
 
     Ok(expanded)
 }
