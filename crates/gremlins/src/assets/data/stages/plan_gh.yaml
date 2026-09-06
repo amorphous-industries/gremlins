@@ -1,0 +1,70 @@
+required-prompt: true
+
+stages:
+  - name: plan
+    type: agent
+    skip_if_exists: plan
+    prompt:
+      - "{{prompt}}"
+    interpolation:
+      instructions: "artifact.instructions?"
+    bind:
+      artifact.plan: "file://session/plan.md"
+    options:
+      idle_timeout: 600
+
+  - name: resolve-plan-source
+    type: exec
+    options:
+      cmds:
+        - |
+          plan_file="{artifact:plan}"
+          first=$(head -1 "$plan_file" 2>/dev/null) || exit 0
+          if ! printf '%s' "$first" | grep -qE '^([^/#]+/[^#]+)?#[0-9]+$'; then
+            exit 0
+          fi
+          repo=$(printf '%s' "$first" | sed -n 's/^\([^/#]*\/[^#]*\)#.*/\1/p')
+          num=$(printf '%s' "$first" | sed 's/.*#//')
+          if [ -n "$repo" ]; then
+            data=$(gh issue view "$num" --repo "$repo" --json title,body,number)
+          else
+            data=$(gh issue view "$num" --json title,body,number)
+          fi
+          title=$(printf '%s' "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['title'])")
+          body=$(printf '%s' "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['body'])")
+          number=$(printf '%s' "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['number'])")
+          case "$body" in
+            '#'*) printf '%s\n' "$body" > "$plan_file" ;;
+            *) printf '# %s\n\n%s\n' "$title" "$body" > "$plan_file" ;;
+          esac
+          printf '%s' "$number" > "{artifact_dir}/plan-source-issue-number.txt"
+    bind:
+      artifact.plan-source-issue-number?: "file://session/plan-source-issue-number.txt"
+
+  - name: publish-as-issue
+    type: exec
+    skip_if_exists: plan-source-issue-number
+    options:
+      cmds:
+        - |
+          if ! [ -s "{artifact:plan}" ]; then
+              printf 'publish-as-issue: plan.md is empty\n' >&2; exit 1
+          fi
+          title=$(awk '/^# /{sub(/^#+ */,""); print; exit}' "{artifact:plan}" | cut -c1-80)
+          if [ -z "$title" ]; then
+              printf 'publish-as-issue: plan.md has no H1 title\n' >&2; exit 1
+          fi
+          url=$(gh issue create \
+              --body-file "{artifact:plan}" \
+              --title "$title")
+          printf '%s' "${url##*/}" > "{artifact_dir}/plan-issue-number.txt"
+    bind:
+      artifact.plan-issue-number: "file://session/plan-issue-number.txt"
+
+  - name: set-description
+    type: exec
+    bind:
+      artifact.description?: "file://session/description.txt"
+    options:
+      cmds:
+        - "head -1 \"{artifact:plan}\" | sed 's/^#\\+ *//' > \"{artifact_dir}/description.txt\""
