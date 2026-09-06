@@ -1,2 +1,2 @@
 # Bundled pipelines concept has been removed.
-# Pipeline YAMLs are now test fixtures in tests/fixtures/pipelines/.
+# Pipelines are resolved from explicit YAML paths or the project overlay (.gremlins/).

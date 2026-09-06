@@ -542,7 +542,7 @@ stages:
 # ---- include: directive ---------------------------------------------------
 
 
-def test_include_directive_expands_bundled_pipeline(tmp_path: pathlib.Path) -> None:
+def test_include_directive_expands_from_overlay(tmp_path: pathlib.Path) -> None:
     """{ include: local } inlines all stages from the local pipeline."""
     from conftest import PIPELINE_FIXTURES_DIR
 
