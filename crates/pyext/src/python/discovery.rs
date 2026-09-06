@@ -16,7 +16,8 @@ fn resolve_pipeline_name(name: &str) -> PyResult<std::path::PathBuf> {
 
 #[pyfunction]
 fn resolve_pipeline_path(name_or_path: &str) -> PyResult<std::path::PathBuf> {
-    discovery::resolve_pipeline_path(name_or_path, config::project_root()).map_err(discovery_error_to_pyerr)
+    discovery::resolve_pipeline_path(name_or_path, config::project_root())
+        .map_err(discovery_error_to_pyerr)
 }
 
 pub fn register_discovery_module(m: &Bound<'_, PyModule>) -> PyResult<()> {

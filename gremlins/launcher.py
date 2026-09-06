@@ -90,9 +90,7 @@ class _Inputs:
 
 
 def _reject_pipeline_collision(gremlin_id: str) -> None:
-    pipeline_names = {
-        name for name, _ in list_pipelines()
-    }
+    pipeline_names = {name for name, _ in list_pipelines()}
     if gremlin_id in pipeline_names:
         raise ValueError(
             f"--gremlin-id {gremlin_id!r} shadows the name of a pipeline. Pick a different id."
@@ -183,9 +181,7 @@ def _resolve_inputs(
     resolved_pipeline_args, pipeline_path = resolve_pipeline(kind, pipeline_args)
 
     try:
-        loaded_pipeline = _PipelineData.from_yaml(
-            resolve_pipeline_path(pipeline_path)
-        )
+        loaded_pipeline = _PipelineData.from_yaml(resolve_pipeline_path(pipeline_path))
     except (FileNotFoundError, OSError, ValueError):
         pass
 

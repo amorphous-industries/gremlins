@@ -119,10 +119,10 @@ pub fn parse_stage_definitions(
                             if candidate.exists() {
                                 match load_yaml_file(&candidate) {
                                     Ok(recipe) => {
-                                            defs.insert(name.clone(), recipe);
-                                            found = true;
-                                            break;
-                                        }
+                                        defs.insert(name.clone(), recipe);
+                                        found = true;
+                                        break;
+                                    }
                                     Err(e) => {
                                         return Err(SchemaError::StageDef {
                                             name: name.clone(),
