@@ -53,14 +53,6 @@ class ArtifactRegistry:
         tmp.write_text(json.dumps(self.data), encoding="utf-8")
         os.replace(tmp, path)
 
-    def bind(self, key: str, uri: Uri) -> None:
-        """Bind a key to a URI, raising DuplicateArtifact if already bound."""
-        uri_str = str(uri)
-        if key in self.data:
-            raise DuplicateArtifact(key, str(self.data[key]), uri_str)
-        self.data[key] = uri_str
-        self._persist()
-
     def resolve(self, key: str) -> Uri:
         """Resolve a key to its URI, raising MissingArtifact if unbound."""
         if key not in self.data:

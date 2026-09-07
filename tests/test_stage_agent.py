@@ -63,13 +63,13 @@ def test_in_content_substituted_into_prompt(tmp_path):
     registry = ArtifactRegistry(tmp_path / "artifacts")
     (tmp_path / "artifacts").mkdir(exist_ok=True)
     (tmp_path / "artifacts" / "plan.md").write_bytes(b"# My Plan")
-    registry.bind("plan", Uri.parse("file://session/plan.md"))
+    registry.register(Uri.parse("artifact://plan.md"))
 
     client = FakeClient(fixtures={"my-agent": MINIMAL_EVENTS})
     state = _make_state(tmp_path, client, registry=registry)
     agent = _make_agent(
         prompts=["Process: {plan_text}"],
-        interpolation_map={"plan_text": 'content("plan")'},
+        interpolation_map={"plan_text": 'content("artifact://plan.md")'},
     )
 
     asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))

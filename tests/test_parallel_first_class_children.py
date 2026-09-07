@@ -217,8 +217,8 @@ def test_parallel_child_artifact_dir_is_full_copy(sandbox) -> None:
     data = StateData(gremlin_id=gremlin_id)
     data.state_file = state_file
     parent_artifacts = ArtifactRegistry(artifact_dir=parent_artifact_dir)
-    parent_artifacts.bind("artifact1", Uri.parse("file://session/file1.txt"))
-    parent_artifacts.bind("artifact2", Uri.parse("file://session/file2.txt"))
+    parent_artifacts.register(Uri.parse("artifact://file1.txt"))
+    parent_artifacts.register(Uri.parse("artifact://file2.txt"))
 
     parent = build_state(
         data=data,
@@ -262,8 +262,8 @@ def test_parallel_child_artifact_dir_is_full_copy(sandbox) -> None:
     child_registry_path = pathlib.Path(scratch_root(child_id)) / "registry.json"
     assert child_registry_path.exists()
     child_reg_data = json.loads(child_registry_path.read_text(encoding="utf-8"))
-    assert child_reg_data["artifact1"] == "file://session/file1.txt"
-    assert child_reg_data["artifact2"] == "file://session/file2.txt"
+    assert "artifact://file1.txt" in child_reg_data
+    assert "artifact://file2.txt" in child_reg_data
 
     # Cleanup
     if forked.worktree and forked.worktree.exists():
@@ -346,8 +346,8 @@ def test_fork_uses_parent_not_child_state_as_source(sandbox) -> None:
     data = StateData(gremlin_id=gremlin_id)
     data.state_file = state_file
     parent_artifacts = ArtifactRegistry(artifact_dir=parent_artifact_dir)
-    parent_artifacts.bind("plan", Uri.parse("file://session/plan.md"))
-    parent_artifacts.bind("spec", Uri.parse("file://session/spec.md"))
+    parent_artifacts.register(Uri.parse("artifact://plan.md"))
+    parent_artifacts.register(Uri.parse("artifact://spec.md"))
 
     parent_state = build_state(
         data=data,
@@ -407,8 +407,8 @@ def test_fork_uses_parent_not_child_state_as_source(sandbox) -> None:
         child_registry_path = pathlib.Path(scratch_root(child_id)) / "registry.json"
         assert child_registry_path.exists()
         child_reg_data = json.loads(child_registry_path.read_text(encoding="utf-8"))
-        assert child_reg_data["plan"] == "file://session/plan.md"
-        assert child_reg_data["spec"] == "file://session/spec.md"
+        assert "artifact://plan.md" in child_reg_data
+        assert "artifact://spec.md" in child_reg_data
     finally:
         if forked.worktree and forked.worktree.exists():
             subprocess.run(

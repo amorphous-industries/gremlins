@@ -37,10 +37,10 @@ def _loop_state(tmp_path: Any) -> RuntimeState:
 
 def _set_done(state: RuntimeState) -> None:
     """Write the done artifact to signal loop completion."""
-    done_uri = Uri.parse("file://session/done.txt")
+    done_uri = Uri.parse("artifact://done.txt")
     (state.artifact_dir / "done.txt").write_text("done")
-    if not state.artifacts.produced("done"):
-        state.artifacts.bind("done", done_uri)
+    if not state.artifacts.produced(str(done_uri)):
+        state.artifacts.register(done_uri)
 
 
 # ---------------------------------------------------------------------------
@@ -70,7 +70,10 @@ def test_loop_stops_when_stop_when_exists_artifact_is_bound(tmp_path):
         return Done()
 
     loop = LoopStage(
-        "loop", body_runners=[runner], max_iterations=3, stop_when_exists="done"
+        "loop",
+        body_runners=[runner],
+        max_iterations=3,
+        stop_when_exists="artifact://done.txt",
     )
     outcome = asyncio.run(loop.run(_make_gremlin_wrapper(loop_state)))
 
@@ -94,7 +97,10 @@ def test_loop_cmd_failure_then_fix_then_green(tmp_path):
         return Done()
 
     loop = LoopStage(
-        "loop", body_runners=[check, fix], max_iterations=3, stop_when_exists="done"
+        "loop",
+        body_runners=[check, fix],
+        max_iterations=3,
+        stop_when_exists="artifact://done.txt",
     )
     asyncio.run(loop.run(_make_gremlin_wrapper(loop_state)))
 
@@ -116,7 +122,10 @@ def test_loop_body_runs_fully_each_iteration(tmp_path):
 
     loop_state = _loop_state(tmp_path)
     loop = LoopStage(
-        "loop", body_runners=[check, fix], max_iterations=3, stop_when_exists="done"
+        "loop",
+        body_runners=[check, fix],
+        max_iterations=3,
+        stop_when_exists="artifact://done.txt",
     )
     asyncio.run(loop.run(_make_gremlin_wrapper(loop_state)))
 
@@ -261,8 +270,8 @@ def test_loop_patches_loop_iteration_to_state(tmp_path, make_state_dir):
     assert seen_iterations == [1, 2, 3]
 
 
-def test_loop_unbinds_out_keys_between_iterations(tmp_path):
-    """bind_map keys unbound each iteration so exec can rebind to a different URI."""
+def test_loop_registers_artifacts_across_iterations(tmp_path):
+    """register across iterations — overwrite=True means no unbind needed."""
     from gremlins.stages.exec import Exec
 
     (tmp_path / "artifacts").mkdir(exist_ok=True)
@@ -271,23 +280,20 @@ def test_loop_unbinds_out_keys_between_iterations(tmp_path):
     bound_count = [0]
 
     async def binder() -> Done:
-        # Loop now auto-unbinds between iterations; re-bind by unbinding first.
-        uri = Uri.parse(f"file://session/out-{bound_count[0]}.txt")
-        if state.artifacts.produced("loop-out"):
-            state.artifacts.unbind("loop-out")
-        state.artifacts.bind("loop-out", uri)
+        uri = Uri.parse(f"artifact://out-{bound_count[0]}.txt")
+        state.artifacts.register(uri)
         bound_count[0] += 1
         if bound_count[0] == 2:
             _set_done(state)
         return Done()
 
-    exec_stage = Exec("stage", {}, bind_map={"loop-out": "file://session/out-0.txt"})
+    exec_stage = Exec("stage", {}, bind_map={"loop-out": "artifact://out-0.txt"})
     loop = LoopStage(
         "loop",
         body=[exec_stage],
         body_runners=[binder],
         max_iterations=3,
-        stop_when_exists="done",
+        stop_when_exists="artifact://done.txt",
     )
     asyncio.run(loop.run(cast("Gremlin", MockGremlin(state))))
     assert bound_count[0] == 2
@@ -322,7 +328,7 @@ def test_loop_interval_sleeps_between_iterations(tmp_path, monkeypatch):
         body_runners=[runner],
         max_iterations=3,
         interval=5.0,
-        stop_when_exists="done",
+        stop_when_exists="artifact://done.txt",
     )
     asyncio.run(loop.run(_make_gremlin_wrapper(loop_state)))
 

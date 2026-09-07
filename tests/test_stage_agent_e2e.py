@@ -29,7 +29,7 @@ def test_agent_stage_e2e_reads_artifact_and_writes_output(tmp_path):
             "name": "summarise",
             "type": "agent",
             "prompt": ["Summarise the following and write to `{summary}`:\n\n{src}"],
-            "interpolation": {"src": 'content("source-doc")'},
+            "interpolation": {"src": 'content("artifact://source.md")'},
             "bind": {"summary": "file://session/summary.md"},
         }
     ]
@@ -44,7 +44,7 @@ def test_agent_stage_e2e_reads_artifact_and_writes_output(tmp_path):
     artifact_dir.mkdir(exist_ok=True)
     (artifact_dir / "source.md").write_bytes(b"# Hello\nWorld")
     registry = ArtifactRegistry(artifact_dir)
-    registry.bind("source-doc", Uri.parse("file://session/source.md"))
+    registry.register(Uri.parse("artifact://source.md"))
 
     # Client writes the expected output file when called.
 

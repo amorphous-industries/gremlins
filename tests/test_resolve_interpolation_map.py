@@ -41,14 +41,14 @@ def _make_state(tmp_path: pathlib.Path, client=None):
 def test_simple_key_no_dots(tmp_path):
     reg = _make_registry(tmp_path)
     (tmp_path / "artifacts" / "val.txt").write_text("hello")
-    reg.bind("key", Uri.parse("file://session/val.txt"))
+    reg.write("key", "file://session/val.txt")
     result = resolve_interpolation_map(reg, {"VAR": "key"})
     assert result == {"VAR": "file://session/val.txt"}
 
 
 def test_unknown_key_raises(tmp_path):
     reg = _make_registry(tmp_path)
-    reg.bind("pr", Uri.parse("opaque://pr/1"))
+    reg.write("pr", "opaque://pr/1")
     with pytest.raises(MissingArtifact):
         resolve_interpolation_map(reg, {"x": "pr.nonexistent"})
 
@@ -56,7 +56,7 @@ def test_unknown_key_raises(tmp_path):
 def test_empty_trailing_dot_key_raises(tmp_path):
     """Keys with trailing dots are literal — no such artifact exists."""
     reg = _make_registry(tmp_path)
-    reg.bind("pr", Uri.parse("opaque://pr/1"))
+    reg.write("pr", "opaque://pr/1")
     with pytest.raises(MissingArtifact):
         resolve_interpolation_map(reg, {"x": "pr."})
 
@@ -64,7 +64,7 @@ def test_empty_trailing_dot_key_raises(tmp_path):
 def test_private_like_key_raises_on_missing(tmp_path):
     """Double-underscore keys are literal — no such artifact exists."""
     reg = _make_registry(tmp_path)
-    reg.bind("pr", Uri.parse("opaque://pr/1"))
+    reg.write("pr", "opaque://pr/1")
     with pytest.raises(MissingArtifact):
         resolve_interpolation_map(reg, {"x": "pr.__class__"})
 
@@ -74,7 +74,7 @@ def test_private_like_key_raises_on_missing(tmp_path):
 
 def test_opaque_uri_key(tmp_path):
     reg = _make_registry(tmp_path)
-    reg.bind("plan", Uri.parse("opaque://issue/42"))
+    reg.write("plan", "opaque://issue/42")
     result = resolve_interpolation_map(reg, {"ref": "plan"})
     assert result == {"ref": "opaque://issue/42"}
 

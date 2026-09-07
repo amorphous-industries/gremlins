@@ -126,14 +126,14 @@ def test_snapshotted_parent_keys_skipped(tmp_path: pathlib.Path) -> None:
     parent = _make_parent(tmp_path, "p3")
     parent_file = parent.artifact_dir / "existing.txt"
     parent_file.write_bytes(b"existing")
-    parent.artifacts.bind("existing-key", Uri.parse("file://session/existing.txt"))
+    parent.artifacts.register(Uri.parse("artifact://existing.txt"))
 
     _make_child_dir(
         tmp_path,
         "p3--grp--child",
         bindings={
-            "existing-key": "file:///some/absolute/path.txt",  # snapshotted, rewritten
-            "new-key": "file://session/new.txt",
+            "artifact://existing.txt": "file:///some/absolute/path.txt",  # snapshotted, rewritten
+            "artifact://new.txt": "file://session/new.txt",
         },
         files={"new.txt": b"new content"},
     )
@@ -142,12 +142,10 @@ def test_snapshotted_parent_keys_skipped(tmp_path: pathlib.Path) -> None:
     ex._gather_child_artifacts()
 
     # existing-key must not be rebound
-    assert (
-        str(parent.artifacts.resolve("existing-key")) == "file://session/existing.txt"
-    )
+    assert parent.artifacts.produced("artifact://existing.txt")
     # new-key must be gathered
-    assert parent.artifacts.produced("new-key")
-    assert parent.artifacts.content("new-key") == "new content"
+    assert parent.artifacts.produced("artifact://new.txt")
+    assert parent.artifacts.content("artifact://new.txt") == "new content"
 
 
 # ---------------------------------------------------------------------------
