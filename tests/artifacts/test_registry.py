@@ -19,26 +19,25 @@ def make_registry(tmp_path: pathlib.Path) -> ArtifactRegistry:
     return ArtifactRegistry(artifact_dir=tmp_path / "artifacts")
 
 
-def test_register_resolve(tmp_path: pathlib.Path) -> None:
+def test_register_data_uri(tmp_path: pathlib.Path) -> None:
     r = make_registry(tmp_path)
     uri = Uri.parse("artifact://plan.md")
     r.register(uri)
-    resolved = r.resolve(str(uri))
-    # register stores the filesystem path; resolve parses it back as a Uri
-    assert "plan.md" in resolved.path
+    path = r.data_uri(str(uri))
+    assert "plan.md" in path
 
 
-def test_resolve_unbound_raises_missing_artifact(tmp_path: pathlib.Path) -> None:
+def test_data_uri_unbound_raises_missing_artifact(tmp_path: pathlib.Path) -> None:
     r = make_registry(tmp_path)
     with pytest.raises(MissingArtifact) as exc_info:
-        r.resolve("nope")
+        r.data_uri("nope")
     assert exc_info.value.key == "nope"
 
 
 def test_missing_artifact_is_key_error(tmp_path: pathlib.Path) -> None:
     r = make_registry(tmp_path)
     with pytest.raises(KeyError):
-        r.resolve("missing")
+        r.data_uri("missing")
 
 
 def test_produced_true_after_register(tmp_path: pathlib.Path) -> None:
@@ -65,12 +64,12 @@ def test_register_duplicate_no_overwrite_raises(tmp_path: pathlib.Path) -> None:
     assert str(uri) in str(exc_info.value)
 
 
-def test_read_after_register(tmp_path: pathlib.Path) -> None:
+def test_data_uri_after_register(tmp_path: pathlib.Path) -> None:
     artifact_dir = tmp_path / "artifacts"
     artifact_dir.mkdir()
     r = ArtifactRegistry(artifact_dir=artifact_dir)
     r.register(Uri.parse("artifact://plan.md"))
-    stored = r.read("artifact://plan.md")
+    stored = r.data_uri("artifact://plan.md")
     assert isinstance(stored, str)
     assert "plan.md" in stored
 
@@ -93,7 +92,7 @@ def test_init_loads_from_persist_file(tmp_path: pathlib.Path) -> None:
         json.dumps({"artifact://plan.md": "/tmp/some/plan.md"})
     )
     r = ArtifactRegistry(artifact_dir=tmp_path / "artifacts")
-    assert r.resolve("artifact://plan.md").path == "/tmp/some/plan.md"
+    assert r.data_uri("artifact://plan.md") == "/tmp/some/plan.md"
 
 
 def test_persist_survives_roundtrip(tmp_path: pathlib.Path) -> None:
@@ -102,7 +101,7 @@ def test_persist_survives_roundtrip(tmp_path: pathlib.Path) -> None:
     r1.register(Uri.parse("artifact://pr.md"))
     r2 = ArtifactRegistry(artifact_dir=artifact_dir)
     assert r2.exists("artifact://pr.md")
-    stored = r2.read("artifact://pr.md")
+    stored = r2.data_uri("artifact://pr.md")
     assert isinstance(stored, str)
     assert "pr.md" in stored
 

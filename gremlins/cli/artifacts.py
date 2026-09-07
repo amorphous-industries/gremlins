@@ -93,7 +93,7 @@ def _print_live(reg: ArtifactRegistry) -> None:
     rpath = reg.registry_path
     print(f"live:{rpath}")
     for k in sorted(reg.keys()):
-        v = reg.raw_entry(k)
+        v = reg.data.get(k)
         uri = Uri.parse_or_none(v) if isinstance(v, str) else None
         sch = uri.scheme if uri else "?"
         print(f"  {k} {v}({sch})")

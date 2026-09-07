@@ -33,7 +33,7 @@ def resolve_interpolation_map(
 
         key, sep, default = raw.partition("?")
         try:
-            result[var] = str(artifacts.read(key))
+            result[var] = artifacts.data_uri(key)
         except MissingArtifact:
             if not sep:
                 raise

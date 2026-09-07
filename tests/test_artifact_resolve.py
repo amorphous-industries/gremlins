@@ -13,12 +13,12 @@ from gremlins.artifacts.resolve import resolve_interpolation_map
 def _registry(bindings: dict) -> MagicMock:
     reg = MagicMock()
 
-    def _read(key):
+    def _data_uri(key):
         if key not in bindings:
             raise MissingArtifact(key)
         return bindings[key]
 
-    reg.read.side_effect = _read
+    reg.data_uri.side_effect = _data_uri
     return reg
 
 

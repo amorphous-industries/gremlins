@@ -50,21 +50,14 @@ class ArtifactRegistry:
         tmp.write_text(json.dumps(self.data), encoding="utf-8")
         os.replace(tmp, path)
 
-    def resolve(self, key: str) -> Uri:
-        """Resolve a key to its URI, raising MissingArtifact if unbound."""
+    def data_uri(self, key: str) -> str:
+        """Return the local filesystem path for *key*.
+
+        Raises MissingArtifact if *key* is not bound.
+        """
         if key not in self.data:
             raise MissingArtifact(key)
-        value = self.data[key]
-        if isinstance(value, str):
-            try:
-                return Uri.parse(value)
-            except ValueError:
-                # Construct Uri directly for non-artifact schemes
-                if "://" in value:
-                    scheme, rest = value.split("://", 1)
-                    return Uri(scheme=scheme, path=rest)
-                return Uri(scheme="opaque", path=value)
-        return Uri(scheme="opaque", path=str(value))
+        return self.data[key]
 
     def register(self, uri: Uri, *, overwrite: bool = True) -> str:
         """Register a URI artifact, returning the canonical filesystem path.
@@ -102,15 +95,9 @@ class ArtifactRegistry:
         self._persist()
         return self.data[key]
 
-    def read(self, uri_str: str) -> Any:
-        """Return the resolved value (filesystem path for file URIs)."""
-        if uri_str not in self.data:
-            raise MissingArtifact(uri_str)
-        return self.data[uri_str]
-
     def content(self, uri_str: str, json_path: str | None = None) -> str:
         """Read file content, optionally traversing a JSON path."""
-        raw = self.read(uri_str)
+        raw = self.data_uri(uri_str)
         if not isinstance(raw, str):
             raise ValueError(
                 f"content({uri_str!r}): expected a file path, got {type(raw).__name__}"
@@ -198,9 +185,6 @@ class ArtifactRegistry:
         del self.data[key]
         self._persist()
 
-    def raw_entry(self, key: str) -> Any | None:
-        return self.data.get(key)
-
     def merge_from(
         self,
         other: ArtifactRegistry,
@@ -215,7 +199,7 @@ class ArtifactRegistry:
         used as-is (identity mapping).  Keys already present in self are skipped.
         """
         for key in keys if keys is not None else other.keys():
-            uri_str = other.raw_entry(key)
+            uri_str = other.data.get(key)
             if not isinstance(uri_str, str):
                 continue
             parent_key = key_map[key] if key_map else key

@@ -27,7 +27,7 @@ def _is_bail_set(artifacts: ArtifactRegistry) -> bool:
 def _do_bail(gremlin: Gremlin, artifacts: ArtifactRegistry) -> None:
     if gremlin.state is None:
         raise RuntimeError("gremlin.state is required for _do_bail")
-    raw = artifacts.read(_BAIL_KEY)
+    raw = artifacts.data_uri(_BAIL_KEY)
     if isinstance(raw, str) and raw.startswith("/"):
         # It's a filesystem path — read the content
         try:

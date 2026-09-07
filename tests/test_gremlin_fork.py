@@ -247,7 +247,7 @@ def test_fork_preserves_registry(tmp_path, tmp_repo, monkeypatch):
         assert "spec" in forked.artifacts.data
         assert "plan" in forked.artifacts.data
         assert "some_key" in forked.artifacts.data
-        assert forked.artifacts.read("some_key") == {"data": "value"}
+        assert forked.artifacts.data_uri("some_key") == {"data": "value"}
 
     asyncio.run(_test())
 

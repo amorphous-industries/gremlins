@@ -166,7 +166,7 @@ def test_non_file_artifact_bound_directly(tmp_path: pathlib.Path) -> None:
     ex._gather_child_artifacts()
 
     assert parent.artifacts.exists("pr")
-    assert str(parent.artifacts.resolve("pr")) == "opaque://pr/42"
+    assert parent.artifacts.data_uri("pr") == "opaque://pr/42"
 
 
 # ---------------------------------------------------------------------------
