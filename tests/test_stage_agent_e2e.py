@@ -73,7 +73,7 @@ def test_agent_stage_e2e_reads_artifact_and_writes_output(tmp_path):
     # Source content was substituted into the prompt
     assert "# Hello" in client.calls[0].prompt
     # Output artifact is bound in the registry
-    assert registry.produced("file://session/summary.md")
+    assert registry.exists("file://session/summary.md")
     # Output file exists
     assert (artifact_dir / "summary.md").exists()
 

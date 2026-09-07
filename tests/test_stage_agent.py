@@ -121,7 +121,7 @@ def test_verify_produced_passes_when_output_written(tmp_path):
 
     assert isinstance(result, Done)
     assert state.artifacts is not None
-    assert state.artifacts.produced("file://session/output.md")
+    assert state.artifacts.exists("file://session/output.md")
 
 
 def test_verify_produced_fails_when_output_missing(tmp_path):
@@ -143,7 +143,7 @@ def test_bind_uri_bound_in_registry_before_agent_runs(tmp_path):
         async def run(self, prompt, *, label, **kwargs):
             registry = state.artifacts
             seen_bound_before_run.append(
-                registry is not None and registry.produced("file://session/output.md")
+                registry is not None and registry.exists("file://session/output.md")
             )
             # Extract path from {result} and write so verify passes.
             m = re.search(r"`([^`]*output\.md)`", prompt)

@@ -166,9 +166,6 @@ class ArtifactRegistry:
             return False
         return True
 
-    def produced(self, key: str) -> bool:
-        return key in self.data
-
     def verified(self, key: str) -> bool:
         if key not in self.data:
             return False

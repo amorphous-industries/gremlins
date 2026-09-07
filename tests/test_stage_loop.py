@@ -39,7 +39,7 @@ def _set_done(state: RuntimeState) -> None:
     """Write the done artifact to signal loop completion."""
     done_uri = Uri.parse("artifact://done.txt")
     (state.artifact_dir / "done.txt").write_text("done")
-    if not state.artifacts.produced(str(done_uri)):
+    if not state.artifacts.exists(str(done_uri)):
         state.artifacts.register(done_uri)
 
 

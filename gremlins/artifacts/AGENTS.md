@@ -30,7 +30,7 @@ r = ArtifactRegistry(artifact_dir=state.artifact_dir, cwd=state.cwd)
 # Store a URI pointer (auto-resolved on read)
 r.bind("plan", Uri.parse("file://session/plan.md"))
 
-r.produced("plan")          # True
+r.exists("plan")            # True
 r.resolve("plan")           # Uri(scheme="file", path="session/plan.md")
 r.read("plan")              # resolved value — file content as str, or dict for opaque://
 r.keys()                    # iterable of bound keys

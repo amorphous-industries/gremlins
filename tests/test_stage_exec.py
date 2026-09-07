@@ -100,7 +100,7 @@ def test_bind_file_scheme_binds_and_verifies(tmp_path):
     stage = _exec(cmds=["true"], bind_map={"result": "file://session/out.txt"})
     result = asyncio.run(stage.run(MockGremlin(state=state)))
     assert isinstance(result, Done)
-    assert state.artifacts.produced("file://session/out.txt")
+    assert state.artifacts.exists("file://session/out.txt")
     # register stores the resolved filesystem path, not the original URI
 
 
@@ -171,4 +171,4 @@ def test_bail_artifact_on_exit_2(tmp_path):
     )
     result = asyncio.run(stage.run(MockGremlin(state=state)))
     assert isinstance(result, Done)
-    assert state.artifacts.produced("artifact://bail")
+    assert state.artifacts.exists("artifact://bail")

@@ -44,9 +44,9 @@ def test_missing_artifact_is_key_error(tmp_path: pathlib.Path) -> None:
 def test_produced_true_after_register(tmp_path: pathlib.Path) -> None:
     r = make_registry(tmp_path)
     uri = Uri.parse("artifact://x.md")
-    assert not r.produced(str(uri))
+    assert not r.exists(str(uri))
     r.register(uri)
-    assert r.produced(str(uri))
+    assert r.exists(str(uri))
 
 
 def test_keys_returns_registered_keys(tmp_path: pathlib.Path) -> None:
@@ -101,7 +101,7 @@ def test_persist_survives_roundtrip(tmp_path: pathlib.Path) -> None:
     r1 = ArtifactRegistry(artifact_dir=artifact_dir)
     r1.register(Uri.parse("artifact://pr.md"))
     r2 = ArtifactRegistry(artifact_dir=artifact_dir)
-    assert r2.produced("artifact://pr.md")
+    assert r2.exists("artifact://pr.md")
     stored = r2.read("artifact://pr.md")
     assert isinstance(stored, str)
     assert "pr.md" in stored
@@ -111,9 +111,9 @@ def test_unbind_removes_binding(tmp_path: pathlib.Path) -> None:
     r = make_registry(tmp_path)
     uri = Uri.parse("artifact://x.md")
     r.register(uri)
-    assert r.produced(str(uri))
+    assert r.exists(str(uri))
     r.unbind(str(uri))
-    assert not r.produced(str(uri))
+    assert not r.exists(str(uri))
 
 
 def test_unbind_persists_removal(tmp_path: pathlib.Path) -> None:
