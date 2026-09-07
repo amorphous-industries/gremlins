@@ -660,15 +660,14 @@ def test_launch_ghgremlin_state_layout(lenv_with_gh):
     assert base_ref_path and pathlib.Path(base_ref_path).is_file(), (
         f"base_ref should be a file path in registry, got: {base_ref_path!r}"
     )
-    assert (
-        pathlib.Path(base_ref_path).read_text(encoding="utf-8") == "git://ref/main"
-    ), f"base_ref content should be 'git://ref/main', got: {base_ref_path!r}"
+    assert pathlib.Path(base_ref_path).read_text(encoding="utf-8") == "main", (
+        f"base_ref content should be 'main', got: {base_ref_path!r}"
+    )
     _sha_path = registry_data.get("artifact://base_sha", "")
     _sha_uri = pathlib.Path(_sha_path).read_text(encoding="utf-8") if _sha_path else ""
-    assert (
-        _sha_uri.startswith("git://commit/")
-        and len(_sha_uri.removeprefix("git://commit/")) == 40
-    ), f"base_sha should be a git://commit/<40-char SHA>, got: {_sha_uri!r}"
+    assert _sha_uri and len(_sha_uri) == 40, (
+        f"base_sha should be a 40-char SHA, got: {_sha_uri!r}"
+    )
     assert len(state.get("worktree_base", "")) == 40, (
         f"worktree_base should be a SHA, got: {state.get('worktree_base')!r}"
     )
@@ -707,8 +706,8 @@ def test_launch_passes_base_ref_to_worktree_setup(lenv):
     _sha_content = (
         pathlib.Path(_sha_path).read_text(encoding="utf-8") if _sha_path else ""
     )
-    assert _sha_content == f"git://commit/{head_sha}", (
-        f"expected base_sha=git://commit/{head_sha!r}, got {_sha_content!r}"
+    assert _sha_content == head_sha, (
+        f"expected base_sha={head_sha!r}, got {_sha_content!r}"
     )
     workdir_base = state.get("worktree_base", "")
     assert workdir_base == head_sha, (
