@@ -1151,7 +1151,9 @@ def test_resume_from_open_pr(tmp_path, monkeypatch):
     # Verify push-and-open wrote pr to registry.json
     registry_path = tmp_path / "scratch" / "gr-test" / "registry.json"
     assert registry_path.exists(), "registry.json should have been written"
-    assert json.loads(registry_path.read_text()).get("artifact://pr-url.txt") is not None
+    assert (
+        json.loads(registry_path.read_text()).get("artifact://pr-url.txt") is not None
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1209,7 +1211,9 @@ def test_github_wait_copilot_stage_argument_wiring(tmp_path, monkeypatch):
     # pr is written to registry.json by push-and-open
     registry_path = tmp_path / "scratch" / "gr-test" / "registry.json"
     assert registry_path.exists(), "registry.json should have been written"
-    assert json.loads(registry_path.read_text()).get("artifact://pr-url.txt") is not None
+    assert (
+        json.loads(registry_path.read_text()).get("artifact://pr-url.txt") is not None
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1269,7 +1273,9 @@ def test_github_wait_ci_stage_argument_wiring(tmp_path, monkeypatch):
     # pr is written to registry.json by push-and-open
     registry_path = tmp_path / "scratch" / "gr-test" / "registry.json"
     assert registry_path.exists(), "registry.json should have been written"
-    assert json.loads(registry_path.read_text()).get("artifact://pr-url.txt") is not None
+    assert (
+        json.loads(registry_path.read_text()).get("artifact://pr-url.txt") is not None
+    )
 
 
 def test_github_wait_ci_stage_ordering(tmp_path, monkeypatch):

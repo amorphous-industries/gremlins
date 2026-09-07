@@ -15,7 +15,6 @@ import signal
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from _gremlins_core.artifacts import Uri
 from _gremlins_core.config import project_root, scratch_root, state_root
 
 from gremlins.artifacts.registry import ArtifactRegistry
