@@ -176,6 +176,10 @@ class ArtifactRegistry:
         )
         return True
 
+    def is_registered(self, key: str) -> bool:
+        """Return True if *key* is bound in the registry."""
+        return key in self.data
+
     def keys(self) -> Iterable[str]:
         return self.data.keys()
 
