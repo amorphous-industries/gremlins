@@ -179,9 +179,20 @@ async def run_pipeline(
 
     # base_ref_sha and base_ref are bound in registry.json at launch time
     try:
-        _registry = ArtifactRegistry(artifact_dir=artifact_dir, cwd=worktree_dir)
-        base_ref_sha = _registry.get_base_sha()
-        base_ref = _registry.get_base_ref()
+        _registry = ArtifactRegistry(artifact_dir=artifact_dir)
+        raw_base_sha = (
+            _registry.read("artifact://base_sha")
+            if _registry.produced("artifact://base_sha")
+            else ""
+        )
+        # base_sha may be stored as a raw SHA or a git://commit/<sha> URI
+        base_ref_sha = str(raw_base_sha).removeprefix("git://commit/")
+        raw_base_ref = (
+            _registry.read("artifact://base_ref")
+            if _registry.produced("artifact://base_ref")
+            else ""
+        )
+        base_ref = str(raw_base_ref).removeprefix("git://ref/")
     except Exception:
         logger.warning(
             "failed to read base_sha/base_ref from registry.json", exc_info=True
@@ -282,7 +293,6 @@ async def run_pipeline(
             await run_pipeline_bootstrap(
                 _bootstrap,
                 cwd=gremlin.worktree_dir,
-                artifact_dir=gremlin.artifact_dir,
                 stage_inputs=stage_inputs,
                 gremlin=gremlin,
                 include_launch=True,

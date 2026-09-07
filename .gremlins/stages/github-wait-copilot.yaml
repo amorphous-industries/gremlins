@@ -6,17 +6,17 @@ stages:
   - name: github-wait-copilot
     type: loop
     max-iterations: "{{options.max_iterations | default(40)}}"
-    stop_when_exists: status
+    stop_when_exists: "artifact://status"
     options:
       interval: "{{options.interval | default(20)}}"
     body:
       - name: poll
         type: exec
         interpolation:
-          pr_number: artifact.pr-number
-          repo: artifact.repo
+          pr_number: content("artifact://pr-number.txt")
+          repo: content("artifact://repo.txt")
         bind:
-          artifact.status?: "file://session/status"
+          status?: "artifact://status"
         options:
           timeout: 30
           cmds:
@@ -24,5 +24,5 @@ stages:
               review=$(gh api "repos/$repo/pulls/$pr_number/reviews" \
                 --jq '.[] | select(.user.login | test("[Cc]opilot")) | .state | select(. != "PENDING")')
               if [ -n "$review" ]; then
-                printf '%s' "$review" > "{artifact_dir}/status"
+                printf '%s' "$review" > "$GREMLINS_ARTIFACT_DIR/status"
               fi

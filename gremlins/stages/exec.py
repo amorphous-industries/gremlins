@@ -3,25 +3,14 @@ from __future__ import annotations
 import logging
 import os
 import pathlib
-import re
 import time
 from typing import TYPE_CHECKING, Any, cast
 
 from _gremlins_core.artifacts import Uri
 
-from gremlins.artifacts.registry import (
-    ArtifactRegistry,
-    DuplicateArtifact,
-    MissingArtifact,
-)
 from gremlins.artifacts.resolve import resolve_interpolation_map
-from gremlins.artifacts.schemes import snapshot_head_before
 from gremlins.stages.base import Stage
-from gremlins.stages.constants import (
-    FRAMEWORK_KEYS,
-    strip_artifact_prefix,
-    strip_artifact_prefix_keys,
-)
+from gremlins.stages.constants import _BAIL_KEY, FRAMEWORK_KEYS
 from gremlins.stages.outcome import Bail, Done, Outcome
 from gremlins.utils import proc as _proc
 
@@ -29,49 +18,6 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from gremlins.executor.gremlin import Gremlin
-
-_READ_SUB = re.compile(r"\{read:([-\w]+)\}")
-_ARTIFACT_SUB = re.compile(r"\{artifact:([-\w]+)\}")
-_BAIL_KEY = "bail"
-
-
-def _sub_reads(s: str, artifacts: ArtifactRegistry) -> str:
-    def _r(m: re.Match[str]) -> str:
-        key = m.group(1)
-        raw = artifacts.read(key)
-        if not isinstance(raw, str):
-            raise TypeError(
-                f"{{read:{key}}}: expected string artifact, got {type(raw).__name__}"
-            )
-        return raw.strip()
-
-    return _READ_SUB.sub(_r, s)
-
-
-def _sub_artifact_paths(s: str, artifacts: ArtifactRegistry) -> str:
-    """Replace {artifact:key} with the absolute filesystem path of a
-    file://session/ artifact.
-
-    Raises MissingArtifact when the key is not bound.
-    Raises ValueError when the key is bound but does not resolve to a
-    file://session/ URI (e.g. git:// artifacts).
-    """
-
-    def _r(m: re.Match[str]) -> str:
-        key = m.group(1)
-        try:
-            uri = artifacts.resolve(key)
-        except MissingArtifact:
-            raise MissingArtifact(key) from None
-        p = artifacts.path_for(key)
-        if p is None:
-            raise ValueError(
-                f"{{artifact:{key}}}: artifact is bound to {uri} "
-                f"which is not a file://session/ path"
-            )
-        return str(p)
-
-    return _ARTIFACT_SUB.sub(_r, s)
 
 
 class Exec(Stage):
@@ -98,7 +44,7 @@ class Exec(Stage):
         if "in" in d or "out" in d:
             raise ValueError(
                 f"stage {name!r}: 'in'/'out' keys are no longer supported; "
-                f"use 'interpolation'/'bind' with 'artifact.' prefix on registry keys"
+                f"use 'interpolation'/'bind' with URI values"
             )
         if not isinstance(raw_interpolation, dict):
             raise ValueError(f"stage {name!r}: 'interpolation' must be a mapping")
@@ -112,41 +58,39 @@ class Exec(Stage):
         return cls(
             name,
             d.get("options") or {},
-            interpolation_map=strip_artifact_prefix(
-                cast(dict[str, str], raw_interpolation), name
-            ),
-            bind_map=strip_artifact_prefix_keys(cast(dict[str, str], raw_bind), name),
+            interpolation_map=cast(dict[str, str], raw_interpolation),
+            bind_map=cast(dict[str, str], raw_bind),
         )
 
     async def run(self, gremlin: Gremlin) -> Outcome:
         state = gremlin.state
         if state is None:
             raise RuntimeError("exec stage requires gremlin.state to be initialized")
+
+        # Resolve interpolation vars (inputs consumed by commands)
         try:
-            extra_env = resolve_interpolation_map(
+            interpolation_map = resolve_interpolation_map(
                 state.artifacts, self.interpolation_map
             )
         except ValueError as exc:
             raise Bail(f"exec {self.name}: {exc}") from exc
 
-        pre_sha: str | None = None
-        if any(Uri.is_range(v) for v in self.bind_map.values()):
-            pre_sha = snapshot_head_before(cwd=pathlib.Path(state.cwd))
-            if logger.isEnabledFor(logging.DEBUG):
-                logger.debug(
-                    "exec %s: git://range bind found, pre_sha=%s",
-                    self.name,
-                    pre_sha,
-                )
+        # Register bind URIs and collect output paths
+        bind_paths: dict[str, str] = {}
+        for raw_key, raw_uri_str in self.bind_map.items():
+            key = self.substitute_vars(raw_key, state, interpolation_map)
+            optional = key.endswith("?")
+            if optional:
+                key = key[:-1]
+            uri_str = self.substitute_vars(raw_uri_str, state, interpolation_map)
+            uri = Uri.parse(uri_str)
+            bind_paths[key] = state.artifacts.register(uri)
+
+        # Merge: bind output paths shadow interpolation keys on collision
+        subst_vars = {**interpolation_map, **bind_paths}
 
         raw_cmds = [c.strip() for c in self.options.get("cmds", []) if c.strip()]
-        cmds = [
-            _sub_artifact_paths(
-                self.substitute_vars(c, state, extra_env),
-                state.artifacts,
-            )
-            for c in raw_cmds
-        ]
+        cmds = [self.substitute_vars(c, state, subst_vars) for c in raw_cmds]
         bail_triggered = False
         shell_output = ""
         shell_rc = 0
@@ -167,11 +111,31 @@ class Exec(Stage):
                 logger.debug(
                     "exec %s:   cmd[%d] %s", self.name, i, c.replace("\n", "\\n")
                 )
+            env_interp: dict[str, str] = {}
+            LARGE_VAL_THRESHOLD = 4096
+            for k, v in interpolation_map.items():
+                if len(v) > LARGE_VAL_THRESHOLD:
+                    tmp = state.artifact_dir / f"interp-{self.name}-{k}"
+                    tmp.write_text(v, encoding="utf-8")
+                    env_interp[k] = str(tmp)
+                    logger.debug(
+                        "exec %s: env value for %r too large (%d bytes), written to %s",
+                        self.name,
+                        k,
+                        len(v),
+                        tmp,
+                    )
+                else:
+                    env_interp[k] = v
             _t0 = time.monotonic()
             result = await _proc.run_shell_async(
                 joined,
                 cwd=pathlib.Path(state.cwd),
-                env={**os.environ, **extra_env},
+                env={
+                    **os.environ,
+                    **env_interp,
+                    "GREMLINS_ARTIFACT_DIR": str(state.artifact_dir),
+                },
                 timeout=timeout,
             )
             elapsed = time.monotonic() - _t0
@@ -204,59 +168,32 @@ class Exec(Stage):
                         shell_rc,
                         tail,
                     )
-                if _BAIL_KEY in self.bind_map:
+                if _BAIL_KEY in self.bind_map.values():
                     bail_triggered = True
                 else:
                     raise Bail(f"exec {self.name}: exited {shell_rc}")
 
+        # Post-command verification: confirm each registered artifact
+        # was actually written to disk.
         for raw_key, raw_uri_str in self.bind_map.items():
-            key = self.substitute_vars(raw_key, state, extra_env)
+            key = self.substitute_vars(raw_key, state, interpolation_map)
             optional = key.endswith("?")
             if optional:
                 key = key[:-1]
-            if key == _BAIL_KEY and not bail_triggered:
+            uri_str = self.substitute_vars(raw_uri_str, state, interpolation_map)
+            if uri_str == _BAIL_KEY and not bail_triggered:
                 continue
-            try:
-                uri_str = self.substitute_vars(
-                    _sub_reads(raw_uri_str, state.artifacts), state, extra_env
-                )
-            except MissingArtifact:
+            uri = Uri.parse(uri_str)
+            if not state.artifacts.verified(str(uri)):
                 if optional:
                     continue
-                raise
-            if Uri.is_range(uri_str):
-                if pre_sha is None:
-                    raise RuntimeError(
-                        f"exec {self.name}: git://range requires pre-snapshot"
-                    )
-                state.artifacts.bind_git_commit_range(key, pre_sha)
-                logger.debug(
-                    "exec %s: bound %s = git://range (pre_sha=%s)",
-                    self.name,
-                    key,
-                    pre_sha,
-                )
-            else:
-                uri = Uri.parse(uri_str)
-                try:
-                    state.artifacts.resolver(uri.scheme).verify_produced(uri)
-                except FileNotFoundError:
-                    if optional:
+                if uri_str == _BAIL_KEY:
+                    if bail_triggered:
                         continue
-                    if key == _BAIL_KEY:
-                        if bail_triggered:
-                            continue  # rc != 0 but no bail file; not a real bail
-                        msg = f"exec {self.name}: exited {shell_rc}"
-                        if shell_output:
-                            msg += f"\n{shell_output}"
-                        raise Bail(msg) from None
-                    raise
-                try:
-                    state.artifacts.bind(key, uri)
-                    logger.debug("exec %s: bound %s = %s", self.name, key, uri_str)
-                except DuplicateArtifact:
-                    if optional:
-                        continue
-                    raise
+                    msg = f"exec {self.name}: exited {shell_rc}"
+                    if shell_output:
+                        msg += f"\n{shell_output}"
+                    raise Bail(msg) from None
+                raise Bail(f"exec {self.name}: artifact {uri} was not produced")
 
         return Done()

@@ -1,5 +1,5 @@
 # Loop body: poll → fix → push-fix → capture-head.
-# Iteration-1 detection: {artifact_dir}/fix-head absent means no prior fix push.
+# Iteration-1 detection: fix-head absent means no prior fix push.
 # Post-fix SHA verification: fix-head present → wait for headRefOid to match.
 
 required-prompt: true
@@ -8,20 +8,17 @@ stages:
   - name: github-wait-ci
     type: loop
     max-iterations: 3
-    stop_when_exists: done
-    interpolation:
-      pr_url: artifact.pr-url
-      pr_branch: artifact.pr-branch
+    stop_when_exists: "artifact://done"
     body:
       - name: poll
         type: exec
         interpolation:
-          pr_url: artifact.pr-url
+          pr_url: content("artifact://pr-url.txt")
         bind:
-          artifact.status?: "file://session/status"
-          artifact.done?: "file://session/done"
-          artifact.bail: "file://session/bail"
-          artifact.ci_log: "file://session/ci_failure.txt"
+          status?: "artifact://status"
+          done?: "artifact://done"
+          bail: "artifact://bail"
+          ci_log: "artifact://ci_failure.txt"
         options:
           poll_timeout: "1200"
           poll_interval: "30"
@@ -33,8 +30,8 @@ stages:
 
               # Post-fix path: fix-head written by capture-head on prior iteration.
               fix_head=""
-              if [ -f "{artifact_dir}/fix-head" ]; then
-                  fix_head=$(cat "{artifact_dir}/fix-head")
+              if [ -f "$GREMLINS_ARTIFACT_DIR/fix-head" ]; then
+                  fix_head=$(cat "$GREMLINS_ARTIFACT_DIR/fix-head")
               fi
 
               fetch_status() {
@@ -46,7 +43,7 @@ stages:
                   local decision="$1"
                   if [ "$decision" = "REVIEW_REQUIRED" ]; then
                       printf 'ci-gate: PR blocked by required human review\n' \
-                          > "{artifact_dir}/bail"
+                          > "$GREMLINS_ARTIFACT_DIR/bail"
                       exit 2
                   fi
               }
@@ -67,13 +64,12 @@ stages:
                   done
                   if [ "$rollup_len" -eq 0 ]; then
                       printf 'ci-gate: no check-runs after %ss grace; skipping\n' {startup_grace_secs}
-                      printf 'skipped' > "{artifact_dir}/status"
-                      printf 'passed' > "{artifact_dir}/done"
+                      printf 'skipped' > "$GREMLINS_ARTIFACT_DIR/status"
+                      printf 'passed' > "$GREMLINS_ARTIFACT_DIR/done"
                       exit 0
                   fi
               else
                   # Post-fix: wait for GitHub to reflect the pushed commit SHA.
-                  # Accept either exact match or if fix_head is an ancestor (later commits may have landed).
                   push_deadline=$(( $(date +%s) + {poll_timeout} ))
                   while true; do
                       status_json=$(fetch_status)
@@ -85,7 +81,7 @@ stages:
                       fi
                       if [ "$(date +%s)" -ge "$push_deadline" ]; then
                           printf 'ci-gate: timed out waiting for GitHub to reflect pushed SHA\n' \
-                              > "{artifact_dir}/bail"
+                              > "$GREMLINS_ARTIFACT_DIR/bail"
                           exit 2
                       fi
                       sleep {poll_interval}
@@ -115,7 +111,7 @@ stages:
               done
 
               if [ "$all_done" != "true" ]; then
-                  printf 'ci-gate: checks incomplete after timeout\n' > "{artifact_dir}/bail"
+                  printf 'ci-gate: checks incomplete after timeout\n' > "$GREMLINS_ARTIFACT_DIR/bail"
                   exit 2
               fi
 
@@ -130,13 +126,13 @@ stages:
 
               if [ "$failed_count" -eq 0 ]; then
                   printf 'ci-gate: all checks passed\n'
-                  printf 'passed' > "{artifact_dir}/status"
-                  printf 'passed' > "{artifact_dir}/done"
+                  printf 'passed' > "$GREMLINS_ARTIFACT_DIR/status"
+                  printf 'passed' > "$GREMLINS_ARTIFACT_DIR/done"
                   exit 0
               fi
 
               # Collect failure logs for the fix agent.
-              printf 'failed' > "{artifact_dir}/status"
+              printf 'failed' > "$GREMLINS_ARTIFACT_DIR/status"
               printf '%s' "$failed_json" | jq -c '.[]' | while read -r check_json; do
                   check_name=$(printf '%s' "$check_json" | jq -r '.name // .context // "unknown"')
                   details_url=$(printf '%s' "$check_json" | jq -r '.detailsUrl // .targetUrl // empty')
@@ -149,35 +145,31 @@ stages:
                   else
                       printf '(no action run URL; details: %s)\n' "$details_url"
                   fi
-              done > "{artifact_dir}/ci_failure.txt" 2>&1
+              done > "$GREMLINS_ARTIFACT_DIR/ci_failure.txt" 2>&1
               exit 1
 
       - name: fix
-        # skip_if_exists: done — poll may have produced done (CI passed)
-        # in this iteration. If so, skip fix/push/capture since there's
-        # nothing to fix. The loop-level stop_when_exists: done terminates
-        # after this iteration completes.
         type: agent
-        skip_if_exists: done
+        skip_if_exists: "artifact://done"
         prompt:
           - "{{prompt}}"
         interpolation:
-          failure_output: artifact.ci_log
+          failure_output: content("artifact://ci_failure.txt")
 
       - name: push-fix
         type: exec
-        skip_if_exists: done
+        skip_if_exists: "artifact://done"
         interpolation:
-          pr_branch: artifact.pr-branch
+          pr_branch: content("artifact://pr-branch.txt")
         options:
           cmds:
             - git push origin "HEAD:$pr_branch"
 
       - name: capture-head
         type: exec
-        skip_if_exists: done
+        skip_if_exists: "artifact://done"
         bind:
-          artifact.fix_head: "file://session/fix-head"
+          fix_head: "artifact://fix-head"
         options:
           cmds:
-            - 'git rev-parse HEAD > "{artifact_dir}/fix-head"'
+            - 'git rev-parse HEAD > "$GREMLINS_ARTIFACT_DIR/fix-head"'

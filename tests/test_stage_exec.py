@@ -9,7 +9,7 @@ import pytest
 from _gremlins_core.artifacts import Uri
 from conftest import MockGremlin
 
-from gremlins.artifacts.registry import ArtifactRegistry, MissingArtifact
+from gremlins.artifacts.registry import MissingArtifact
 from gremlins.executor.state import StateData, build_state
 from gremlins.stages.exec import Exec
 from gremlins.stages.outcome import Bail, Done
@@ -76,7 +76,7 @@ def test_interpolation_map_injects_env_var(tmp_path):
     out_file = tmp_path / "captured.txt"
     stage = _exec(
         cmds=[f'echo "$MY_VAR" > {out_file}'],
-        interpolation_map={"MY_VAR": "my-key"},
+        interpolation_map={"MY_VAR": 'content("my-key")'},
     )
     asyncio.run(stage.run(MockGremlin(state=state)))
     assert out_file.read_text().strip() == "hello"
@@ -100,129 +100,15 @@ def test_bind_file_scheme_binds_and_verifies(tmp_path):
     stage = _exec(cmds=["true"], bind_map={"result": "file://session/out.txt"})
     result = asyncio.run(stage.run(MockGremlin(state=state)))
     assert isinstance(result, Done)
-    assert state.artifacts.produced("result")
-    assert state.artifacts.resolve("result") == Uri.parse("file://session/out.txt")
+    assert state.artifacts.produced("file://session/out.txt")
+    # register stores the resolved filesystem path, not the original URI
 
 
 def test_bind_file_scheme_missing_file_raises(tmp_path):
     state = _make_state(tmp_path)
     stage = _exec(cmds=["true"], bind_map={"result": "file://session/missing.txt"})
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(Bail, match="was not produced"):
         asyncio.run(stage.run(MockGremlin(state=state)))
-
-
-# ---------------------------------------------------------------------------
-# out: git://range
-# ---------------------------------------------------------------------------
-
-
-def test_bind_git_range_binds_commit_range(tmp_path, monkeypatch):
-    state = _make_state(tmp_path)
-    monkeypatch.setattr(
-        "gremlins.stages.exec.snapshot_head_before", lambda cwd=None: "abc123"
-    )
-    monkeypatch.setattr(
-        "gremlins.artifacts.registry.git_utils.head_sha", lambda cwd=None: "def456"
-    )
-    stage = _exec(cmds=["true"], bind_map={"commits": "git://range"})
-    result = asyncio.run(stage.run(MockGremlin(state=state)))
-    assert isinstance(result, Done)
-    assert state.artifacts.produced("commits")
-    bound_uri = state.artifacts.resolve("commits")
-    assert str(bound_uri) == "git://range/abc123..def456"
-
-
-def test_bind_git_range_empty_diff_still_binds(tmp_path, monkeypatch):
-    state = _make_state(tmp_path)
-    monkeypatch.setattr(
-        "gremlins.stages.exec.snapshot_head_before", lambda cwd=None: "abc123"
-    )
-    # HEAD doesn't advance — same SHA before and after
-    monkeypatch.setattr(
-        "gremlins.artifacts.registry.git_utils.head_sha", lambda cwd=None: "abc123"
-    )
-    stage = _exec(cmds=["true"], bind_map={"commits": "git://range"})
-    result = asyncio.run(stage.run(MockGremlin(state=state)))
-    assert isinstance(result, Done)
-    assert state.artifacts.produced("commits")
-
-
-# ---------------------------------------------------------------------------
-# out: {read:KEY} URI substitution
-# ---------------------------------------------------------------------------
-
-
-def test_bind_read_sub_resolves_uri(tmp_path):
-    state = _make_state(tmp_path)
-    foo_file = state.artifact_dir / "foo.txt"
-    stage = _exec(
-        cmds=[f'echo 42 > "{foo_file}"'],
-        bind_map={
-            "foo": "file://session/foo.txt",
-            "bar": "opaque://pr/{read:foo}",
-        },
-    )
-    result = asyncio.run(stage.run(MockGremlin(state=state)))
-    assert isinstance(result, Done)
-    assert state.artifacts.resolve("bar") == Uri.parse("opaque://pr/42")
-
-
-def test_bind_read_sub_backward_ref_raises(tmp_path):
-    state = _make_state(tmp_path)
-    stage = _exec(
-        cmds=["true"],
-        bind_map={
-            "bar": "opaque://pr/{read:foo}",
-            "foo": "file://session/foo.txt",
-        },
-    )
-    with pytest.raises(MissingArtifact):
-        asyncio.run(stage.run(MockGremlin(state=state)))
-
-
-def test_bind_read_sub_unbound_key_raises(tmp_path):
-    state = _make_state(tmp_path)
-    stage = _exec(cmds=["true"], bind_map={"bar": "opaque://pr/{read:nonexistent}"})
-    with pytest.raises(MissingArtifact):
-        asyncio.run(stage.run(MockGremlin(state=state)))
-
-
-def test_artifact_sub_replaces_with_filesystem_path(tmp_path):
-    state = _make_state(tmp_path)
-    state.artifacts.bind("my-file", Uri.parse("file://session/my-file.txt"))
-    (state.artifact_dir / "my-file.txt").write_text("hello")
-    stage = _exec(
-        cmds=['test "$(cat {artifact:my-file})" = "hello"'],
-    )
-    result = asyncio.run(stage.run(MockGremlin(state=state)))
-    assert isinstance(result, Done)
-
-
-def test_artifact_sub_raises_for_unbound_key(tmp_path):
-    state = _make_state(tmp_path)
-    stage = _exec(cmds=["echo {artifact:nonexistent}"])
-    with pytest.raises(MissingArtifact):
-        asyncio.run(stage.run(MockGremlin(state=state)))
-
-
-def test_registry_path_for_resolves_file_session(tmp_path):
-    registry = ArtifactRegistry(tmp_path / "artifacts", cwd=tmp_path)
-    registry.bind("x", Uri.parse("file://session/foo.txt"))
-    path = registry.path_for("x")
-    assert path is not None
-    assert path.name == "foo.txt"
-    assert path.is_absolute()
-
-
-def test_registry_path_for_returns_none_for_non_file_uri(tmp_path):
-    registry = ArtifactRegistry(tmp_path / "artifacts", cwd=tmp_path)
-    registry.bind("x", Uri.parse("opaque://pr/42"))
-    assert registry.path_for("x") is None
-
-
-def test_registry_path_for_returns_none_for_unbound_key(tmp_path):
-    registry = ArtifactRegistry(tmp_path / "artifacts", cwd=tmp_path)
-    assert registry.path_for("nonexistent") is None
 
 
 # ---------------------------------------------------------------------------
@@ -281,8 +167,8 @@ def test_bail_artifact_on_exit_2(tmp_path):
     bail_file.write_text("something broke")
     stage = _exec(
         cmds=["exit 2"],
-        bind_map={"bail": "file://session/bail"},
+        bind_map={"bail": "artifact://bail"},
     )
     result = asyncio.run(stage.run(MockGremlin(state=state)))
     assert isinstance(result, Done)
-    assert state.artifacts.produced("bail")
+    assert state.artifacts.produced("artifact://bail")

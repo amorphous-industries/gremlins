@@ -10,8 +10,8 @@ bootstrap:
       type: filepath
       optional: true
   launch_cmds:
-    - gremlins:bind_artifact(plan, plan, file://session/plan.md)
-    - gremlins:bind_artifact(instructions, instructions, file://session/instructions.txt)
+    - gremlins:bind_artifact("artifact://plan.md", plan)
+    - gremlins:bind_artifact("artifact://instructions.txt", instructions)
   cmds:
     - uv venv .venv
     - uv pip install -e ".[dev]"
@@ -67,5 +67,5 @@ stages:
   - { type: gremlins:implement,  prompt: [code-style, terse, dev-env, no_lint_in_implement.md, gremlins:implement_local.md] }
   - { type: check-and-fix }
   - { type: gremlins:review-code,  prompt: [code-style, terse, dev-env, local_review.md] }
-  - { name: address-code, type: agent, interpolation: {text: artifact.review-code}, prompt: [code-style, terse, dev-env, gremlins:address.md, gremlins:bail_section.md] }
+  - { name: address-code, type: agent, interpolation: {text: content("artifact://review-code-{model}.md")?}, prompt: [code-style, terse, dev-env, gremlins:address.md, gremlins:bail_section.md] }
   - { type: check-and-fix }

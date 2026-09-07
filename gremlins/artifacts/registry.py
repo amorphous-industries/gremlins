@@ -1,4 +1,4 @@
-"""Artifact registry: maps string keys to JSON values, auto-resolving URI strings on read."""
+"""Artifact registry: maps URI strings to slugged filesystem paths."""
 
 from __future__ import annotations
 
@@ -8,18 +8,12 @@ import os
 import pathlib
 import secrets
 import shutil
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable
 from typing import Any
 
 from _gremlins_core.artifacts import Uri
 
-from gremlins.artifacts._protocol import SchemeResolver
-from gremlins.artifacts.schemes import (
-    FileArtifactResolver,
-    GitResolver,
-    OpaqueResolver,
-)
-from gremlins.utils import git as git_utils
+from gremlins.artifacts.schemes import FileArtifactResolver
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +24,11 @@ class MissingArtifact(KeyError):
         self.key = key
 
 
-class DuplicateArtifact(ValueError):
-    def __init__(self, key: str, existing: Any, attempted: Any) -> None:
+class DuplicateArtifact(KeyError):
+    def __init__(self, key: str, existing: str, incoming: str) -> None:
         super().__init__(
-            f"artifact {key!r} already bound to {existing!r}; cannot rebind to {attempted!r}"
+            f"duplicate artifact: {key!r} already bound to {existing!r}, "
+            f"cannot rebind to {incoming!r}"
         )
         self.key = key
 
@@ -42,17 +37,11 @@ class ArtifactRegistry:
     def __init__(
         self,
         artifact_dir: pathlib.Path,
-        cwd: pathlib.Path | None = None,
-        resolvers: Mapping[str, SchemeResolver] | None = None,
     ) -> None:
-        self._cwd = cwd
+        self.artifact_dir = artifact_dir
         self.registry_path = artifact_dir.parent / "registry.json"
         self.data: dict[str, Any] = {}
-        self._resolvers: dict[str, SchemeResolver] = {
-            "file": FileArtifactResolver(artifact_dir),
-            "git": GitResolver(cwd),
-            **(resolvers or {}),
-        }
+        self._file_resolver = FileArtifactResolver(artifact_dir)
         if self.registry_path.exists():
             data = json.loads(self.registry_path.read_text(encoding="utf-8"))
             self.data = dict(data)
@@ -64,52 +53,131 @@ class ArtifactRegistry:
         tmp.write_text(json.dumps(self.data), encoding="utf-8")
         os.replace(tmp, path)
 
-    def write(self, key: str, value: Any) -> None:
-        """Store a JSON value. Fails at write time if value is not JSON-serializable."""
-        json.dumps(value)  # validate serializability
-        self.data[key] = value
-        self._persist()
-
     def bind(self, key: str, uri: Uri) -> None:
-        value = str(uri)
+        """Bind a key to a URI, raising DuplicateArtifact if already bound."""
+        uri_str = str(uri)
         if key in self.data:
-            if self.data[key] == value:
-                return
-            raise DuplicateArtifact(key, self.data[key], value)
-        self.data[key] = value
+            raise DuplicateArtifact(key, str(self.data[key]), uri_str)
+        self.data[key] = uri_str
         self._persist()
-
-    def mount(self, key: str, uri: Uri) -> None:
-        """Register a URI binding in-memory only; not persisted to disk."""
-        self.data[key] = str(uri)
 
     def resolve(self, key: str) -> Uri:
+        """Resolve a key to its URI, raising MissingArtifact if unbound."""
         if key not in self.data:
             raise MissingArtifact(key)
         value = self.data[key]
-        if not isinstance(value, str):
-            raise ValueError(f"artifact {key!r} is not a URI (stored value: {value!r})")
-        uri = Uri.parse(value)
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("ArtifactRegistry: resolve %s -> %s", key, uri)
-        return uri
+        if isinstance(value, str):
+            try:
+                return Uri.parse(value)
+            except ValueError:
+                # Construct Uri directly for non-artifact schemes
+                if "://" in value:
+                    scheme, rest = value.split("://", 1)
+                    return Uri(scheme=scheme, path=rest)
+                return Uri(scheme="opaque", path=value)
+        return Uri(scheme="opaque", path=str(value))
 
-    def _resolve_value(self, value: Any) -> Any:
-        if not isinstance(value, str):
-            return value
-        try:
-            uri = Uri.parse(value)
-        except ValueError:
-            return value
-        if uri.scheme not in self._resolvers:
-            self._resolvers[uri.scheme] = OpaqueResolver()
-        resolved = self._resolvers[uri.scheme].read(uri)
-        return self._resolve_value(resolved)
+    def register(self, uri: Uri, *, overwrite: bool = True) -> str:
+        """Register a URI artifact, returning the canonical filesystem path.
 
-    def read(self, key: str) -> Any:
-        if key not in self.data:
-            raise MissingArtifact(key)
-        return self._resolve_value(self.data[key])
+        Always resolves the URI to its canonical on-disk path (which is what
+        exec and agent stages write to), even if the key is already bound in
+        the registry.  This keeps the returned path consistent with the file
+        the stage is expected to produce.
+
+        If *overwrite* is True (the default), silently overwrites an existing
+        entry.  Set *overwrite* to False to raise DuplicateArtifact when
+        the key already exists (for stages that must be strict about uniqueness).
+        """
+        key = str(uri)
+        if uri.scheme != "artifact":
+            logger.warning(
+                "register(%r): unrecognized scheme %r — typo? (expected 'artifact')",
+                key,
+                uri.scheme,
+            )
+        if key in self.data and not overwrite:
+            raise DuplicateArtifact(key, str(self.data[key]), str(uri))
+        path = self._file_resolver.path_for(uri)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self.data[key] = str(path)
+        self._persist()
+        return self.data[key]
+
+    def write(self, key: str, value: Any) -> None:
+        """Store an arbitrary JSON-serializable value under *key*."""
+        self.data[key] = value
+        self._persist()
+
+    def read(self, uri_str: str) -> Any:
+        """Return the resolved value (filesystem path for file URIs)."""
+        if uri_str not in self.data:
+            raise MissingArtifact(uri_str)
+        return self.data[uri_str]
+
+    def content(self, uri_str: str, json_path: str | None = None) -> str:
+        """Read file content, optionally traversing a JSON path."""
+        raw = self.read(uri_str)
+        if not isinstance(raw, str):
+            raise ValueError(
+                f"content({uri_str!r}): expected a file path, got {type(raw).__name__}"
+            )
+        # Resolve URI values to filesystem paths
+        if raw.startswith("file://session/"):
+            name = raw[len("file://session/") :]
+            p = self.artifact_dir / name
+            if not p.exists():
+                raise MissingArtifact(uri_str)
+            text = p.read_text(encoding="utf-8")
+        elif raw.startswith("file://"):
+            p = pathlib.Path(raw[len("file://") :])
+            if not p.exists():
+                raise MissingArtifact(uri_str)
+            text = p.read_text(encoding="utf-8")
+        elif raw.startswith("/"):
+            p = pathlib.Path(raw)
+            if not p.exists():
+                raise MissingArtifact(uri_str)
+            text = p.read_text(encoding="utf-8")
+        else:
+            # Logical values (e.g. git:// URIs, raw strings) — return as-is
+            logger.warning(
+                "content(%r): returning raw registry value as-is (not a file path)",
+                uri_str,
+            )
+            return raw
+        if json_path is None:
+            return text
+        data = json.loads(text)
+        for segment in json_path.split("."):
+            if isinstance(data, dict):
+                data = data[segment]
+            else:
+                raise ValueError(
+                    f"content({uri_str}, {json_path!r}): cannot traverse into {type(data)}"
+                )
+        return str(data) if not isinstance(data, str) else data
+
+    def exists(self, uri: str | Uri) -> bool:
+        """Check whether a registered artifact exists.
+
+        Returns True if the key is registered in the registry with a
+        non-None string value.  For logical artifacts (e.g. ``git://range/...``,
+        ``opaque://...``) this is always True once registered.  For file-based
+        artifacts it checks that the key is bound — the actual file existence
+        is validated by ``verified()``.
+        """
+        match uri:
+            case str():
+                key = uri
+            case Uri():
+                key = str(uri)
+            case _:
+                raise ValueError(f"expected str or Uri, got {type(uri).__name__}")
+        stored = self.data.get(key)
+        if stored is None or not isinstance(stored, str):
+            return False
+        return True
 
     def produced(self, key: str) -> bool:
         return key in self.data
@@ -120,46 +188,26 @@ class ArtifactRegistry:
         value = self.data[key]
         if not isinstance(value, str):
             return True
-        try:
-            uri = Uri.parse(value)
-        except ValueError:
-            return True
-        if uri.scheme not in self._resolvers:
-            return True
-        try:
-            self._resolvers[uri.scheme].verify_produced(uri)
-            return True
-        except Exception:
-            return False
-
-    def path_for(self, key: str) -> pathlib.Path | None:
-        """Return the absolute filesystem path for a file://session/ artifact.
-
-        Returns None if the key is not bound or does not resolve to a
-        file://session/ URI.
-        """
-        try:
-            uri = self.resolve(key)
-        except MissingArtifact:
-            return None
-        if uri.scheme != "file" or not uri.path.startswith("session/"):
-            return None
-        return self.file_resolver.path_for(uri)
+        # Resolve file:// URIs to filesystem paths
+        if value.startswith("file://session/"):
+            name = value[len("file://session/") :]
+            p = self.artifact_dir / name
+        elif value.startswith("file://"):
+            p = pathlib.Path(value[len("file://") :])
+        else:
+            p = pathlib.Path(value)
+        if p.is_absolute():
+            return p.exists() and p.stat().st_size > 0
+        # Non-file string values (e.g. "registered") are considered verified
+        logger.warning(
+            "verified(%r): non-absolute path %r, cannot verify filesystem state",
+            key,
+            value,
+        )
+        return True
 
     def keys(self) -> Iterable[str]:
         return self.data.keys()
-
-    def resolver(self, scheme: str) -> SchemeResolver:
-        if scheme not in self._resolvers:
-            self._resolvers[scheme] = OpaqueResolver()
-        return self._resolvers[scheme]
-
-    @property
-    def file_resolver(self) -> FileArtifactResolver:
-        """Return the registry's concrete file resolver."""
-        resolver = self._resolvers["file"]
-        assert isinstance(resolver, FileArtifactResolver)
-        return resolver
 
     def unbind(self, key: str) -> None:
         if key not in self.data:
@@ -167,85 +215,68 @@ class ArtifactRegistry:
         del self.data[key]
         self._persist()
 
-    def bind_git_commit_range(self, key: str, base_sha: str) -> None:
-        sha = git_utils.head_sha(cwd=self._cwd)
-        if not sha:
-            raise RuntimeError("could not resolve HEAD")
-        self.bind(key, Uri.parse(f"git://range/{base_sha}..{sha}"))
-
-    # ------------------------------------------------------------------
-    # accessor methods
-    # ------------------------------------------------------------------
-
     def raw_entry(self, key: str) -> Any | None:
-        """Return the raw stored value for *key*, or None if unbound."""
         return self.data.get(key)
 
-    def get_base_sha(self) -> str:
-        uri_str = self.data.get("base_sha")
-        if not uri_str or not isinstance(uri_str, str):
-            return ""
-        if uri_str.startswith("git://commit/"):
-            return uri_str.removeprefix("git://commit/")
-        return ""
-
-    def get_base_ref(self) -> str:
-        uri_str = self.data.get("base_ref")
-        if not uri_str or not isinstance(uri_str, str):
-            return ""
-        if uri_str.startswith("git://ref/"):
-            return uri_str.removeprefix("git://ref/")
-        return ""
-
-    def get_file_contents(self, key: str, *, default: str = "") -> str:
-        try:
-            uri = self.resolve(key)
-        except MissingArtifact:
-            return default
-        if uri.scheme != "file":
-            return default
-        try:
-            return self._resolvers["file"].read(uri)
-        except Exception:
-            return default
+    @property
+    def file_resolver(self) -> FileArtifactResolver:
+        return self._file_resolver
 
     def merge_from(
         self,
         other: ArtifactRegistry,
         *,
-        key_prefix: str = "",
+        key_map: dict[str, str] | None = None,
         copy_files: bool = False,
-        dest_artifact_dir: pathlib.Path | None = None,
         keys: set[str] | None = None,
     ) -> None:
-        """Copy file artifacts and rebind non-file URIs from *other* into self.
+        """Copy file artifacts from *other* into self.
 
-        Keys already present in self are skipped. When *key_prefix* is set,
-        each incoming key is suffixed with ``"/" + key_prefix``.
+        *key_map* maps child keys to parent keys.  When None, child keys are
+        used as-is (identity mapping).  Keys already present in self are skipped.
         """
         for key in keys if keys is not None else other.keys():
             uri_str = other.raw_entry(key)
             if not isinstance(uri_str, str):
                 continue
-            bound_key = f"{key}/{key_prefix}" if key_prefix else key
-            if bound_key in self.data:
+            parent_key = key_map[key] if key_map else key
+            if parent_key in self.data:
                 continue
-            if uri_str.startswith("file://session/") and copy_files:
-                name = uri_str[len("file://session/") :]
-                src = other.file_resolver.path_for(Uri.parse(uri_str))
-                if not src.exists():
-                    logger.warning("child artifact missing: %s", src)
+            # copy_files=True: copy actual file artifacts into self.artifact_dir.
+            # register() stores absolute filesystem paths; older code stores
+            # file:// URIs.  Both represent files that must survive child-dir
+            # cleanup.
+            is_file_artifact = uri_str.startswith("file://") or os.path.isabs(uri_str)
+            if copy_files and is_file_artifact:
+                # Resolve the URI to a filesystem path
+                if uri_str.startswith("file://session/"):
+                    name = uri_str[len("file://session/") :]
+                    src_path = other.artifact_dir / name
+                elif uri_str.startswith("file://"):
+                    src_path = pathlib.Path(uri_str[len("file://") :])
+                else:
+                    src_path = pathlib.Path(uri_str)
+                if not src_path.exists():
+                    logger.warning("child artifact missing: %s", src_path)
                     continue
-                dest_dir = dest_artifact_dir or self.file_resolver.path_for(
-                    Uri.parse("file://session/")
-                )
-                dest_name = f"{key_prefix}/{name}" if key_prefix else name
-                dest = dest_dir / dest_name
-                dest.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(src, dest)
-                self.bind(bound_key, Uri.parse(f"file://session/{dest_name}"))
+                # Use parent_key to derive a unique filename (key_map means
+                # multi-child disambiguation, so parent_key includes child name).
+                # Naming contract: parent_keys that differ only in separator
+                # position (e.g. "review_code/one" vs "review_code_two") may
+                # collide after transformation.  Pipeline authors should ensure
+                # sibling stage names are sufficiently distinct.
+                if key_map:
+                    unique_name = parent_key.replace("/", "_") + src_path.suffix
+                else:
+                    unique_name = src_path.name
+                dest_path = self.artifact_dir / unique_name
+                dest_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src_path, dest_path)
+                self.data[parent_key] = str(dest_path)
+                self._persist()
             else:
-                self.bind(bound_key, Uri.parse(uri_str))
+                self.data[parent_key] = uri_str
+                self._persist()
 
     @classmethod
     def from_registry_file(
@@ -253,10 +284,9 @@ class ArtifactRegistry:
         path: pathlib.Path,
         *,
         artifact_dir: pathlib.Path,
-        cwd: pathlib.Path | None = None,
     ) -> ArtifactRegistry:
         """Load a registry from a registry.json at *path*."""
-        registry = cls(artifact_dir=artifact_dir, cwd=cwd)
+        registry = cls(artifact_dir=artifact_dir)
         if path != registry.registry_path:
             if path.exists():
                 registry.data = dict(json.loads(path.read_text(encoding="utf-8")))

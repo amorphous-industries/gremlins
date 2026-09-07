@@ -30,11 +30,6 @@ impl Uri {
         rust_uri::Uri::parse(s).ok().map(|u| Uri { inner: u })
     }
 
-    #[staticmethod]
-    fn is_range(value: &str) -> bool {
-        rust_uri::Uri::is_range(value)
-    }
-
     #[getter]
     fn scheme(&self) -> &str {
         &self.inner.scheme

@@ -3,20 +3,20 @@ required-prompt: true
 stages:
   - name: plan
     type: agent
-    skip_if_exists: plan
+    skip_if_exists: "artifact://plan.md"
     prompt:
       - "{{prompt}}"
     interpolation:
-      instructions: "artifact.instructions?"
+      instructions: "artifact://instructions.md?"
     bind:
-      artifact.plan: "file://session/plan.md"
+      plan: "artifact://plan.md"
     options:
       idle_timeout: 600
 
   - name: set-description
     type: exec
     bind:
-      artifact.description?: "file://session/description.txt"
+      description?: "artifact://description.txt"
     options:
       cmds:
-        - "head -1 \"{artifact:plan}\" | sed 's/^#\\+ *//' > \"{artifact_dir}/description.txt\""
+        - "head -1 \"{plan}\" | sed 's/^#\\+ *//' > \"$GREMLINS_ARTIFACT_DIR/description.txt\""

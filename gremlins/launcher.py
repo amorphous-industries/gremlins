@@ -20,7 +20,6 @@ import subprocess
 import sys
 from typing import Any, cast
 
-from _gremlins_core.artifacts import Uri
 from _gremlins_core.config import project_root as _project_root_fn
 from _gremlins_core.config import scratch_root as _scratch_root_fn
 from _gremlins_core.config import state_root as _state_root_fn
@@ -466,9 +465,9 @@ def launch(
         artifact_dir.mkdir(parents=True, exist_ok=True)
         registry = ArtifactRegistry(artifact_dir=artifact_dir)
         if inputs.base_ref_sha:
-            registry.bind("base_sha", Uri.parse(f"git://commit/{inputs.base_ref_sha}"))
+            registry.write("artifact://base_sha", f"git://commit/{inputs.base_ref_sha}")
         if inputs.base_ref_name:
-            registry.bind("base_ref", Uri.parse(f"git://ref/{inputs.base_ref_name}"))
+            registry.write("artifact://base_ref", f"git://ref/{inputs.base_ref_name}")
         p = _spawn(inputs.gremlin_id, inputs, state_dir)
     except Exception:
         shutil.rmtree(state_dir, ignore_errors=True)

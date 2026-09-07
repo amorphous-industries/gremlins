@@ -418,7 +418,6 @@ class State:
         return {
             "name": stage.name,
             "model": self.client.model,
-            "artifact_dir": str(self.artifact_dir),
             "cwd": self.cwd,
             "base_ref": self.base_ref,
             "loop_iteration": str(self.data.loop_iteration),
@@ -541,7 +540,7 @@ def build_state(
     parent_stage: str = "",
     base_ref: str = "",
 ) -> State:
-    reg = ArtifactRegistry(artifact_dir=artifact_dir, cwd=worktree)
+    reg = ArtifactRegistry(artifact_dir=artifact_dir)
     return State(
         data=data,
         client=client,

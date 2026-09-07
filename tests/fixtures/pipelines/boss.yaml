@@ -21,4 +21,5 @@ stages:
   - name: address-chain
     type: agent
     prompt: [code-style, gremlins:address.md, gremlins:bail_section.md]
-    interpolation: {text: artifact.review-chain}
+    interpolation:
+      text: content("artifact://review-chain")

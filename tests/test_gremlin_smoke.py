@@ -9,7 +9,6 @@ import shutil
 import subprocess
 
 import pytest
-from _gremlins_core.artifacts import Uri
 from _gremlins_core.schemas import Pipeline
 
 from gremlins.artifacts.registry import ArtifactRegistry
@@ -114,7 +113,7 @@ def test_resume_unbinds_stale_exec_out_keys(tmp_path):
         resume_from="normalize",
     )
     gremlin.registry = ArtifactRegistry(artifact_dir=artifact_dir)
-    gremlin.registry.bind("normalize-commits", Uri.parse("git://range/old..stale"))
+    gremlin.registry.data["normalize-commits"] = "git://range/old..stale"
 
     assert gremlin.registry.produced("normalize-commits")
     gremlin._unbind_stale_exec_artifacts()
@@ -136,8 +135,8 @@ def test_resume_unbind_only_affects_exec_stages(tmp_path):
         resume_from="work",
     )
     gremlin.registry = ArtifactRegistry(artifact_dir=artifact_dir)
-    gremlin.registry.bind("work-out", Uri.parse("git://range/a..b"))
-    gremlin.registry.bind("non-exec-artifact", Uri.parse("git://range/x..y"))
+    gremlin.registry.data["work-out"] = "git://range/a..b"
+    gremlin.registry.data["non-exec-artifact"] = "git://range/x..y"
 
     gremlin._unbind_stale_exec_artifacts()
     assert not gremlin.registry.produced("work-out")

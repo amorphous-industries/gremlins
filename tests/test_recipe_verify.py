@@ -71,8 +71,8 @@ def test_verify_cmds_wrapped_with_done_writing(tmp_path: pathlib.Path) -> None:
     wrapped = cmd_stage["options"]["cmds"][0]
     assert "make check" in wrapped
     assert "printf 'done'" in wrapped
-    assert "{artifact_dir}/done" in wrapped
-    assert "{artifact_dir}/verify_output.txt" in wrapped
+    assert "{done}" in wrapped
+    assert "{verify_log}" in wrapped
     assert "true" in wrapped
 
 
@@ -111,7 +111,7 @@ def test_verify_fix_has_skip_if_exists(tmp_path: pathlib.Path) -> None:
         "- { type: verify, options: { cmds: ['make check'] }, prompt: verify }",
     )
     fix_stage = result["stages"][0]["body"][1]
-    assert fix_stage.get("skip_if_exists") == "done"
+    assert fix_stage.get("skip_if_exists") == "artifact://done"
     assert isinstance(fix_stage.get("prompt"), list)
     assert len(fix_stage["prompt"]) >= 1
 

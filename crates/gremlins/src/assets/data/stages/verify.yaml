@@ -5,22 +5,22 @@ required-prompt: true
 stages:
   - name: verify
     type: loop
-    stop_when_exists: done
+    stop_when_exists: "artifact://done"
     max-iterations: "{{options.max_iterations | default(3)}}"
     body:
       - name: cmd
         type: exec
         bind:
-          artifact.verify_log: "file://session/verify_output.txt"
-          artifact.done?: "file://session/done"
+          verify_log?: "artifact://verify_output.txt"
+          done?: "artifact://done"
         options:
           timeout: "{{options.timeout | default(900)}}"
           cmds:
-            - rm -f -- "{artifact_dir}/done"; ({{options.cmds}}) > "{artifact_dir}/verify_output.txt" 2>&1; rc=$?; printf '%d' "$rc" > "{artifact_dir}/exec_exit_code"; if [ "$rc" -eq 0 ]; then printf 'done' > "{artifact_dir}/done"; fi; true
+            - rm -f -- "{done}"; ({{options.cmds}}) > "{verify_log}" 2>&1; rc=$?; printf '%d' "$rc" > "$GREMLINS_ARTIFACT_DIR/exec_exit_code"; if [ "$rc" -eq 0 ]; then printf 'done' > "{done}"; fi; true
       - name: fix
         type: agent
-        skip_if_exists: done
+        skip_if_exists: "artifact://done"
         prompt:
           - "{{prompt}}"
         interpolation:
-          verify_output: artifact.verify_log
+          verify_output: content("artifact://verify_output.txt")

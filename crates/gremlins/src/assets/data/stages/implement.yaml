@@ -3,7 +3,9 @@ required-prompt: true
 stages:
   - name: implement
     type: agent
-    interpolation: { spec: artifact.spec, plan: artifact.plan }
+    interpolation:
+      spec: content("artifact://spec.md")?
+      plan: content("artifact://plan.md")
     prompt:
       - "{{prompt}}"
     options:
@@ -17,16 +19,19 @@ stages:
         - git diff --cached --quiet || git commit -m "implement plan"
   - name: require-impl-progress
     type: exec
-    interpolation: { base_sha: artifact.base_sha }
+    interpolation:
+      base_sha: content("artifact://base_sha")
     options:
       cmds:
         - |
-          git merge-base --is-ancestor "$base_sha" HEAD || {
-            echo "implement diverged from $base_sha; expected fast-forward" >&2
+          base="${base_sha#git://commit/}"
+          git merge-base --is-ancestor "$base" HEAD || {
+            echo "implement diverged from $base; expected fast-forward" >&2
             exit 1
           }
         - |
-          test "$(git rev-list --count "$base_sha"..HEAD)" -gt 0 || {
-            echo "implement produced no commits since $base_sha" >&2
+          base="${base_sha#git://commit/}"
+          test "$(git rev-list --count "$base"..HEAD)" -gt 0 || {
+            echo "implement produced no commits since $base" >&2
             exit 1
           }

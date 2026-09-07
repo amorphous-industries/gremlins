@@ -37,12 +37,14 @@ class _CountingStage(Stage):
 
 
 def _make_state(tmp_path: pathlib.Path) -> tuple[State, ArtifactRegistry]:
-    reg = ArtifactRegistry(artifact_dir=tmp_path)
+    artifact_dir = tmp_path / "artifacts"
+    artifact_dir.mkdir(exist_ok=True)
+    reg = ArtifactRegistry(artifact_dir=artifact_dir)
     client = FakeClient(fixtures={})
     state = build_state(
         data=StateData(gremlin_id=None),
         client=client,
-        artifact_dir=tmp_path,
+        artifact_dir=artifact_dir,
         pipeline_data=_PIPELINE,
         artifacts=reg,
     )
@@ -51,7 +53,8 @@ def _make_state(tmp_path: pathlib.Path) -> tuple[State, ArtifactRegistry]:
 
 def test_skip_if_exists_skips_when_key_produced(tmp_path: pathlib.Path) -> None:
     state, reg = _make_state(tmp_path)
-    (tmp_path / "out.txt").write_text("content", encoding="utf-8")
+    artifact_dir = tmp_path / "artifacts"
+    (artifact_dir / "out.txt").write_text("content", encoding="utf-8")
     reg.bind("my-artifact", Uri.parse("file://session/out.txt"))
 
     stage = _CountingStage("s", [], {})
@@ -79,7 +82,7 @@ def test_skip_if_exists_runs_when_key_absent(tmp_path: pathlib.Path) -> None:
 
 def test_no_skip_if_exists_always_runs(tmp_path: pathlib.Path) -> None:
     state, reg = _make_state(tmp_path)
-    reg.mount("my-artifact", Uri.parse("file://session/out.txt"))
+    reg.bind("my-artifact", Uri.parse("file://session/out.txt"))
 
     stage = _CountingStage("s", [], {})
     # skip_if_exists is "" by default — should not skip even when key is produced

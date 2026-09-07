@@ -75,7 +75,6 @@ def test_launch_cmds_see_source_env(tmp_path: pathlib.Path) -> None:
         await run_pipeline_bootstrap(
             bootstrap,
             cwd=tmp_path,
-            artifact_dir=gremlin.state.artifact_dir,
             stage_inputs={"plan": "hello-plan"},
             gremlin=gremlin,
             include_launch=True,
@@ -97,9 +96,8 @@ def test_cli_out_bound_after_launch_cmds(tmp_path: pathlib.Path) -> None:
             }
         ),
         launch_cmds=[
-            'printf "%s" "$instructions" > "{artifact_dir}/instructions.txt"',
+            "gremlins:bind_artifact(instructions, instructions, artifact://session/instructions.txt)",
         ],
-        cli_out={"instructions?": "file://session/instructions.txt"},
     )
     gremlin = _gremlin(tmp_path)
 
@@ -107,7 +105,6 @@ def test_cli_out_bound_after_launch_cmds(tmp_path: pathlib.Path) -> None:
         await run_pipeline_bootstrap(
             bootstrap,
             cwd=tmp_path,
-            artifact_dir=gremlin.state.artifact_dir,
             stage_inputs={"instructions": "do the thing"},
             gremlin=gremlin,
             include_launch=True,
@@ -115,7 +112,7 @@ def test_cli_out_bound_after_launch_cmds(tmp_path: pathlib.Path) -> None:
 
     asyncio.run(_test())
     assert gremlin.state.artifacts.produced("instructions")
-    assert gremlin.state.artifacts.read("instructions") == "do the thing"
+    assert gremlin.state.artifacts.content("instructions") == "do the thing"
 
 
 def test_children_only_run_cmds(tmp_path: pathlib.Path) -> None:
@@ -128,7 +125,7 @@ def test_children_only_run_cmds(tmp_path: pathlib.Path) -> None:
         launch_cmds=[
             f"{sys.executable} -c \"import pathlib; pathlib.Path('{launch_marker}').write_text('nope')\""
         ],
-        cli_out={"instructions?": "file://session/instructions.txt"},
+        cli_out={"instructions?": "artifact://session/instructions.txt"},
     )
     gremlin = _gremlin(tmp_path)
 
@@ -136,7 +133,6 @@ def test_children_only_run_cmds(tmp_path: pathlib.Path) -> None:
         await run_pipeline_bootstrap(
             bootstrap,
             cwd=tmp_path,
-            artifact_dir=gremlin.state.artifact_dir,
             stage_inputs={"instructions": "do the thing"},
             gremlin=gremlin,
             include_launch=False,
@@ -155,9 +151,9 @@ def test_cli_out_skipped_when_launch_excluded(tmp_path: pathlib.Path) -> None:
     (artifact_dir / "instructions.txt").write_text("stale", encoding="utf-8")
     bootstrap = Bootstrap(
         launch_cmds=[
-            'printf "%s" "fresh" > "{artifact_dir}/instructions.txt"',
+            f'printf "%s" "fresh" > "{artifact_dir}/instructions.txt"',
         ],
-        cli_out={"instructions?": "file://session/instructions.txt"},
+        cli_out={"instructions?": "artifact://session/instructions.txt"},
     )
     gremlin = _gremlin(tmp_path)
 
@@ -165,7 +161,6 @@ def test_cli_out_skipped_when_launch_excluded(tmp_path: pathlib.Path) -> None:
         await run_pipeline_bootstrap(
             bootstrap,
             cwd=tmp_path,
-            artifact_dir=gremlin.state.artifact_dir,
             stage_inputs={"instructions": "fresh"},
             gremlin=gremlin,
             include_launch=False,
@@ -185,12 +180,12 @@ def test_parse_gremlins_command_detects_dsl() -> None:
     from gremlins.executor.bootstrap import _parse_gremlins_command
 
     result = _parse_gremlins_command(
-        'gremlins:bind_artifact(plan, "plan", file://session/plan.md)'
+        'gremlins:bind_artifact(plan, "plan", artifact://session/plan.md)'
     )
     assert result is not None
     cmd_name, args = result
     assert cmd_name == "bind_artifact"
-    assert args == ["plan", "plan", "file://session/plan.md"]
+    assert args == ["plan", "plan", "artifact://session/plan.md"]
 
 
 def test_parse_gremlins_command_ignores_shell() -> None:
@@ -206,7 +201,7 @@ def test_parse_gremlins_command_trailing_content() -> None:
     from gremlins.executor.bootstrap import _parse_gremlins_command
 
     result = _parse_gremlins_command(
-        'gremlins:bind_artifact(plan, "plan", file://session/plan.md) && ls -la'
+        'gremlins:bind_artifact(plan, "plan", artifact://session/plan.md) && ls -la'
     )
     assert result is None  # treated as shell
 
@@ -220,7 +215,7 @@ def test_bind_artifact_inline_text(tmp_path: pathlib.Path) -> None:
             {"plan": InputSource(name="plan", types=["string"], optional=True)}
         ),
         launch_cmds=[
-            "gremlins:bind_artifact(plan, plan, file://session/plan.md)",
+            "gremlins:bind_artifact(plan, plan, artifact://session/plan.md)",
         ],
     )
     gremlin = _gremlin(tmp_path)
@@ -229,7 +224,6 @@ def test_bind_artifact_inline_text(tmp_path: pathlib.Path) -> None:
         await run_pipeline_bootstrap(
             bootstrap,
             cwd=tmp_path,
-            artifact_dir=gremlin.state.artifact_dir,
             stage_inputs={"plan": "implement the feature"},
             gremlin=gremlin,
             include_launch=True,
@@ -237,8 +231,8 @@ def test_bind_artifact_inline_text(tmp_path: pathlib.Path) -> None:
 
     asyncio.run(_test())
     assert gremlin.state.artifacts.produced("plan")
-    assert gremlin.state.artifacts.read("plan") == "implement the feature"
-    assert (artifact_dir / "plan.md").read_text() == "implement the feature"
+    assert gremlin.state.artifacts.content("plan") == "implement the feature"
+    assert gremlin.state.artifacts.exists("plan")
 
 
 def test_bind_artifact_filepath_source(tmp_path: pathlib.Path) -> None:
@@ -257,7 +251,7 @@ def test_bind_artifact_filepath_source(tmp_path: pathlib.Path) -> None:
             }
         ),
         launch_cmds=[
-            "gremlins:bind_artifact(plan, plan, file://session/plan.md)",
+            "gremlins:bind_artifact(plan, plan, artifact://session/plan.md)",
         ],
     )
     gremlin = _gremlin(tmp_path)
@@ -266,7 +260,6 @@ def test_bind_artifact_filepath_source(tmp_path: pathlib.Path) -> None:
         await run_pipeline_bootstrap(
             bootstrap,
             cwd=tmp_path,
-            artifact_dir=gremlin.state.artifact_dir,
             stage_inputs={"plan": str(src)},
             gremlin=gremlin,
             include_launch=True,
@@ -274,8 +267,8 @@ def test_bind_artifact_filepath_source(tmp_path: pathlib.Path) -> None:
 
     asyncio.run(_test())
     assert gremlin.state.artifacts.produced("plan")
-    assert gremlin.state.artifacts.read("plan") == "plan from file"
-    assert (artifact_dir / "plan.md").read_text() == "plan from file"
+    assert gremlin.state.artifacts.content("plan") == "plan from file"
+    assert gremlin.state.artifacts.exists("plan")
 
 
 def test_bind_artifact_optional_missing(tmp_path: pathlib.Path) -> None:
@@ -287,7 +280,7 @@ def test_bind_artifact_optional_missing(tmp_path: pathlib.Path) -> None:
             {"plan": InputSource(name="plan", types=["string"], optional=True)}
         ),
         launch_cmds=[
-            "gremlins:bind_artifact(plan, plan, file://session/plan.md)",
+            "gremlins:bind_artifact(plan, plan, artifact://session/plan.md)",
         ],
     )
     gremlin = _gremlin(tmp_path)
@@ -296,7 +289,6 @@ def test_bind_artifact_optional_missing(tmp_path: pathlib.Path) -> None:
         await run_pipeline_bootstrap(
             bootstrap,
             cwd=tmp_path,
-            artifact_dir=gremlin.state.artifact_dir,
             stage_inputs={},
             gremlin=gremlin,
             include_launch=True,
@@ -316,7 +308,7 @@ def test_bind_artifact_optional_empty(tmp_path: pathlib.Path) -> None:
             {"plan": InputSource(name="plan", types=["string"], optional=True)}
         ),
         launch_cmds=[
-            "gremlins:bind_artifact(plan, plan, file://session/plan.md)",
+            "gremlins:bind_artifact(plan, plan, artifact://session/plan.md)",
         ],
     )
     gremlin = _gremlin(tmp_path)
@@ -325,7 +317,6 @@ def test_bind_artifact_optional_empty(tmp_path: pathlib.Path) -> None:
         await run_pipeline_bootstrap(
             bootstrap,
             cwd=tmp_path,
-            artifact_dir=gremlin.state.artifact_dir,
             stage_inputs={"plan": ""},
             gremlin=gremlin,
             include_launch=True,
@@ -346,7 +337,7 @@ def test_bind_artifact_different_source_and_artifact_keys(
             {"my_plan": InputSource(name="my_plan", types=["string"], optional=True)}
         ),
         launch_cmds=[
-            "gremlins:bind_artifact(my_plan, plan, file://session/plan.md)",
+            "gremlins:bind_artifact(my_plan, plan, artifact://session/plan.md)",
         ],
     )
     gremlin = _gremlin(tmp_path)
@@ -355,7 +346,6 @@ def test_bind_artifact_different_source_and_artifact_keys(
         await run_pipeline_bootstrap(
             bootstrap,
             cwd=tmp_path,
-            artifact_dir=gremlin.state.artifact_dir,
             stage_inputs={"my_plan": "hello from my_plan"},
             gremlin=gremlin,
             include_launch=True,
@@ -363,7 +353,7 @@ def test_bind_artifact_different_source_and_artifact_keys(
 
     asyncio.run(_test())
     assert gremlin.state.artifacts.produced("plan")
-    assert gremlin.state.artifacts.read("plan") == "hello from my_plan"
+    assert gremlin.state.artifacts.content("plan") == "hello from my_plan"
     assert not gremlin.state.artifacts.produced("my_plan")  # source key not bound
 
 
@@ -384,13 +374,13 @@ def test_bind_artifact_mixed_with_shell_commands(tmp_path: pathlib.Path) -> None
         ),
         launch_cmds=[
             # DSL command
-            "gremlins:bind_artifact(plan, plan, file://session/plan.md)",
+            "gremlins:bind_artifact(plan, plan, artifact://session/plan.md)",
             # Regular shell command
             f"sh {shell_script}",
             # Another DSL command
-            "gremlins:bind_artifact(instructions, instructions, file://session/instructions.txt)",
+            "gremlins:bind_artifact(instructions, instructions, artifact://session/instructions.txt)",
         ],
-        cli_out={"plan?": "file://session/plan.md"},
+        cli_out={"plan?": "artifact://session/plan.md"},
     )
     gremlin = _gremlin(tmp_path)
 
@@ -398,7 +388,6 @@ def test_bind_artifact_mixed_with_shell_commands(tmp_path: pathlib.Path) -> None
         await run_pipeline_bootstrap(
             bootstrap,
             cwd=tmp_path,
-            artifact_dir=gremlin.state.artifact_dir,
             stage_inputs={
                 "plan": "the plan",
                 "instructions": "the instructions",
@@ -409,9 +398,9 @@ def test_bind_artifact_mixed_with_shell_commands(tmp_path: pathlib.Path) -> None
 
     asyncio.run(_test())
     assert gremlin.state.artifacts.produced("plan")
-    assert gremlin.state.artifacts.read("plan") == "the plan"
+    assert gremlin.state.artifacts.content("plan") == "the plan"
     assert gremlin.state.artifacts.produced("instructions")
-    assert gremlin.state.artifacts.read("instructions") == "the instructions"
+    assert gremlin.state.artifacts.content("instructions") == "the instructions"
     assert (tmp_path / "shell-marker").exists()
 
 
@@ -423,7 +412,7 @@ def test_bind_artifact_unknown_command(tmp_path: pathlib.Path) -> None:
         source=InputSources(
             {"plan": InputSource(name="plan", types=["string"], optional=True)}
         ),
-        launch_cmds=["gremlins:unknown_cmd(plan, plan, file://session/plan.md)"],
+        launch_cmds=["gremlins:unknown_cmd(plan, plan, artifact://session/plan.md)"],
     )
     gremlin = _gremlin(tmp_path)
 
@@ -432,7 +421,6 @@ def test_bind_artifact_unknown_command(tmp_path: pathlib.Path) -> None:
             await run_pipeline_bootstrap(
                 bootstrap,
                 cwd=tmp_path,
-                artifact_dir=gremlin.state.artifact_dir,
                 stage_inputs={"plan": "value"},
                 gremlin=gremlin,
                 include_launch=True,
@@ -442,7 +430,7 @@ def test_bind_artifact_unknown_command(tmp_path: pathlib.Path) -> None:
 
 
 def test_bind_artifact_too_few_args(tmp_path: pathlib.Path) -> None:
-    """bind_artifact with < 3 args raises ValueError."""
+    """bind_artifact with a non-URI first argument raises ValueError."""
     artifact_dir = tmp_path / "artifacts"
     artifact_dir.mkdir(exist_ok=True)
     bootstrap = Bootstrap(
@@ -454,11 +442,10 @@ def test_bind_artifact_too_few_args(tmp_path: pathlib.Path) -> None:
     gremlin = _gremlin(tmp_path)
 
     async def _test() -> None:
-        with pytest.raises(ValueError, match="bind_artifact requires 3 arguments"):
+        with pytest.raises(ValueError, match="does not look like a URI"):
             await run_pipeline_bootstrap(
                 bootstrap,
                 cwd=tmp_path,
-                artifact_dir=gremlin.state.artifact_dir,
                 stage_inputs={"plan": "value"},
                 gremlin=gremlin,
                 include_launch=True,
@@ -472,18 +459,18 @@ def test_parse_gremlins_command_quoted_args() -> None:
     from gremlins.executor.bootstrap import _parse_gremlins_command
 
     result = _parse_gremlins_command(
-        'gremlins:bind_artifact(plan, "my plan", file://session/my-plan.md)'
+        'gremlins:bind_artifact(plan, "my plan", artifact://session/my-plan.md)'
     )
     assert result is not None
     _, args = result
-    assert args == ["plan", "my plan", "file://session/my-plan.md"]
+    assert args == ["plan", "my plan", "artifact://session/my-plan.md"]
 
     result = _parse_gremlins_command(
-        "gremlins:bind_artifact(plan, 'my plan', file://session/my-plan.md)"
+        "gremlins:bind_artifact(plan, 'my plan', artifact://session/my-plan.md)"
     )
     assert result is not None
     _, args = result
-    assert args == ["plan", "my plan", "file://session/my-plan.md"]
+    assert args == ["plan", "my plan", "artifact://session/my-plan.md"]
 
 
 def test_bind_artifact_skipped_when_launch_excluded(tmp_path: pathlib.Path) -> None:
@@ -496,7 +483,7 @@ def test_bind_artifact_skipped_when_launch_excluded(tmp_path: pathlib.Path) -> N
             {"plan": InputSource(name="plan", types=["string"], optional=True)}
         ),
         launch_cmds=[
-            "gremlins:bind_artifact(plan, plan, file://session/plan.md)",
+            "gremlins:bind_artifact(plan, plan, artifact://session/plan.md)",
         ],
     )
     gremlin = _gremlin(tmp_path)
@@ -505,7 +492,6 @@ def test_bind_artifact_skipped_when_launch_excluded(tmp_path: pathlib.Path) -> N
         await run_pipeline_bootstrap(
             bootstrap,
             cwd=tmp_path,
-            artifact_dir=gremlin.state.artifact_dir,
             stage_inputs={"plan": "fresh"},
             gremlin=gremlin,
             include_launch=False,

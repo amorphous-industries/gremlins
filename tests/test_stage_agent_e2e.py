@@ -29,8 +29,8 @@ def test_agent_stage_e2e_reads_artifact_and_writes_output(tmp_path):
             "name": "summarise",
             "type": "agent",
             "prompt": ["Summarise the following and write to `{summary}`:\n\n{src}"],
-            "interpolation": {"src": "artifact.source-doc"},
-            "bind": {"artifact.summary": "file://session/summary.md"},
+            "interpolation": {"src": 'content("source-doc")'},
+            "bind": {"summary": "file://session/summary.md"},
         }
     ]
     stages = parse_stages(raw)
@@ -40,17 +40,17 @@ def test_agent_stage_e2e_reads_artifact_and_writes_output(tmp_path):
     assert stage.name == "summarise"
 
     # Bind the source document in the registry
-    src_file = tmp_path / "source.md"
-    src_file.write_bytes(b"# Hello\nWorld")
-    registry = ArtifactRegistry(tmp_path, cwd=tmp_path)
+    artifact_dir = tmp_path / "artifacts"
+    artifact_dir.mkdir(exist_ok=True)
+    (artifact_dir / "source.md").write_bytes(b"# Hello\nWorld")
+    registry = ArtifactRegistry(artifact_dir)
     registry.bind("source-doc", Uri.parse("file://session/source.md"))
 
-    # Client writes the expected output file when called — extract the
-    # slugged path from {summary} in the prompt.
+    # Client writes the expected output file when called.
 
     class WritingClient(FakeClient):
         async def run(self, prompt, *, label, **kwargs):
-            m = re.search(r"`(\S*[0-9a-f]+_summary\.md)`", prompt)
+            m = re.search(r"`(\S*summary\.md)`", prompt)
             assert m, prompt
             p = pathlib.Path(m.group(1))
             p.parent.mkdir(parents=True, exist_ok=True)
@@ -61,7 +61,7 @@ def test_agent_stage_e2e_reads_artifact_and_writes_output(tmp_path):
     state = build_state(
         data=StateData(),
         client=client,
-        artifact_dir=tmp_path,
+        artifact_dir=artifact_dir,
         worktree=tmp_path,
         artifacts=registry,
     )
@@ -73,9 +73,9 @@ def test_agent_stage_e2e_reads_artifact_and_writes_output(tmp_path):
     # Source content was substituted into the prompt
     assert "# Hello" in client.calls[0].prompt
     # Output artifact is bound in the registry
-    assert registry.produced("summary")
-    # Output file exists (at slugged path)
-    assert len(list(tmp_path.glob("*_summary.md"))) == 1
+    assert registry.produced("file://session/summary.md")
+    # Output file exists
+    assert (artifact_dir / "summary.md").exists()
 
 
 def test_agent_parse_stages_registers_type():

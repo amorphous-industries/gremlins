@@ -48,9 +48,9 @@ def test_live_path(capsys, monkeypatch, tmp_path):
 def test_static_path(capsys, monkeypatch):
     tgt = "stat1"
     pp = pathlib.Path("p.yaml")
-    s1 = _st("s1", {"k?": "file://x", "m": "git://m"}, {"r": "k.sub"})
-    s2 = _st("s2", {"k": "git://y"})
-    land = _st("land", {"l": "file://z"})
+    s1 = _st("s1", {"k?": "artifact://x", "m": "artifact://m"}, {"r": "k.sub"})
+    s2 = _st("s2", {"k": "artifact://y"})
+    land = _st("land", {"l": "artifact://z"})
     pipe = _pipe("myp", [s1, s2], land)
     monkeypatch.setattr(mod, "resolve_pipeline_name", lambda *_: pp)
     with patch.object(Pipeline, "from_yaml", return_value=pipe):
@@ -58,9 +58,9 @@ def test_static_path(capsys, monkeypatch):
     assert rc == 0
     out = capsys.readouterr().out
     assert "static:myp" in out
-    assert "k file://x(file) p=s1,s2 c=s1" in out
-    assert "m git://m(git) p=s1 c=-" in out
-    assert "l file://z(file) p=land c=-" in out
+    assert "k artifact://x(artifact) p=s1,s2 c=s1" in out
+    assert "m artifact://m(artifact) p=s1 c=-" in out
+    assert "l artifact://z(artifact) p=land c=-" in out
 
 
 def test_error_file_not_found(capsys, monkeypatch):

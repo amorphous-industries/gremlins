@@ -298,7 +298,7 @@ pub fn validate_source_values(
 }
 
 #[pyfunction]
-#[pyo3(signature = (cmd, *, artifact_dir, cwd))]
-pub fn substitute_bootstrap_vars(cmd: String, artifact_dir: PathBuf, cwd: PathBuf) -> String {
-    rust_bootstrap::substitute_bootstrap_vars(&cmd, &artifact_dir, &cwd)
+#[pyo3(signature = (cmd, *, cwd))]
+pub fn substitute_bootstrap_vars(cmd: String, cwd: PathBuf) -> String {
+    rust_bootstrap::substitute_bootstrap_vars(&cmd, &cwd)
 }

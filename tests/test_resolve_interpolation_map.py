@@ -9,7 +9,7 @@ import pytest
 from _gremlins_core.artifacts import Uri
 from conftest import MINIMAL_EVENTS, MockGremlin
 
-from gremlins.artifacts.registry import ArtifactRegistry
+from gremlins.artifacts.registry import ArtifactRegistry, MissingArtifact
 from gremlins.artifacts.resolve import resolve_interpolation_map
 from gremlins.executor.state import StateData, build_state
 from gremlins.stages.agent import Agent
@@ -21,7 +21,7 @@ from tests.fake_client import FakeClient
 def _make_registry(tmp_path: pathlib.Path) -> ArtifactRegistry:
     artifact_dir = tmp_path / "artifacts"
     artifact_dir.mkdir(exist_ok=True)
-    return ArtifactRegistry(artifact_dir, cwd=tmp_path)
+    return ArtifactRegistry(artifact_dir)
 
 
 def _make_state(tmp_path: pathlib.Path, client=None):
@@ -43,7 +43,7 @@ def test_simple_key_no_dots(tmp_path):
     (tmp_path / "artifacts" / "val.txt").write_text("hello")
     reg.bind("key", Uri.parse("file://session/val.txt"))
     result = resolve_interpolation_map(reg, {"VAR": "key"})
-    assert result == {"VAR": "hello"}
+    assert result == {"VAR": "file://session/val.txt"}
 
 
 def test_dotted_key_reads_attribute(tmp_path):
@@ -85,7 +85,7 @@ def test_unknown_attribute_raises(tmp_path):
     reg.write(
         "pr", {"url": "https://github.com/o/r/pull/1", "number": 1, "branch": "b"}
     )
-    with pytest.raises(ValueError, match="has no key"):
+    with pytest.raises(MissingArtifact):
         resolve_interpolation_map(reg, {"x": "pr.nonexistent"})
 
 
@@ -99,8 +99,10 @@ def test_private_attribute_raises(tmp_path):
 
 
 def test_empty_segment_raises(tmp_path):
+    """Empty segment after dot (e.g. "pr.") is treated as missing key traversal."""
     reg = _make_registry(tmp_path)
-    with pytest.raises(ValueError, match="empty segment"):
+    reg.write("pr", {"key": "value"})
+    with pytest.raises(MissingArtifact):
         resolve_interpolation_map(reg, {"x": "pr."})
 
 
@@ -108,9 +110,11 @@ def test_empty_segment_raises(tmp_path):
 
 
 def test_opaque_uri_attribute(tmp_path):
+    """Opaque URIs are returned as-is for simple keys; dotted access requires JSON values."""
     reg = _make_registry(tmp_path)
     reg.bind("plan", Uri.parse("opaque://issue/42"))
-    result = resolve_interpolation_map(reg, {"ref": "plan.uri"})
+    # Simple key access returns the raw URI string
+    result = resolve_interpolation_map(reg, {"ref": "plan"})
     assert result == {"ref": "opaque://issue/42"}
 
 

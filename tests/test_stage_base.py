@@ -105,8 +105,8 @@ def _subs_state() -> State:
 def test_substitute_vars_renders_shared_framework_keys() -> None:
     stage = _SimpleStage("st", [], {})
     state = _subs_state()
-    text = "{name} {model} {artifact_dir} {cwd} {base_ref}"
-    assert stage.substitute_vars(text, state) == ("st fake /tmp/sess /work trunk")
+    text = "{name} {model} {cwd} {base_ref}"
+    assert stage.substitute_vars(text, state) == ("st fake /work trunk")
 
 
 def test_substitute_vars_framework_wins_over_options_and_extra() -> None:

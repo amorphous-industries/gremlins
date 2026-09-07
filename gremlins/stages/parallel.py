@@ -533,6 +533,10 @@ class _ParallelExecutor:
         def _scratch(_cid: str) -> pathlib.Path:
             return pathlib.Path(scratch_root(_cid))
 
+        def _parent_key(child_key: str, child_name: str) -> str:
+            """Prepend child_name as a path prefix: review-code -> review-code/shard1."""
+            return f"{child_key}/{child_name}"
+
         scratch = _scratch
         parent_keys: set[str] = set(parent_state.artifacts.keys())
 
@@ -563,11 +567,11 @@ class _ParallelExecutor:
                     multi,
                 )
             for child_key, _, child in producers:
+                key_map = {key: _parent_key(key, child_key)} if multi else None
                 parent_state.artifacts.merge_from(
                     child,
-                    key_prefix=child_key if multi else "",
+                    key_map=key_map,
                     copy_files=True,
-                    dest_artifact_dir=parent_state.artifact_dir,
                     keys={key},
                 )
 

@@ -114,57 +114,73 @@ def _parse_bind_artifact_args(
 ) -> tuple[str, str, str]:
     """Validate and unpack bind_artifact arguments.
 
-    Returns (source_key, artifact_key, uri_template).
+    Returns (source_key, artifact_key, uri).
+
+    Accepts either 2 or 3 arguments:
+      - 2-arg form (current): bind_artifact(uri, source_key)
+        Artifact key is derived from the URI.
+      - 3-arg form (legacy): bind_artifact(source_key, artifact_key, uri)
     """
+    if len(args) == 2:
+        uri_str, source_key = args
+        if not uri_str:
+            raise ValueError("bind_artifact: uri must be non-empty")
+        if not source_key:
+            raise ValueError("bind_artifact: source_key must be non-empty")
+        if "://" not in uri_str:
+            raise ValueError(
+                f"bind_artifact: first argument {uri_str!r} does not look like a URI "
+                f"(expected 'artifact://...'); use the 2-arg form: "
+                f"bind_artifact(uri, source_key) or the 3-arg form: "
+                f"bind_artifact(source_key, artifact_key, uri)"
+            )
+        return source_key, uri_str, uri_str
     if len(args) != 3:
         raise ValueError(
-            f"bind_artifact requires 3 arguments (source_key, artifact_key, uri), got {len(args)}"
+            f"bind_artifact requires 2 or 3 arguments (uri, source_key) "
+            f"or (source_key, artifact_key, uri), got {len(args)}"
         )
     source_key = args[0]
     artifact_key = args[1]
-    uri_template = args[2]
+    uri = args[2]
     if not source_key:
         raise ValueError("bind_artifact: source_key must be non-empty")
     if not artifact_key:
         raise ValueError("bind_artifact: artifact_key must be non-empty")
-    if not uri_template:
+    if not uri:
         raise ValueError("bind_artifact: uri must be non-empty")
-    return source_key, artifact_key, uri_template
+    return source_key, artifact_key, uri
 
 
 async def _execute_bind_artifact(
     source_key: str,
     artifact_key: str,
-    uri_template: str,
+    uri_str: str,
     *,
     stage_inputs: Mapping[str, Any],
     gremlin: Gremlin,
 ) -> None:
-    """Resolve a source value and bind it as an artifact.
+    """Resolve a source value, write it to the artifact dir, and register it.
 
     Source value resolution:
     - Empty / missing → no-op (optional source)
     - Existing filepath → copies the file to artifact_dir
     - Inline text → written directly
 
-    After writing, the artifact is bound in the registry.
+    After writing, the artifact is registered via register().
     """
     value = stage_inputs.get(source_key)
     if value is None or value == "":
         return  # optional source, nothing to bind
     value_str = str(value)
 
-    # Resolve URI template against artifact_dir to get the output path
-    uri = Uri.parse(uri_template)
-    resolver = gremlin.registry.file_resolver
-    dest_path = resolver.path_for(uri)
-
+    uri = Uri.parse(uri_str)
+    dest_path = pathlib.Path(gremlin.registry.register(uri))
     dest_path.parent.mkdir(parents=True, exist_ok=True)
 
     if os.path.isfile(value_str):
         shutil.copy2(value_str, dest_path)
     else:
-        # Filepath may be relative to project root (e.g. --plan paths), not the worktree.
         project_root = getattr(gremlin, "project_root", None) or ""
         project_path = os.path.join(project_root, value_str) if project_root else None
         if project_path and os.path.isfile(project_path):
@@ -172,7 +188,9 @@ async def _execute_bind_artifact(
         else:
             dest_path.write_text(value_str, encoding="utf-8")
 
-    gremlin.registry.bind(artifact_key, uri)
+    # Also register under the artifact_key so it can be looked up by name
+    gremlin.registry.data[artifact_key] = str(dest_path)
+    gremlin.registry._persist()
 
 
 _DSL_DISPATCH: dict[str, object] = {
@@ -195,11 +213,11 @@ async def _run_dsl_command(
             f"known: {', '.join(sorted(_DSL_DISPATCH))}"
         )
     if cmd_name == "bind_artifact":
-        source_key, artifact_key, uri_template = _parse_bind_artifact_args(args)
+        source_key, artifact_key, uri_str = _parse_bind_artifact_args(args)
         await _execute_bind_artifact(
             source_key,
             artifact_key,
-            uri_template,
+            uri_str,
             stage_inputs=stage_inputs,
             gremlin=gremlin,
         )
@@ -211,7 +229,6 @@ async def run_pipeline_bootstrap(
     bootstrap: Bootstrap,
     *,
     cwd: pathlib.Path,
-    artifact_dir: pathlib.Path,
     stage_inputs: Mapping[str, Any],
     gremlin: Gremlin,
     include_launch: bool,
@@ -242,9 +259,7 @@ async def run_pipeline_bootstrap(
                     gremlin=gremlin,
                 )
             else:
-                shell_cmds.append(
-                    substitute_bootstrap_vars(c, artifact_dir=artifact_dir, cwd=cwd)
-                )
+                shell_cmds.append(substitute_bootstrap_vars(c, cwd=cwd))
         if shell_cmds:
             await run_bootstrap(shell_cmds, cwd, extra_env=env)
     if bootstrap.cli_out:

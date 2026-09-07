@@ -212,18 +212,6 @@ def test_parallel_child_artifact_dir_is_full_copy(sandbox) -> None:
     (parent_artifact_dir / "subdir").mkdir()
     (parent_artifact_dir / "subdir" / "file3.txt").write_text("content3")
 
-    # Set up parent registry
-    parent_registry = parent_artifact_dir.parent / "registry.json"
-    parent_registry.write_text(
-        json.dumps(
-            {
-                "artifact1": "file://session/file1.txt",
-                "artifact2": "file://session/file2.txt",
-            }
-        ),
-        encoding="utf-8",
-    )
-
     state_file = parent_state_dir / "state.json"
     state_file.write_text(json.dumps({"id": gremlin_id}), encoding="utf-8")
     data = StateData(gremlin_id=gremlin_id)

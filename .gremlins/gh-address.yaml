@@ -3,7 +3,7 @@ prompt_dir: prompts
 
 land:
   interpolation:
-    PR_URL: artifact.pr-url
+    PR_URL: content("artifact://pr-url")
   options:
     cmds:
       - gh pr merge --squash --delete-branch "$PR_URL"
@@ -45,9 +45,9 @@ stages:
   - name: gather-github-review-content
     type: exec
     interpolation:
-      pr: artifact.pr-url
+      pr: content("artifact://pr-url")
     bind:
-      artifact.github-review-content: "file://session/github-review-content.md"
+      github_review_content: "artifact://github-review-content.md"
     options:
       cmds:
         - |
@@ -85,12 +85,12 @@ stages:
             echo "## Issue Comments"
             echo
             gh pr view "$PR_URL" --comments --json comments --jq '.comments[] | "### Comment by \(.author.login) (\(.createdAt))\n\n\(.body)\n\n---\n"'
-          } > "{artifact_dir}/github-review-content.md"
+          } > "$GREMLINS_ARTIFACT_DIR/github-review-content.md"
   - name: github-address-pull-request-reviews
     type: agent
     interpolation:
-      pr: artifact.pr-url
-      content: artifact.github-review-content
+      pr: content("artifact://pr-url")
+      content: content("artifact://github-review-content.md")
     prompt:
       - code-style
       - terse
