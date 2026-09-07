@@ -33,6 +33,7 @@ bootstrap:
 prompts:
   code-style: gremlins:code_style.md
   terse: terse_style.md
+  review: review.md
   verify: [dev-env-howto.md, gremlins:verify_fix.md, gremlins:bail_section_fix.md]
   dev-env: dev-env-howto.md
 
@@ -66,6 +67,37 @@ stages:
   - { type: gremlins:plan,      prompt: [code-style, terse, gremlins:plan.md] }
   - { type: gremlins:implement,  prompt: [code-style, terse, dev-env, no_lint_in_implement.md, gremlins:implement_local.md] }
   - { type: check-and-fix }
-  - { type: gremlins:review-code,  prompt: [code-style, terse, dev-env, local_review.md] }
-  - { name: address-code, type: agent, interpolation: {text: content("artifact://review-code-{model}.md")?}, prompt: [code-style, terse, dev-env, gremlins:address.md, gremlins:bail_section.md] }
+  - name: compute-diff
+    type: exec
+    interpolation:
+      base_sha: content("artifact://base_sha")
+    bind:
+      diff: "artifact://diff.txt"
+    options:
+      cmds:
+        - "git diff {base_sha}...HEAD > \"$GREMLINS_ARTIFACT_DIR/diff.txt\""
+  - parallel:
+      - name: review-one
+        type: agent
+        interpolation:
+          plan: content("artifact://plan.md")
+          diff: content("artifact://diff.txt")
+        prompt: [code-style, terse, dev-env, review]
+        bind:
+          filepath: "artifact://review-one.md"
+      - name: review-two
+        type: agent
+        interpolation:
+          plan: content("artifact://plan.md")
+          diff: content("artifact://diff.txt")
+        prompt: [code-style, terse, dev-env, review]
+        bind:
+          filepath: "artifact://review-two.md"
+  - name: address
+    type: agent
+    prompt: [code-style, terse, dev-env, local_address.md, no_lint_in_implement.md, gremlins:bail_section.md]
+    interpolation:
+      review_one: content("artifact://review-one.md")
+      review_two: content("artifact://review-two.md")
+  - { name: address-code, type: agent, interpolation: {text: "content(\"artifact://review-code-{model}.md\")?"}, prompt: [code-style, terse, dev-env, gremlins:address.md, gremlins:bail_section.md] }
   - { type: check-and-fix }

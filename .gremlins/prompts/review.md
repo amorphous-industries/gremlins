@@ -1,6 +1,6 @@
 # Review local branch diff
 
-Review the changes on the current branch against `{base_ref}` and output findings as text.
+Review the changes on the diff provided below.
 
 Review the diff below and only the diff below. Do not read any source files, do not run any tools on any files, do not look at anything outside the diff. If you cannot reach a conclusion from the diff alone, say so explicitly and explain why.
 
@@ -10,7 +10,7 @@ The plan for this change is:
 
 {plan}
 
-Changed files:
+diff:
 
 {diff}
 
