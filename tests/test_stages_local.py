@@ -38,7 +38,7 @@ def test_local_yaml_loads_and_validates():
 def _make_state(client, artifact_dir, *, gremlin_id=None, base_ref_sha=""):
     registry = ArtifactRegistry(artifact_dir)
     if base_ref_sha:
-        registry.write("base_sha", f"git://commit/{base_ref_sha}")
+        registry.data["base_sha"] = f"git://commit/{base_ref_sha}"
     state = build_state(
         data=StateData(gremlin_id=gremlin_id),
         client=client,

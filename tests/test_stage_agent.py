@@ -143,7 +143,8 @@ def test_bind_uri_bound_in_registry_before_agent_runs(tmp_path):
         async def run(self, prompt, *, label, **kwargs):
             registry = state.artifacts
             seen_bound_before_run.append(
-                registry is not None and registry.exists("file://session/output.md")
+                registry is not None
+                and registry.is_registered("file://session/output.md")
             )
             # Extract path from {result} and write so verify passes.
             m = re.search(r"`([^`]*output\.md)`", prompt)

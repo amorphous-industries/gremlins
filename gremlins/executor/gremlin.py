@@ -423,9 +423,12 @@ class Gremlin:
         start_idx = names.index(self.resume_from)
         for stage in self.stages[start_idx:]:
             if stage.type == "exec":
-                for key in stage.bind_map:
-                    if self.registry.exists(key):
-                        self.registry.unbind(key)
+                # bind_map is {logical_key: uri_template}; register() stores
+                # under the full artifact:// URI key, so derive that here.
+                for bind_key in stage.bind_map:
+                    artifact_key = f"artifact://{bind_key}"
+                    if self.registry.is_registered(artifact_key):
+                        self.registry.unbind(artifact_key)
 
     async def run(self) -> None:
         if not hasattr(self, "registry"):
@@ -645,7 +648,9 @@ class Gremlin:
             for key, value in (stage_inputs or {}).items():
                 if key in source_keys:
                     continue
-                if value is not None and not self.registry.exists(key):
+                if value is not None and not self.registry.is_registered(
+                    f"artifact://{key}"
+                ):
                     # Write stage inputs as artifact files
                     uri = Uri.parse(f"artifact://{key}")
                     path = pathlib.Path(self.registry.register(uri))

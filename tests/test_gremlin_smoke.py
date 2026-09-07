@@ -113,11 +113,11 @@ def test_resume_unbinds_stale_exec_out_keys(tmp_path):
         resume_from="normalize",
     )
     gremlin.registry = ArtifactRegistry(artifact_dir=artifact_dir)
-    gremlin.registry.data["normalize-commits"] = "git://range/old..stale"
+    gremlin.registry.data["artifact://normalize-commits"] = "git://range/old..stale"
 
-    assert gremlin.registry.exists("normalize-commits")
+    assert gremlin.registry.exists("artifact://normalize-commits")
     gremlin._unbind_stale_exec_artifacts()
-    assert not gremlin.registry.exists("normalize-commits")
+    assert not gremlin.registry.exists("artifact://normalize-commits")
 
 
 def test_resume_unbind_only_affects_exec_stages(tmp_path):
@@ -135,11 +135,11 @@ def test_resume_unbind_only_affects_exec_stages(tmp_path):
         resume_from="work",
     )
     gremlin.registry = ArtifactRegistry(artifact_dir=artifact_dir)
-    gremlin.registry.data["work-out"] = "git://range/a..b"
+    gremlin.registry.data["artifact://work-out"] = "git://range/a..b"
     gremlin.registry.data["non-exec-artifact"] = "git://range/x..y"
 
     gremlin._unbind_stale_exec_artifacts()
-    assert not gremlin.registry.exists("work-out")
+    assert not gremlin.registry.exists("artifact://work-out")
     assert gremlin.registry.exists("non-exec-artifact")
 
 

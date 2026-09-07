@@ -50,7 +50,7 @@ class ArtifactRegistry:
         tmp.write_text(json.dumps(self.data), encoding="utf-8")
         os.replace(tmp, path)
 
-    def data_uri(self, key: str) -> str:
+    def data_uri(self, key: str) -> Any:
         """Return the local filesystem path for *key*.
 
         Raises MissingArtifact if *key* is not bound.
@@ -81,7 +81,7 @@ class ArtifactRegistry:
         if key in self.data and not overwrite:
             raise DuplicateArtifact(key, str(self.data[key]), str(uri))
         # Resolve artifact:// URI to canonical filesystem path
-        name = uri.path.strip("/")
+        name = uri.path.lstrip("/")
         if name.startswith("session/"):
             name = name[len("session/") :]
         path = (self.artifact_dir / name).resolve()
@@ -168,12 +168,8 @@ class ArtifactRegistry:
             p = pathlib.Path(value)
         if p.is_absolute():
             return p.exists() and p.stat().st_size > 0
-        # Non-file string values are considered to exist
-        logger.warning(
-            "exists(%r): non-absolute path %r, cannot verify filesystem state",
-            key,
-            value,
-        )
+        # Non-file values (e.g. git://range, opaque://, raw strings) are
+        # registered but have no on-disk file to check — they always exist.
         return True
 
     def is_registered(self, key: str) -> bool:

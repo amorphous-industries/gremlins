@@ -25,22 +25,25 @@ from _gremlins_core.artifacts import Uri
 ## Registry API
 
 ```python
-r = ArtifactRegistry(artifact_dir=state.artifact_dir, cwd=state.cwd)
+r = ArtifactRegistry(artifact_dir=state.artifact_dir)
 
 # Store a URI pointer (auto-resolved on read)
-r.bind("plan", Uri.parse("file://session/plan.md"))
+r.register(Uri.parse("artifact://plan"))
 
-r.exists("plan")            # True
-r.resolve("plan")           # Uri(scheme="file", path="session/plan.md")
-r.read("plan")              # resolved value — file content as str, or dict for opaque://
-r.keys()                    # iterable of bound keys
+r.is_registered("artifact://plan")       # True
+r.data_uri("artifact://plan")           # filesystem path (str)
+r.exists("artifact://plan")             # True (file exists on disk)
+r.content("artifact://plan")            # file content as str
+r.data_uri("some_other_key")            # arbitrary stored value
+r.keys()                                # iterable of bound keys
 ```
 
-`read()` resolves URI strings (at any nesting depth) automatically. A non-URI string or
-scalar passes through untouched. Resolution is recursive: if a resolved value itself
-contains URI strings, those are resolved too.
+`data_uri()` returns the raw stored value for a key (which may be a filesystem
+path string, dict, or other JSON-compatible value).  Raises `MissingArtifact(key)`
+if the key is not bound.
 
-`read()` on an unbound key raises `MissingArtifact(key)`.
+`content()` reads file content from a registered artifact, optionally traversing
+a JSON path for structured data.
 
 In normal pipeline runs `state.artifacts` is already constructed — use it directly
 rather than constructing a new registry.
@@ -51,22 +54,19 @@ All values stored in the registry are JSON-serializable by construction (paths a
 strings). Producers and consumers own their pairwise contracts — the registry enforces
 nothing beyond serializability.
 
-URI strings stored as values (e.g. ``opaque://pr/42``) are resolved automatically on
-`read()`. Consumers see the resolved content (a dict or string) rather than the raw URI.
+URI strings stored as values (e.g. ``opaque://pr/42``) are stored
+as-is. Consumers access them via `data_uri()` or `content()`.
 
-## Read returns
+## Data access
 
-Scheme resolvers return plain JSON-compatible values:
-
-- `git://range/<base>..<head>` → `[{"sha": str, "subject": str}, ...]`
-- `git://ref/<name>` → `name` (string)
-- `git://commit/<sha>` → sha (string)
-- `file://session/<name>` → file content (string, UTF-8)
-
-```python
-pr = state.artifacts.read("pr")
-pr["uri"]  # "opaque://pr/42"
-```
+- `data_uri(key)` returns the raw stored value (filesystem path, dict, string,
+  etc.). Raises `MissingArtifact` if unbound.
+- `content(uri_str, json_path=None)` reads file content from a registered
+  artifact, optionally traversing a JSON path for nested fields.
+- `exists(uri)` returns True if the artifact is registered and (for file
+  artifacts) the backing file exists with non-zero size.
+- `is_registered(key)` returns True if the key is bound in the registry
+  (no filesystem check).
 
 ## git://range helpers
 
@@ -75,7 +75,9 @@ from gremlins.artifacts.schemes import snapshot_head_before
 
 base = snapshot_head_before(cwd=state.cwd)
 # ... run stage ...
-state.artifacts.bind_git_commit_range("normalize-commits", base)
+# Register the range as an artifact
+uri = Uri.parse("artifact://range")
+state.artifacts.register(uri)
 ```
 
 ## `{read:KEY}` URI substitution in `out:` maps

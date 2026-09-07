@@ -33,7 +33,7 @@ def _make_state(project: pathlib.Path, base_sha: str):
     artifact_dir = project / "session"
     artifact_dir.mkdir(exist_ok=True)
     registry = ArtifactRegistry(artifact_dir)
-    registry.write("base_sha", base_sha)
+    registry.data["base_sha"] = base_sha
     return build_state(
         data=StateData(),
         client=FakeClient(),
