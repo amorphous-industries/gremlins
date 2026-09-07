@@ -146,13 +146,12 @@ class ArtifactRegistry:
         return str(data) if not isinstance(data, str) else data
 
     def exists(self, uri: str | Uri) -> bool:
-        """Check whether a registered artifact exists.
+        """Check whether a registered artifact exists on disk.
 
-        Returns True if the key is registered in the registry with a
-        non-None string value.  For logical artifacts (e.g. ``git://range/...``,
-        ``opaque://...``) this is always True once registered.  For file-based
-        artifacts it checks that the key is bound — the actual file existence
-        is validated by ``verified()``.
+        Returns True if the key is registered and the backing file
+        exists with non-zero size.  For non-file artifacts (e.g.
+        ``git://range/...``, ``opaque://...``) returns True once
+        registered.
         """
         match uri:
             case str():
@@ -161,12 +160,6 @@ class ArtifactRegistry:
                 key = str(uri)
             case _:
                 raise ValueError(f"expected str or Uri, got {type(uri).__name__}")
-        stored = self.data.get(key)
-        if stored is None or not isinstance(stored, str):
-            return False
-        return True
-
-    def verified(self, key: str) -> bool:
         if key not in self.data:
             return False
         value = self.data[key]
@@ -182,9 +175,9 @@ class ArtifactRegistry:
             p = pathlib.Path(value)
         if p.is_absolute():
             return p.exists() and p.stat().st_size > 0
-        # Non-file string values (e.g. "registered") are considered verified
+        # Non-file string values are considered to exist
         logger.warning(
-            "verified(%r): non-absolute path %r, cannot verify filesystem state",
+            "exists(%r): non-absolute path %r, cannot verify filesystem state",
             key,
             value,
         )
