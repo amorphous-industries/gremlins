@@ -524,11 +524,6 @@ class _ParallelExecutor:
             if child_scratch.is_dir():
                 shutil.rmtree(child_scratch, ignore_errors=True)
 
-    def _parent_key(child_uri_str: str, child_key: str) -> str:
-        """Prepend child_key as a URI path prefix: artifact://plan.md -> artifact://shard1/plan.md."""
-        uri = Uri.parse(child_uri_str)
-        return f"{uri.scheme}://{child_key}/{uri.path.lstrip('/')}"
-
     def _gather_child_artifacts(self) -> None:
         """Copy child artifact bindings into the parent registry before child dirs are removed."""
         parent_state = self._parent_state
@@ -538,6 +533,11 @@ class _ParallelExecutor:
 
         def _scratch(_cid: str) -> pathlib.Path:
             return pathlib.Path(scratch_root(_cid))
+
+        def _parent_key(child_uri_str: str, child_key: str) -> str:
+            """Prepend child_key as a URI path prefix: artifact://plan.md -> artifact://shard1/plan.md."""
+            uri = Uri.parse(child_uri_str)
+            return f"{uri.scheme}://{child_key}/{uri.path.lstrip('/')}"
 
         scratch = _scratch
         parent_keys: set[str] = set(parent_state.artifacts.keys())

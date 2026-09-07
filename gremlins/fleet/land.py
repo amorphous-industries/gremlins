@@ -302,13 +302,7 @@ def do_rm(target: str) -> bool:
     return True
 
 
-def _registry_for_gremlin(gremlin_id: str, state: dict[str, Any]) -> ArtifactRegistry:
-    project_root = state.get("project_root") or ""
-    cwd = (
-        pathlib.Path(project_root)
-        if project_root and os.path.isdir(project_root)
-        else None
-    )
+def _registry_for_gremlin(gremlin_id: str) -> ArtifactRegistry:
     artifact_dir = pathlib.Path(_scratch_root_fn(gremlin_id)) / "artifacts"
     artifact_dir.mkdir(parents=True, exist_ok=True)
     return ArtifactRegistry(artifact_dir=artifact_dir)
@@ -632,7 +626,7 @@ def _squash_land(
         return False
 
     subject, body, land_cost = _build_commit_message(
-        _registry_for_gremlin(gremlin_id, state), state, source_ref, base, cwd, client
+        _registry_for_gremlin(gremlin_id), state, source_ref, base, cwd, client
     )
     commit_msg = f"{subject}\n\n{body}" if body else subject
 
@@ -773,7 +767,6 @@ def _land_gh(
             break
         except (KeyError, MissingArtifact):
             continue
-                break
     if not pr_url:
         print(f"error: no PR URL recorded for {gremlin_id}")
         return False
