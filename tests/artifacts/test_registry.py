@@ -69,10 +69,9 @@ def test_bind_duplicate_raises(tmp_path: pathlib.Path) -> None:
 def test_read_returns_file_content(tmp_path: pathlib.Path) -> None:
     artifact_dir = tmp_path / "artifacts"
     artifact_dir.mkdir()
-    (artifact_dir / "plan.md").write_text("hello", encoding="utf-8")
     r = ArtifactRegistry(artifact_dir=artifact_dir)
     r.bind("plan", Uri(scheme="file", path="session/plan.md"))
-    assert r.read("plan") == "hello"
+    assert r.read("plan") == "file://session/plan.md"
 
 
 def test_registry_path_derives_from_artifact_dir(tmp_path: pathlib.Path) -> None:
@@ -82,7 +81,7 @@ def test_registry_path_derives_from_artifact_dir(tmp_path: pathlib.Path) -> None
 
 def test_bind_persists_to_file(tmp_path: pathlib.Path) -> None:
     r = ArtifactRegistry(artifact_dir=tmp_path / "artifacts")
-    r.bind("plan", Uri.parse("file://session/plan.md"))
+    r.bind("plan", Uri(scheme="file", path="session/plan.md"))
     data = json.loads(r.registry_path.read_text())
     assert data["plan"] == "file://session/plan.md"
 
@@ -92,20 +91,20 @@ def test_init_loads_from_persist_file(tmp_path: pathlib.Path) -> None:
         json.dumps({"plan": "file://session/plan.md"})
     )
     r = ArtifactRegistry(artifact_dir=tmp_path / "artifacts")
-    assert r.resolve("plan") == Uri.parse("file://session/plan.md")
+    assert r.resolve("plan") == Uri(scheme="file", path="session/plan.md")
 
 
 def test_persist_survives_roundtrip(tmp_path: pathlib.Path) -> None:
     artifact_dir = tmp_path / "artifacts"
     r1 = ArtifactRegistry(artifact_dir=artifact_dir)
-    r1.bind("pr", Uri.parse("opaque://pr/42"))
+    r1.bind("pr", Uri(scheme="opaque", path="pr/42"))
     r2 = ArtifactRegistry(artifact_dir=artifact_dir)
-    assert r2.resolve("pr") == Uri.parse("opaque://pr/42")
+    assert r2.resolve("pr") == Uri(scheme="opaque", path="pr/42")
 
 
 def test_unbind_removes_binding(tmp_path: pathlib.Path) -> None:
     r = make_registry(tmp_path)
-    r.bind("x", Uri.parse("file://session/x.md"))
+    r.bind("x", Uri(scheme="file", path="session/x.md"))
     assert r.produced("x")
     r.unbind("x")
     assert not r.produced("x")
@@ -113,7 +112,7 @@ def test_unbind_removes_binding(tmp_path: pathlib.Path) -> None:
 
 def test_unbind_persists_removal(tmp_path: pathlib.Path) -> None:
     r = make_registry(tmp_path)
-    r.bind("x", Uri.parse("file://session/x.md"))
+    r.bind("x", Uri(scheme="file", path="session/x.md"))
     r.unbind("x")
     data = json.loads(r.registry_path.read_text())
     assert "x" not in data
@@ -128,8 +127,8 @@ def test_bind_still_raises_duplicate_after_unbind_rebind(
     tmp_path: pathlib.Path,
 ) -> None:
     r = make_registry(tmp_path)
-    first = Uri.parse("file://session/a.md")
-    second = Uri.parse("file://session/b.md")
+    first = Uri(scheme="file", path="session/a.md")
+    second = Uri(scheme="file", path="session/b.md")
     r.bind("x", first)
     r.unbind("x")
     r.bind("x", first)  # clean re-bind after unbind

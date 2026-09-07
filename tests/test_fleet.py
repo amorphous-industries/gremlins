@@ -571,8 +571,8 @@ def test_land_gh_removes_worktree_before_gh_merge(sandbox, tmp_path, monkeypatch
     (gr_dir / "state.json").write_text(json.dumps(state))
 
     monkeypatch.setattr(
-        "gremlins.artifacts.registry.ArtifactRegistry.read",
-        lambda self, key: {"url": pr_url, "number": 42, "branch": "feat"},
+        "gremlins.artifacts.registry.ArtifactRegistry.content",
+        lambda self, key, json_path=None: pr_url,
     )
     monkeypatch.setattr(_land, "_resolve_landing_cwd", lambda s: str(tmp_path))
 

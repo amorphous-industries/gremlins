@@ -86,9 +86,8 @@ def test_loop_active_children_set_and_cleared(tmp_path: pathlib.Path) -> None:
     class _Spy(Stage):
         async def run(self, gremlin: Any) -> Outcome:
             captured.append(_read_state(tmp_path).get("active_children"))
-            from _gremlins_core.artifacts import Uri
 
-            gremlin.state.artifacts.bind("done", Uri.parse("file://session/done.txt"))
+            gremlin.state.artifacts.data["done"] = "registered"
             return Done()
 
     # Set stop_when_exists so the loop doesn't exhaust

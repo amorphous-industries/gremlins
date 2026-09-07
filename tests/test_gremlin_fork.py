@@ -4,7 +4,6 @@ import asyncio
 import subprocess
 
 import pytest
-from _gremlins_core.artifacts import Uri
 from _gremlins_core.schemas import Pipeline
 
 from gremlins.artifacts.registry import ArtifactRegistry
@@ -62,8 +61,8 @@ def test_fork_without_worktree(tmp_path, tmp_repo, monkeypatch):
 
         # Create some artifacts
         (artifact_dir / "spec.md").write_text("# Spec\n")
-        registry = ArtifactRegistry(artifact_dir=artifact_dir, cwd=None)
-        registry.bind("spec", Uri.parse("file://session/spec.md"))
+        registry = ArtifactRegistry(artifact_dir=artifact_dir)
+        registry.data["spec"] = str(artifact_dir / "spec.md")
 
         # Create state
         state_data = StateData(gremlin_id="gr-1")
@@ -126,8 +125,8 @@ def test_fork_with_worktree(tmp_path, tmp_repo, monkeypatch):
 
         # Create artifacts
         (artifact_dir / "spec.md").write_text("# Spec\n")
-        registry = ArtifactRegistry(artifact_dir=artifact_dir, cwd=worktree_path)
-        registry.bind("spec", Uri.parse("file://session/spec.md"))
+        registry = ArtifactRegistry(artifact_dir=artifact_dir)
+        registry.data["spec"] = str(artifact_dir / "spec.md")
 
         # Create state with worktree
         state_data = StateData(gremlin_id="gr-1")
@@ -214,10 +213,11 @@ def test_fork_preserves_registry(tmp_path, tmp_repo, monkeypatch):
         artifact_dir.mkdir(parents=True, exist_ok=True)
 
         # Create registry with multiple bindings
-        registry = ArtifactRegistry(artifact_dir=artifact_dir, cwd=None)
-        registry.bind("spec", Uri.parse("file://session/spec.md"))
-        registry.bind("plan", Uri.parse("file://session/plan.md"))
-        registry.write("some_key", {"data": "value"})
+        registry = ArtifactRegistry(artifact_dir=artifact_dir)
+        registry.data["spec"] = str(artifact_dir / "spec.md")
+        registry.data["plan"] = str(artifact_dir / "plan.md")
+        registry.data["some_key"] = {"data": "value"}
+        registry._persist()
 
         # Create state
         state_data = StateData(gremlin_id="gr-1")

@@ -423,9 +423,9 @@ class Gremlin:
         start_idx = names.index(self.resume_from)
         for stage in self.stages[start_idx:]:
             if stage.type == "exec":
-                for uri_str in stage.bind_map.values():
-                    if self.registry.produced(uri_str):
-                        self.registry.unbind(uri_str)
+                for key in stage.bind_map:
+                    if self.registry.produced(key):
+                        self.registry.unbind(key)
 
     async def run(self) -> None:
         if not hasattr(self, "registry"):

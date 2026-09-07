@@ -94,17 +94,28 @@ pub fn check_duplicate_producers(
     let mut seen: HashMap<String, (String, String)> = HashMap::new();
 
     for (key, uri_str) in extra_out {
-        let clean_key = if key.ends_with('?') {
-            key[..key.len() - 1].to_string()
-        } else {
-            key.clone()
-        };
-        seen.insert(clean_key, ("bootstrap".to_string(), uri_str.clone()));
+        if key.ends_with('?') {
+            continue;
+        }
+        if !uri_str.starts_with("artifact://") {
+            continue;
+        }
+        let clean_uri = uri_str.clone();
+        if let Some((prev_name, _)) = seen.get(&clean_uri) {
+            return Err(SchemaError::Generic(format!(
+                "duplicate artifact producer: stage '{}' and stage '{}' both produce '{}'",
+                prev_name, "bootstrap", clean_uri
+            )));
+        }
+        seen.insert(clean_uri, ("bootstrap".to_string(), uri_str.clone()));
     }
 
     for stage in stages {
         for (raw_key, uri_str) in &stage.bind_map {
             if raw_key.ends_with('?') {
+                continue;
+            }
+            if !uri_str.starts_with("artifact://") {
                 continue;
             }
             let clean_uri = uri_str.clone();

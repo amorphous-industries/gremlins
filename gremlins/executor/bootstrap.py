@@ -111,27 +111,31 @@ def _split_dsl_args(args_raw: str) -> list[str]:
 
 def _parse_bind_artifact_args(
     args: list[str],
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     """Validate and unpack bind_artifact arguments.
 
-    Returns (uri, source_key).
+    Returns (source_key, artifact_key, uri).
     """
-    if len(args) != 2:
+    if len(args) != 3:
         raise ValueError(
-            f"bind_artifact requires 2 arguments (uri, source_key), got {len(args)}"
+            f"bind_artifact requires 3 arguments (source_key, artifact_key, uri), got {len(args)}"
         )
-    uri = args[0]
-    source_key = args[1]
-    if not uri:
-        raise ValueError("bind_artifact: uri must be non-empty")
+    source_key = args[0]
+    artifact_key = args[1]
+    uri = args[2]
     if not source_key:
         raise ValueError("bind_artifact: source_key must be non-empty")
-    return uri, source_key
+    if not artifact_key:
+        raise ValueError("bind_artifact: artifact_key must be non-empty")
+    if not uri:
+        raise ValueError("bind_artifact: uri must be non-empty")
+    return source_key, artifact_key, uri
 
 
 async def _execute_bind_artifact(
-    uri_str: str,
     source_key: str,
+    artifact_key: str,
+    uri_str: str,
     *,
     stage_inputs: Mapping[str, Any],
     gremlin: Gremlin,
@@ -164,6 +168,10 @@ async def _execute_bind_artifact(
         else:
             dest_path.write_text(value_str, encoding="utf-8")
 
+    # Also register under the artifact_key so it can be looked up by name
+    gremlin.registry.data[artifact_key] = str(dest_path)
+    gremlin.registry._persist()
+
 
 _DSL_DISPATCH: dict[str, object] = {
     "bind_artifact": _execute_bind_artifact,
@@ -185,10 +193,11 @@ async def _run_dsl_command(
             f"known: {', '.join(sorted(_DSL_DISPATCH))}"
         )
     if cmd_name == "bind_artifact":
-        uri_str, source_key = _parse_bind_artifact_args(args)
+        source_key, artifact_key, uri_str = _parse_bind_artifact_args(args)
         await _execute_bind_artifact(
-            uri_str,
             source_key,
+            artifact_key,
+            uri_str,
             stage_inputs=stage_inputs,
             gremlin=gremlin,
         )

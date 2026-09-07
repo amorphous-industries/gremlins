@@ -24,6 +24,15 @@ class MissingArtifact(KeyError):
         self.key = key
 
 
+class DuplicateArtifact(KeyError):
+    def __init__(self, key: str, existing: str, incoming: str) -> None:
+        super().__init__(
+            f"duplicate artifact: {key!r} already bound to {existing!r}, "
+            f"cannot rebind to {incoming!r}"
+        )
+        self.key = key
+
+
 class ArtifactRegistry:
     def __init__(
         self,
@@ -43,6 +52,30 @@ class ArtifactRegistry:
         tmp.write_text(json.dumps(self.data), encoding="utf-8")
         os.replace(tmp, path)
 
+    def bind(self, key: str, uri: Uri) -> None:
+        """Bind a key to a URI, raising DuplicateArtifact if already bound."""
+        uri_str = str(uri)
+        if key in self.data:
+            raise DuplicateArtifact(key, str(self.data[key]), uri_str)
+        self.data[key] = uri_str
+        self._persist()
+
+    def resolve(self, key: str) -> Uri:
+        """Resolve a key to its URI, raising MissingArtifact if unbound."""
+        if key not in self.data:
+            raise MissingArtifact(key)
+        value = self.data[key]
+        if isinstance(value, str):
+            try:
+                return Uri.parse(value)
+            except ValueError:
+                # Construct Uri directly for non-artifact schemes
+                if "://" in value:
+                    scheme, rest = value.split("://", 1)
+                    return Uri(scheme=scheme, path=rest)
+                return Uri(scheme="opaque", path=value)
+        return Uri(scheme="opaque", path=str(value))
+
     def register(self, uri: Uri) -> str:
         """Register a URI artifact, returning the slugged filesystem path.
 
@@ -58,7 +91,12 @@ class ArtifactRegistry:
         self._persist()
         return self.data[key]
 
-    def read(self, uri_str: str) -> str:
+    def write(self, key: str, value: Any) -> None:
+        """Store an arbitrary JSON-serializable value under *key*."""
+        self.data[key] = value
+        self._persist()
+
+    def read(self, uri_str: str) -> Any:
         """Return the resolved value (filesystem path for file URIs)."""
         if uri_str not in self.data:
             raise MissingArtifact(uri_str)
@@ -67,6 +105,10 @@ class ArtifactRegistry:
     def content(self, uri_str: str, json_path: str | None = None) -> str:
         """Read file content, optionally traversing a JSON path."""
         path = self.read(uri_str)
+        if not isinstance(path, str):
+            raise ValueError(
+                f"content({uri_str!r}): expected a file path, got {type(path).__name__}"
+            )
         raw = pathlib.Path(path).read_text(encoding="utf-8")
         if json_path is None:
             return raw
