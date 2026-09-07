@@ -18,7 +18,7 @@ bootstrap:
 
 land:
   interpolation:
-    PR_URL: content("artifact://pr-url")
+    PR_URL: content("artifact://pr-url.txt")
   options:
     cmds:
       - gh pr merge --squash --delete-branch "$PR_URL"
@@ -44,18 +44,18 @@ stages:
   - name: fetch-pr-diff
     type: exec
     interpolation:
-      pr: content("artifact://pr-url")
+      pr: content("artifact://pr-url.txt")
     bind:
       pr_diff: "artifact://diff.txt"
     options:
       cmds:
         - "gh pr diff --name-only \"{pr}\" > \"$GREMLINS_ARTIFACT_DIR/diff.txt\""
-  - { name: github-review-pull-request,                 type: agent, interpolation: {pr: content("artifact://pr-url"), plan: content("artifact://plan.md"), diff: content("artifact://diff.txt")}, prompt: [code-style, gremlins:github_review_pull_request.md] }
+  - { name: github-review-pull-request,                 type: agent, interpolation: {pr: content("artifact://pr-url.txt"), plan: content("artifact://plan.md"), diff: content("artifact://diff.txt")}, prompt: [code-style, gremlins:github_review_pull_request.md] }
   - { type: gremlins:github-wait-copilot }
   - name: gather-github-review-content
     type: exec
     interpolation:
-      pr: content("artifact://pr-url")
+      pr: content("artifact://pr-url.txt")
     bind:
       github_review_content: "artifact://github-review-content.md"
     options:
@@ -99,7 +99,7 @@ stages:
   - name: github-address-pull-request-reviews
     type: agent
     interpolation:
-      pr: content("artifact://pr-url")
+      pr: content("artifact://pr-url.txt")
       content: content("artifact://github-review-content.md")
     prompt:
       - code-style

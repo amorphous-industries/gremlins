@@ -654,10 +654,7 @@ class Gremlin:
             if not self.registry.produced("artifact://base_sha"):
                 sha = _git_mod.head_sha(cwd=self.worktree_dir)
                 if sha:
-                    uri = Uri.parse("artifact://base_sha")
-                    path = pathlib.Path(self.registry.register(uri))
-                    path.parent.mkdir(parents=True, exist_ok=True)
-                    path.write_text(sha, encoding="utf-8")
+                    self.registry.write("artifact://base_sha", sha)
 
             state_data = StateData(self.gremlin_id)
             default_client = resolved_client or self.pipeline_data.default_client

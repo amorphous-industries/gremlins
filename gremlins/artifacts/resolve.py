@@ -23,6 +23,10 @@ def _resolve_attr(artifacts: ArtifactRegistry, uri_str: str) -> str:
     # Full URIs are used as-is — no attribute path splitting
     if "://" in uri_str:
         raw = artifacts.read(uri_str)
+        # Resolve file://session/ URIs to filesystem paths
+        if isinstance(raw, str) and raw.startswith("file://session/"):
+            name = raw[len("file://session/") :]
+            return str(artifacts.artifact_dir / name)
         return str(raw)
 
     parts = uri_str.split(".", 1)

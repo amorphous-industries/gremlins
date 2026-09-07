@@ -38,6 +38,7 @@ class ArtifactRegistry:
         self,
         artifact_dir: pathlib.Path,
     ) -> None:
+        self.artifact_dir = artifact_dir
         self.registry_path = artifact_dir.parent / "registry.json"
         self.data: dict[str, Any] = {}
         self._file_resolver = FileArtifactResolver(artifact_dir)
@@ -77,20 +78,17 @@ class ArtifactRegistry:
         return Uri(scheme="opaque", path=str(value))
 
     def register(self, uri: Uri) -> str:
-        """Register a URI artifact, returning the slugged filesystem path.
+        """Register a URI artifact, returning the canonical filesystem path.
 
-        If the URI is already registered, returns the existing path.
-        Otherwise generates a fresh slug so that each loop re-entry
-        (or any repeated binding of the same logical URI) writes to a
-        distinct on-disk filename.
+        Always resolves the URI to its canonical on-disk path (which is what
+        exec and agent stages write to), even if the key is already bound in
+        the registry.  This keeps the returned path consistent with the file
+        the stage is expected to produce.
         """
         key = str(uri)
-        if key in self.data:
-            return self.data[key]
-        base = self._file_resolver.path_for(uri)
-        slug = secrets.token_hex(4)
-        slugged = base.parent / f"{slug}_{base.name}"
-        self.data[key] = str(slugged)
+        path = self._file_resolver.path_for(uri)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self.data[key] = str(path)
         self._persist()
         return self.data[key]
 
@@ -107,15 +105,34 @@ class ArtifactRegistry:
 
     def content(self, uri_str: str, json_path: str | None = None) -> str:
         """Read file content, optionally traversing a JSON path."""
-        path = self.read(uri_str)
-        if not isinstance(path, str):
+        raw = self.read(uri_str)
+        if not isinstance(raw, str):
             raise ValueError(
-                f"content({uri_str!r}): expected a file path, got {type(path).__name__}"
+                f"content({uri_str!r}): expected a file path, got {type(raw).__name__}"
             )
-        raw = pathlib.Path(path).read_text(encoding="utf-8")
-        if json_path is None:
+        # Resolve URI values to filesystem paths
+        if raw.startswith("file://session/"):
+            name = raw[len("file://session/") :]
+            p = self.artifact_dir / name
+            if not p.exists():
+                raise MissingArtifact(uri_str)
+            text = p.read_text(encoding="utf-8")
+        elif raw.startswith("file://"):
+            p = pathlib.Path(raw[len("file://") :])
+            if not p.exists():
+                raise MissingArtifact(uri_str)
+            text = p.read_text(encoding="utf-8")
+        elif raw.startswith("/"):
+            p = pathlib.Path(raw)
+            if not p.exists():
+                raise MissingArtifact(uri_str)
+            text = p.read_text(encoding="utf-8")
+        else:
+            # Logical values (e.g. git:// URIs, raw strings) — return as-is
             return raw
-        data = json.loads(raw)
+        if json_path is None:
+            return text
+        data = json.loads(text)
         for segment in json_path.split("."):
             if isinstance(data, dict):
                 data = data[segment]
@@ -128,9 +145,11 @@ class ArtifactRegistry:
     def exists(self, uri: str | Uri) -> bool:
         """Check whether a registered artifact exists.
 
-        For file-path artifacts (strings starting with /), checks that the
-        on-disk file exists and is non-empty. For logical artifacts (e.g.
-        ``git://range/...``), returns True if the key is registered.
+        Returns True if the key is registered in the registry with a
+        non-None string value.  For logical artifacts (e.g. ``git://range/...``,
+        ``opaque://...``) this is always True once registered.  For file-based
+        artifacts it checks that the key is bound — the actual file existence
+        is validated by ``verified()``.
         """
         match uri:
             case str():
@@ -142,11 +161,6 @@ class ArtifactRegistry:
         stored = self.data.get(key)
         if stored is None or not isinstance(stored, str):
             return False
-        if stored.startswith("/"):
-            p = pathlib.Path(stored)
-            return p.exists() and p.stat().st_size > 0
-        # Logical artifacts (git://range, opaque://, etc.) are always "exists"
-        # if registered
         return True
 
     def produced(self, key: str) -> bool:
@@ -158,8 +172,15 @@ class ArtifactRegistry:
         value = self.data[key]
         if not isinstance(value, str):
             return True
-        if value.startswith("/"):
+        # Resolve file:// URIs to filesystem paths
+        if value.startswith("file://session/"):
+            name = value[len("file://session/") :]
+            p = self.artifact_dir / name
+        elif value.startswith("file://"):
+            p = pathlib.Path(value[len("file://") :])
+        else:
             p = pathlib.Path(value)
+        if p.is_absolute():
             return p.exists() and p.stat().st_size > 0
         # Non-file string values (e.g. "registered") are considered verified
         return True
@@ -200,14 +221,27 @@ class ArtifactRegistry:
             parent_key = key_map[key] if key_map else key
             if parent_key in self.data:
                 continue
-            if copy_files:
-                src_path = pathlib.Path(uri_str)
+            if copy_files and uri_str.startswith("file://"):
+                # Resolve the URI to a filesystem path
+                if uri_str.startswith("file://session/"):
+                    name = uri_str[len("file://session/") :]
+                    src_path = other.artifact_dir / name
+                else:
+                    src_path = pathlib.Path(uri_str[len("file://") :])
                 if not src_path.exists():
                     logger.warning("child artifact missing: %s", src_path)
                     continue
-                dest_path = pathlib.Path(self.register(Uri.parse(parent_key)))
+                # Use parent_key to derive a unique filename (key_map means
+                # multi-child disambiguation, so parent_key includes child name)
+                if key_map:
+                    unique_name = parent_key.replace("/", "_") + src_path.suffix
+                else:
+                    unique_name = src_path.name
+                dest_path = self.artifact_dir / unique_name
                 dest_path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(src_path, dest_path)
+                self.data[parent_key] = str(dest_path)
+                self._persist()
             else:
                 self.data[parent_key] = uri_str
                 self._persist()

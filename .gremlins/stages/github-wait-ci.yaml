@@ -13,7 +13,7 @@ stages:
       - name: poll
         type: exec
         interpolation:
-          pr_url: content("artifact://pr-url")
+          pr_url: content("artifact://pr-url.txt")
         bind:
           status?: "artifact://status"
           done?: "artifact://done"
@@ -160,7 +160,7 @@ stages:
         type: exec
         skip_if_exists: "artifact://done"
         interpolation:
-          pr_branch: content("artifact://pr-branch")
+          pr_branch: content("artifact://pr-branch.txt")
         options:
           cmds:
             - git push origin "HEAD:$pr_branch"

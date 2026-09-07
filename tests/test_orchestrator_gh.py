@@ -6,6 +6,7 @@ Uses FakeClient throughout — no real claude subprocess or gh CLI calls
 
 import asyncio
 import json
+import os
 import pathlib
 import re
 import shutil
@@ -176,15 +177,22 @@ def _patch_common(
     # plan is always a local file; plan-source-issue-number is bound when
     # the plan originated from a GitHub issue.
     registry_data: dict = {
-        "spec": "file://session/spec.md",
-        "plan": "file://session/plan.md",
-        "plan-source-issue-number": "file://session/plan-source-issue-number.txt",
-        "pr-url": "file://session/pr-url.txt",
-        "pr-branch": "file://session/pr-branch.txt",
-        "pr-number": "file://session/pr-number.txt",
+        "artifact://spec.md": "file://session/spec.md",
+        "artifact://plan.md": "file://session/plan.md",
+        "artifact://plan-source-issue-number.txt": "file://session/plan-source-issue-number.txt",
+        "artifact://pr-url.txt": "file://session/pr-url.txt",
+        "artifact://pr-number.txt": "file://session/pr-number.txt",
+        "artifact://pr-title.txt": "file://session/pr-title.txt",
+        "artifact://pr-body.md": "file://session/pr-body.md",
+        "artifact://diff-summary.txt": "file://session/diff-summary.txt",
+        "artifact://pr-base-ref.txt": "file://session/pr-base-ref.txt",
+        "artifact://repo.txt": "file://session/repo.txt",
     }
     if base_ref_sha:
-        registry_data["base_sha"] = f"git://commit/{base_ref_sha}"
+        # Write base_sha as a file (as the launcher does)
+        base_sha_file = artifact_dir / "base_sha"
+        base_sha_file.write_text(base_ref_sha, encoding="utf-8")
+        registry_data["artifact://base_sha"] = str(base_sha_file)
     registry_file = artifact_dir.parent / "registry.json"
     registry_file.write_text(json.dumps(registry_data))
     # Create placeholder artifact files so file resolvers find them.
@@ -198,6 +206,11 @@ def _patch_common(
     (artifact_dir / "pr-branch.txt").write_text("issue-42-fake-slug\n")
     (artifact_dir / "pr-number.txt").write_text(f"{fake_pr_number}\n")
     (artifact_dir / "plan-source-issue-number.txt").write_text("42")
+    (artifact_dir / "pr-title.txt").write_text("Fake PR Title\n")
+    (artifact_dir / "pr-body.md").write_text("Fake PR body.\n")
+    (artifact_dir / "diff-summary.txt").write_text("Files changed:\n  test.txt | 1 +\n")
+    (artifact_dir / "pr-base-ref.txt").write_text("main\n")
+    (artifact_dir / "repo.txt").write_text("owner/repo\n")
 
     import subprocess as _subprocess_mod
 
@@ -206,24 +219,34 @@ def _patch_common(
     _orig_shell = _proc_mod.run_shell_async
 
     async def _noop_gh_shell(cmd, *, cwd=None, env=None, timeout=None):
+        env = env or {}
+        # Resolve GREMLINS_ARTIFACT_DIR from env for path matching
+        artifact_dir_resolved = env.get("GREMLINS_ARTIFACT_DIR") or os.environ.get(
+            "GREMLINS_ARTIFACT_DIR", ""
+        )
+        cmd_resolved = (
+            cmd.replace("$GREMLINS_ARTIFACT_DIR", artifact_dir_resolved)
+            if isinstance(cmd, str)
+            else cmd
+        )
         if isinstance(cmd, str):
             if cmd.lstrip().startswith("gh "):
                 # If gh repo view, write repo.txt so discover stage passes
                 if "gh repo view" in cmd:
-                    m_repo = re.search(r'"([^"]+/repo\.txt)"', cmd)
+                    m_repo = re.search(r'"([^"]+/repo\.txt)"', cmd_resolved)
                     if m_repo:
                         p = pathlib.Path(m_repo.group(1))
                         p.parent.mkdir(parents=True, exist_ok=True)
                         p.write_text("owner/repo\n")
                 # If gh pr diff, write diff.txt so fetch-pr-diff stage produces the artifact
                 if "gh pr diff" in cmd:
-                    m_diff = re.search(r'"([^"]+/diff\.txt)"', cmd)
+                    m_diff = re.search(r'"([^"]+/diff\.txt)"', cmd_resolved)
                     if m_diff:
                         p = pathlib.Path(m_diff.group(1))
                         p.parent.mkdir(parents=True, exist_ok=True)
                         p.write_text("diff --git a/f b/f\n")
                 return _subprocess_mod.CompletedProcess(cmd, 0, "", "")
-            m = re.search(r'"([^"]+/pr-number\.txt)"', cmd)
+            m = re.search(r'"([^"]+/pr-number\.txt)"', cmd_resolved)
             if m:
                 p = pathlib.Path(m.group(1))
                 p.parent.mkdir(parents=True, exist_ok=True)
@@ -238,7 +261,7 @@ def _patch_common(
                 if not branch_p.exists() or branch_p.stat().st_size == 0:
                     branch_p.write_text("issue-42-fake-slug\n")
                 return _subprocess_mod.CompletedProcess(cmd, 0, "", "")
-            m2 = re.search(r'"([^"]+/pr-base-ref\.txt)"', cmd)
+            m2 = re.search(r'"([^"]+/pr-base-ref\.txt)"', cmd_resolved)
             if m2:
                 p = pathlib.Path(m2.group(1))
                 p.parent.mkdir(parents=True, exist_ok=True)
@@ -246,7 +269,7 @@ def _patch_common(
                 return _subprocess_mod.CompletedProcess(cmd, 0, "", "")
             # publish-as-issue script: intercept to write a fake issue number so
             # verify_produced passes without a real gh CLI or git remote.
-            m3 = re.search(r'"([^"]+/plan-issue-number\.txt)"', cmd)
+            m3 = re.search(r'"([^"]+/plan-issue-number\.txt)"', cmd_resolved)
             if m3 and "gh issue create" in cmd:
                 p = pathlib.Path(m3.group(1))
                 p.parent.mkdir(parents=True, exist_ok=True)
@@ -254,7 +277,7 @@ def _patch_common(
                 return _subprocess_mod.CompletedProcess(cmd, 0, "", "")
             # gather-github-review-content: intercept to write a fake
             # github-review-content.md so the stage passes without a real gh CLI.
-            m4 = re.search(r'"([^"]+/github-review-content\.md)"', cmd)
+            m4 = re.search(r'"([^"]+/github-review-content\.md)"', cmd_resolved)
             if m4:
                 p = pathlib.Path(m4.group(1))
                 p.parent.mkdir(parents=True, exist_ok=True)
@@ -277,7 +300,7 @@ def _prepare_for_plan_stage(tmp_path: pathlib.Path) -> None:
     """
     reg_path = tmp_path / "scratch" / "gr-test" / "registry.json"
     reg = json.loads(reg_path.read_text())
-    reg.pop("plan", None)
+    reg.pop("artifact://plan.md", None)
     reg_path.write_text(json.dumps(reg))
     plan_md = tmp_path / "scratch" / "gr-test" / "artifacts" / "plan.md"
     if plan_md.exists():
@@ -410,15 +433,27 @@ class _CommittingClient(FakeClient):
     def run(self, prompt, *, label, **kwargs):
         if label == "plan" and self._artifact_dir is not None:
             # The prompt contains {plan} substituted with the absolute
-            # slugged path (e.g. /tmp/.../artifacts/deadbeef_plan.md).
-            # Extract it so we write to the path the agent was told to use.
+            # artifact path. Extract it so we write to the path the agent
+            # was told to use.
+            plan_md = None
             ad = re.escape(str(self._artifact_dir))
-            m = re.search(ad + r"/[a-f0-9]+_plan\.md", prompt)
+            m = re.search(ad + r"/[a-f0-9]*plan\.md", prompt)
             if m:
                 plan_md = pathlib.Path(m.group(0))
-                if not plan_md.exists() or plan_md.stat().st_size == 0:
-                    plan_md.parent.mkdir(parents=True, exist_ok=True)
-                    plan_md.write_text("# Plan\nDo stuff.\n", encoding="utf-8")
+            m2 = re.search(ad + r"/plan\.md", prompt)
+            if m2:
+                plan_md = pathlib.Path(m2.group(0))
+            if plan_md is None:
+                # Fall back to any quoted plan.md path in the prompt.
+                m3 = re.search(r"`([^`]+plan\.md)`", prompt)
+                if m3:
+                    plan_md = pathlib.Path(m3.group(1))
+            if plan_md is None:
+                # Last resort: write to the canonical artifact dir path.
+                plan_md = self._artifact_dir / "plan.md"
+            if not plan_md.exists() or plan_md.stat().st_size == 0:
+                plan_md.parent.mkdir(parents=True, exist_ok=True)
+                plan_md.write_text("# Plan\nDo stuff.\n", encoding="utf-8")
         if label == "implement" and self._git_dir is not None:
             # Simulate implement creating a commit
             (self._git_dir / "impl.txt").write_text("impl\n")
@@ -877,7 +912,7 @@ def test_resume_from_github_review_pull_request(tmp_path, monkeypatch):
     (artifact_dir / "diff.txt").write_text("diff --git a/f b/f\n")
     registry_path = tmp_path / "scratch" / "gr-test" / "registry.json"
     reg = json.loads(registry_path.read_text())
-    reg["pr-diff"] = "file://session/diff.txt"
+    reg["artifact://diff.txt"] = "file://session/diff.txt"
     registry_path.write_text(json.dumps(reg))
 
     data = json.loads(state_file.read_text())
@@ -1116,7 +1151,7 @@ def test_resume_from_open_pr(tmp_path, monkeypatch):
     # Verify push-and-open wrote pr to registry.json
     registry_path = tmp_path / "scratch" / "gr-test" / "registry.json"
     assert registry_path.exists(), "registry.json should have been written"
-    assert json.loads(registry_path.read_text()).get("pr-url") is not None
+    assert json.loads(registry_path.read_text()).get("artifact://pr-url.txt") is not None
 
 
 # ---------------------------------------------------------------------------
@@ -1174,7 +1209,7 @@ def test_github_wait_copilot_stage_argument_wiring(tmp_path, monkeypatch):
     # pr is written to registry.json by push-and-open
     registry_path = tmp_path / "scratch" / "gr-test" / "registry.json"
     assert registry_path.exists(), "registry.json should have been written"
-    assert json.loads(registry_path.read_text()).get("pr-url") is not None
+    assert json.loads(registry_path.read_text()).get("artifact://pr-url.txt") is not None
 
 
 # ---------------------------------------------------------------------------
@@ -1234,7 +1269,7 @@ def test_github_wait_ci_stage_argument_wiring(tmp_path, monkeypatch):
     # pr is written to registry.json by push-and-open
     registry_path = tmp_path / "scratch" / "gr-test" / "registry.json"
     assert registry_path.exists(), "registry.json should have been written"
-    assert json.loads(registry_path.read_text()).get("pr-url") is not None
+    assert json.loads(registry_path.read_text()).get("artifact://pr-url.txt") is not None
 
 
 def test_github_wait_ci_stage_ordering(tmp_path, monkeypatch):
@@ -1618,7 +1653,7 @@ def test_publish_as_issue_runs_when_no_source_bound(tmp_path, monkeypatch):
     (artifact_dir / "plan-source-issue-number.txt").unlink(missing_ok=True)
     registry_path = tmp_path / "scratch" / "gr-test" / "registry.json"
     reg = json.loads(registry_path.read_text())
-    reg.pop("plan-source-issue-number", None)
+    reg.pop("artifact://plan-source-issue-number.txt", None)
     registry_path.write_text(json.dumps(reg))
 
     # Remove plan.md so the plan agent runs instead of skipping.

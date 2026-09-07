@@ -534,10 +534,9 @@ class _ParallelExecutor:
         def _scratch(_cid: str) -> pathlib.Path:
             return pathlib.Path(scratch_root(_cid))
 
-        def _parent_key(child_uri_str: str, child_key: str) -> str:
-            """Prepend child_key as a URI path prefix: artifact://plan.md -> artifact://shard1/plan.md."""
-            uri = Uri.parse(child_uri_str)
-            return f"{uri.scheme}://{child_key}/{uri.path.lstrip('/')}"
+        def _parent_key(child_key: str, child_name: str) -> str:
+            """Prepend child_name as a path prefix: review-code -> review-code/shard1."""
+            return f"{child_key}/{child_name}"
 
         scratch = _scratch
         parent_keys: set[str] = set(parent_state.artifacts.keys())

@@ -80,7 +80,7 @@ def test_single_child_file_artifact_copied(tmp_path: pathlib.Path) -> None:
     ex._gather_child_artifacts()
 
     assert parent.artifacts.produced("review-code")
-    content = parent.artifacts.read("review-code")
+    content = parent.artifacts.content("review-code")
     assert content == "# review"
     dest = parent.artifact_dir / "review.md"
     assert dest.exists()
@@ -112,8 +112,8 @@ def test_multi_child_same_key_disambiguated(tmp_path: pathlib.Path) -> None:
 
     assert parent.artifacts.produced("review-code/opus")
     assert parent.artifacts.produced("review-code/sonnet")
-    assert parent.artifacts.read("review-code/opus") == "opus review"
-    assert parent.artifacts.read("review-code/sonnet") == "sonnet review"
+    assert parent.artifacts.content("review-code/opus") == "opus review"
+    assert parent.artifacts.content("review-code/sonnet") == "sonnet review"
     assert not parent.artifacts.produced("review-code")
 
 
@@ -147,7 +147,7 @@ def test_snapshotted_parent_keys_skipped(tmp_path: pathlib.Path) -> None:
     )
     # new-key must be gathered
     assert parent.artifacts.produced("new-key")
-    assert parent.artifacts.read("new-key") == "new content"
+    assert parent.artifacts.content("new-key") == "new content"
 
 
 # ---------------------------------------------------------------------------

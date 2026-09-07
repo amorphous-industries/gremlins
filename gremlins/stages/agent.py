@@ -120,13 +120,11 @@ class Agent(Stage):
         )
 
         # Single-output stages: compute expected artifact paths for the reminder loop
-        file_outputs = self._file_outputs()
-        single = len(file_outputs) == 1
+        single = len(bind_paths) == 1
         if single:
             expected_paths: list[pathlib.Path] = []
-            for uri_str in file_outputs.values():
-                uri = Uri.parse(uri_str)
-                p = state.artifacts.file_resolver.path_for(uri)
+            for uri_str in bind_paths.values():
+                p = pathlib.Path(uri_str)
                 expected_paths.append(p)
             if expected_paths:
                 opts["expected_artifact_paths"] = expected_paths
@@ -136,16 +134,15 @@ class Agent(Stage):
             state, prompt, label=self.name, raw_path=raw_path, model=model, **opts
         )
 
-        for key, uri_str in file_outputs.items():
-            uri = Uri.parse(uri_str)
+        for key, uri_str in bind_paths.items():
+            optional = key.endswith("?")
+            if optional:
+                key = key[:-1]
             if not single:
                 # Multi-output stages are best-effort
                 continue
-            if not state.artifacts.exists(uri):
-                raise Bail(f"agent {self.name}: artifact {uri} was not produced")
+            p = pathlib.Path(uri_str)
+            if not p.exists() or p.stat().st_size == 0:
+                raise Bail(f"agent {self.name}: artifact {key} was not produced")
 
         return Done()
-
-    def _file_outputs(self) -> dict[str, str]:
-        """Return bind_map entries that produce artifact files (all of them now)."""
-        return {k: v for k, v in self.bind_map.items()}
