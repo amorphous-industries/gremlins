@@ -11,7 +11,7 @@ stages:
       - name: cmd
         type: exec
         bind:
-          verify_log: "artifact://verify_output.txt"
+          verify_log?: "artifact://verify_output.txt"
           done?: "artifact://done"
         options:
           timeout: "{{options.timeout | default(900)}}"

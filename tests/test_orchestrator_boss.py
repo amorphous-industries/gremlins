@@ -51,24 +51,34 @@ class _SignalClient(FakeClient):
         ad = re.escape(str(self._artifact_dir))
         if label == "handoff":
             for fname in ("signal.json", "child-plan.md"):
-                # Find the slugged path from the prompt
-                m = re.search(ad + r"/[a-f0-9]+" + re.escape("_" + fname), prompt)
+                # Find the artifact path in the prompt (non-slugged: <artifact_dir>/<fname>)
+                m = re.search(
+                    ad + re.escape("/" + fname) + r"\b", prompt
+                ) or re.search(
+                    # legacy slugged form: <artifact_dir>/<hex>_<fname>
+                    ad + r"/[a-f0-9]+" + re.escape("_" + fname),
+                    prompt,
+                )
                 if m:
-                    slugged = pathlib.Path(m.group(0))
-                    if not slugged.exists():
+                    target = pathlib.Path(m.group(0))
+                    if not target.exists():
                         if fname == "signal.json":
-                            slugged.write_text(json.dumps(self._signal))
+                            target.write_text(json.dumps(self._signal))
                         else:
                             src = self._artifact_dir / fname
                             if src.exists():
-                                slugged.write_text(src.read_text(encoding="utf-8"))
+                                target.write_text(src.read_text(encoding="utf-8"))
         elif label == "sanitize":
-            m = re.search(ad + r"/[a-f0-9]+" + re.escape("_rolling-plan.md"), prompt)
+            m = re.search(
+                ad + re.escape("/rolling-plan.md") + r"\b", prompt
+            ) or re.search(
+                ad + r"/[a-f0-9]+" + re.escape("_rolling-plan.md"), prompt
+            )
             if m:
-                slugged = pathlib.Path(m.group(0))
+                target = pathlib.Path(m.group(0))
                 pre = self._artifact_dir / "rolling-plan-pre-sanitize.md"
                 if pre.exists():
-                    slugged.write_text(pre.read_text(encoding="utf-8"))
+                    target.write_text(pre.read_text(encoding="utf-8"))
         return await super().run(prompt, label=label, **kwargs)
 
     def _find_slugged(self, name: str, prompt: str) -> pathlib.Path:
