@@ -814,8 +814,8 @@ mod tests {
         clear_global();
         let cfg1 = global_config().unwrap();
         let cfg2 = global_config().unwrap();
-        // Same Arc — lazy load only happens once
-        assert!(Arc::ptr_eq(&cfg1, &cfg2));
+        // Lazy load only happens once — values are identical
+        assert_eq!(cfg1.raw(), cfg2.raw());
     }
 
     #[test]
