@@ -33,6 +33,7 @@ bootstrap:
 prompts:
   code-style: gremlins:code_style.md
   terse: terse_style.md
+  review: review.md
   verify: [dev-env-howto.md, gremlins:verify_fix.md, gremlins:bail_section_fix.md]
   dev-env: dev-env-howto.md
 
@@ -89,5 +90,5 @@ stages:
     interpolation:
       review_one: content("artifact://review-one.md")
       review_two: content("artifact://review-two.md")
-  - { name: address-code, type: agent, interpolation: {text: content("artifact://review-code-{model}.md")?}, prompt: [code-style, terse, dev-env, gremlins:address.md, gremlins:bail_section.md] }
+  - { name: address-code, type: agent, interpolation: {text: "content(\"artifact://review-code-{model}.md\")?"}, prompt: [code-style, terse, dev-env, gremlins:address.md, gremlins:bail_section.md] }
   - { type: check-and-fix }
