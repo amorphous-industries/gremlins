@@ -206,7 +206,36 @@ pub fn check_duplicate_producers(
     )
 }
 
-fn py_stages_to_nodes(stages: &Bound<'_, PyList>) -> PyResult<Vec<core_loader::StageNode>> {
+pub fn check_unresolved_consumers(
+    stages: &Bound<'_, PyList>,
+    launch_cmds: &Bound<'_, PyList>,
+    cli_out: Option<&Bound<'_, PyDict>>,
+) -> PyResult<()> {
+    let nodes = py_stages_to_nodes(stages)?;
+    let launch_cmds_vec: Vec<String> = launch_cmds
+        .iter()
+        .filter_map(|v| v.extract::<String>().ok())
+        .collect();
+    let cli_out_map = match cli_out {
+        Some(dict) => {
+            let mut m = HashMap::new();
+            for (k, v) in dict.iter() {
+                let key: String = k.extract()?;
+                let val: String = v.extract()?;
+                m.insert(key, val);
+            }
+            m
+        }
+        None => HashMap::new(),
+    };
+    core_loader::check_unresolved_consumers(&nodes, &launch_cmds_vec, &cli_out_map).map_err(
+        |e: gremlins::schemas::error::SchemaError| {
+            pyo3::exceptions::PyValueError::new_err(e.to_string())
+        },
+    )
+}
+
+pub fn py_stages_to_nodes(stages: &Bound<'_, PyList>) -> PyResult<Vec<core_loader::StageNode>> {
     let mut nodes = Vec::new();
     for item in stages.iter() {
         let name: String = item.getattr("name")?.extract()?;
@@ -232,6 +261,17 @@ fn py_stages_to_nodes(stages: &Bound<'_, PyList>) -> PyResult<Vec<core_loader::S
             }
         }
 
+        let mut interpolation_map = HashMap::new();
+        if let Ok(im) = item.getattr("interpolation_map") {
+            if let Ok(im_dict) = im.cast::<PyDict>() {
+                for (k, v) in im_dict.iter() {
+                    let key: String = k.extract()?;
+                    let val: String = v.extract()?;
+                    interpolation_map.insert(key, val);
+                }
+            }
+        }
+
         let mut body = Vec::new();
         if let Ok(body_attr) = item.getattr("body") {
             if let Ok(body_list) = body_attr.cast::<PyList>() {
@@ -243,6 +283,7 @@ fn py_stages_to_nodes(stages: &Bound<'_, PyList>) -> PyResult<Vec<core_loader::S
             name,
             stage_type,
             bind_map,
+            interpolation_map,
             skip_if_exists,
             body,
         });
