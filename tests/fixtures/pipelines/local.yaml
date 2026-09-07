@@ -11,8 +11,8 @@ bootstrap:
       type: [filepath, string]
       optional: true
   launch_cmds:
-    - gremlins:bind_artifact(plan, plan, file://session/plan.md)
-    - gremlins:bind_artifact(instructions, instructions, file://session/instructions.txt)
+    - gremlins:bind_artifact("artifact://plan.md", plan)
+    - gremlins:bind_artifact("artifact://instructions.txt", instructions)
 
 prompts:
   code-style: gremlins:code_style.md
@@ -22,13 +22,13 @@ stages:
   - { type: gremlins:plan,       prompt: [code-style, gremlins:plan.md] }
   - { type: gremlins:implement,  prompt: [code-style, gremlins:implement_local.md] }
   - { type: review-code,  prompt: [code-style, gremlins:review/detail.md] }
-  - { name: address-code, type: agent, prompt: [code-style, gremlins:address.md, gremlins:bail_section.md], interpolation: {text: artifact.review-code} }
+  - { name: address-code, type: agent, prompt: [code-style, gremlins:address.md, gremlins:bail_section.md], interpolation: {text: "artifact://review-code-{model}.md?"} }
   - name: normalize
     type: exec
     options:
       cmds:
         - "ruff format . && ruff check --fix . && git add -A && (git diff --cached --quiet || git commit -m 'normalize')"
     bind:
-      artifact.normalize-commits: git://range
+      normalize_commits: "artifact://normalize-commits"
   - { name: verify-check, type: verify, options: { cmds: ["make check"] }, prompt: verify }
   - { name: verify-test,  type: verify, options: { cmds: ["make test"] },  prompt: verify }

@@ -10,8 +10,8 @@ bootstrap:
       type: [filepath, string]
       optional: true
   launch_cmds:
-    - gremlins:bind_artifact(plan, plan, file://session/plan.md)
-    - gremlins:bind_artifact(instructions, instructions, file://session/instructions.txt)
+    - gremlins:bind_artifact("artifact://plan.md", plan)
+    - gremlins:bind_artifact("artifact://instructions.txt", instructions)
   cmds:
     - uv venv .venv
     - uv pip install -e ".[dev]"
@@ -27,7 +27,7 @@ bootstrap:
 
 land:
   interpolation:
-    PR_URL: artifact.pr-url
+    PR_URL: content("artifact://pr-url")
   options:
     cmds:
       - gh pr merge --squash --delete-branch "$PR_URL"
@@ -79,33 +79,37 @@ stages:
   - name: compute-diff
     type: exec
     interpolation:
-      base_sha: artifact.base_sha
+      base_sha: content("artifact://base_sha")
     bind:
-      artifact.diff: "file://session/diff.txt"
+      diff: "artifact://diff.txt"
     options:
       cmds:
-        - "git diff {base_sha}...HEAD > \"{artifact_dir}/diff.txt\""
+        - "git diff {base_sha}...HEAD > \"$GREMLINS_ARTIFACT_DIR/diff.txt\""
 
   - parallel:
       - name: local-review-one
         type: agent
-        interpolation: { plan: artifact.plan, diff: artifact.diff }
+        interpolation:
+          plan: content("artifact://plan.md")
+          diff: content("artifact://diff.txt")
         prompt: [code-style, terse, dev-env, local_review_one.md]
         bind:
-          artifact.local-review-one: "file://session/local-review-one.md"
+          local_review_one: "artifact://local-review-one.md"
       - name: local-review-two
         type: agent
-        interpolation: { plan: artifact.plan, diff: artifact.diff }
+        interpolation:
+          plan: content("artifact://plan.md")
+          diff: content("artifact://diff.txt")
         prompt: [code-style, terse, dev-env, local_review_two.md]
         bind:
-          artifact.local-review-two: "file://session/local-review-two.md"
+          local_review_two: "artifact://local-review-two.md"
 
   - name: local-address
     type: agent
     prompt: [code-style, terse, dev-env, local_address.md, no_lint_in_implement.md, gremlins:bail_section.md]
     interpolation:
-      review-one: artifact.local-review-one
-      review-two: artifact.local-review-two
+      review_one: content("artifact://local-review-one.md")
+      review_two: content("artifact://local-review-two.md")
 
   - { type: check-and-fix }
   - { type: github-open-pr }
@@ -114,9 +118,9 @@ stages:
   - name: gather-github-review-content
     type: exec
     interpolation:
-      pr: artifact.pr-url
+      pr: content("artifact://pr-url")
     bind:
-      artifact.github-review-content: "file://session/github-review-content.md"
+      github_review_content: "artifact://github-review-content.md"
     options:
       cmds:
         - |
@@ -154,12 +158,12 @@ stages:
             echo "## Issue Comments"
             echo
             gh pr view "$PR_URL" --comments --json comments --jq '.comments[] | "### Comment by \(.author.login) (\(.createdAt))\n\n\(.body)\n\n---\n"'
-          } > "{artifact_dir}/github-review-content.md"
+          } > "$GREMLINS_ARTIFACT_DIR/github-review-content.md"
   - name: github-address-pull-request-reviews
     type: agent
     interpolation:
-      pr: artifact.pr-url
-      content: artifact.github-review-content
+      pr: content("artifact://pr-url")
+      content: content("artifact://github-review-content.md")
     prompt:
       - code-style
       - terse

@@ -10,14 +10,13 @@ from typing import TYPE_CHECKING, Any, cast
 from gremlins.artifacts.registry import ArtifactRegistry
 from gremlins.stages.base import Stage, get_client_from_dict
 from gremlins.stages.composite import child_state as _child_state
+from gremlins.stages.constants import _BAIL_KEY
 from gremlins.stages.outcome import Bail, Done, Outcome
 
 if TYPE_CHECKING:
     from gremlins.executor.gremlin import Gremlin
 
 logger = logging.getLogger(__name__)
-
-_BAIL_KEY = "bail"
 
 
 def _is_bail_set(artifacts: ArtifactRegistry) -> bool:
@@ -147,9 +146,8 @@ class LoopStage(Stage):
             gremlin.state.record_state_field(loop_iteration=iteration)
             gremlin.state.artifacts.unbind(_BAIL_KEY)
             for child in self.body:
-                for raw_key in getattr(child, "bind_map", {}):
-                    key = raw_key.removesuffix("?")
-                    gremlin.state.artifacts.unbind(key)
+                for uri_str in getattr(child, "bind_map", {}).values():
+                    gremlin.state.artifacts.unbind(uri_str)
             logger.info(
                 "loop %s: iteration %d/%d starting (%d body runners)",
                 self.name,

@@ -107,16 +107,14 @@ pub fn check_duplicate_producers(
             if raw_key.ends_with('?') {
                 continue;
             }
-            if let Some((prev_name, prev_uri)) = seen.get(raw_key) {
-                if prev_uri != uri_str && stage.skip_if_exists.is_empty() {
-                    return Err(SchemaError::Generic(format!(
-                        "duplicate bind: key {raw_key:?}: declared by both {prev_name:?} and {name:?}",
-                        name = stage.name
-                    )));
-                }
-            } else {
-                seen.insert(raw_key.clone(), (stage.name.clone(), uri_str.clone()));
+            let clean_uri = uri_str.clone();
+            if let Some((prev_name, _)) = seen.get(&clean_uri) {
+                return Err(SchemaError::Generic(format!(
+                    "duplicate artifact producer: stage '{}' and stage '{}' both produce '{}'",
+                    prev_name, stage.name, clean_uri
+                )));
             }
+            seen.insert(clean_uri, (stage.name.clone(), uri_str.clone()));
         }
 
         let is_parallel = stage.stage_type == "parallel";
@@ -209,30 +207,51 @@ mod tests {
             stage_with_bind(
                 "s2",
                 "agent",
-                HashMap::from([("out".to_string(), "uri-b".to_string())]),
+                HashMap::from([("result".to_string(), "uri-a".to_string())]),
+            ),
+        ];
+        // Same URI value "uri-a" — no error (different keys, same value)
+        check_duplicate_producers(&stages, &HashMap::new()).unwrap();
+    }
+
+    #[test]
+    fn test_check_duplicate_producers_errs_on_same_uri_different_stages() {
+        let stages = vec![
+            stage_with_bind(
+                "s1",
+                "agent",
+                HashMap::from([("out".to_string(), "artifact://plan.md".to_string())]),
+            ),
+            stage_with_bind(
+                "s2",
+                "agent",
+                HashMap::from([("result".to_string(), "artifact://plan.md".to_string())]),
             ),
         ];
         let err = check_duplicate_producers(&stages, &HashMap::new()).unwrap_err();
         let msg = err.to_string();
         assert!(
-            msg.contains("duplicate bind"),
-            "expected duplicate bind error, got: {msg}"
+            msg.contains("duplicate artifact producer"),
+            "expected duplicate artifact producer error, got: {msg}"
         );
-        assert!(msg.contains("\"out\""), "expected key in error, got: {msg}");
+        assert!(
+            msg.contains("artifact://plan.md"),
+            "expected URI in error, got: {msg}"
+        );
     }
 
     #[test]
-    fn test_check_duplicate_producers_ok_on_same_uri() {
+    fn test_check_duplicate_producers_ok_on_different_uri() {
         let stages = vec![
             stage_with_bind(
                 "s1",
                 "agent",
-                HashMap::from([("out".to_string(), "uri-a".to_string())]),
+                HashMap::from([("out".to_string(), "artifact://plan.md".to_string())]),
             ),
             stage_with_bind(
                 "s2",
                 "agent",
-                HashMap::from([("out".to_string(), "uri-a".to_string())]),
+                HashMap::from([("out".to_string(), "artifact://spec.md".to_string())]),
             ),
         ];
         check_duplicate_producers(&stages, &HashMap::new()).unwrap();
@@ -259,8 +278,8 @@ mod tests {
 
     #[test]
     fn test_parallel_children_isolated_scopes() {
-        // Two children of a parallel stage can both bind the same key
-        // without triggering a duplicate error.
+        // Two children of a parallel stage can both produce the same URI
+        // without triggering a duplicate error (isolated scopes).
         let stages = vec![StageNode {
             name: "par".to_string(),
             stage_type: "parallel".to_string(),
@@ -270,12 +289,12 @@ mod tests {
                 stage_with_bind(
                     "c1",
                     "agent",
-                    HashMap::from([("out".to_string(), "uri-a".to_string())]),
+                    HashMap::from([("out".to_string(), "artifact://plan.md".to_string())]),
                 ),
                 stage_with_bind(
                     "c2",
                     "agent",
-                    HashMap::from([("out".to_string(), "uri-a".to_string())]),
+                    HashMap::from([("out".to_string(), "artifact://plan.md".to_string())]),
                 ),
             ],
         }];
@@ -284,8 +303,8 @@ mod tests {
 
     #[test]
     fn test_non_parallel_children_shared_scope() {
-        // Two children of a non-parallel (sequence) stage sharing a bind key
-        // with different URIs should error.
+        // Two children of a non-parallel (sequence) stage producing the same
+        // URI should error.
         let stages = vec![StageNode {
             name: "seq".to_string(),
             stage_type: "sequence".to_string(),
@@ -295,17 +314,17 @@ mod tests {
                 stage_with_bind(
                     "c1",
                     "agent",
-                    HashMap::from([("out".to_string(), "uri-a".to_string())]),
+                    HashMap::from([("out".to_string(), "artifact://plan.md".to_string())]),
                 ),
                 stage_with_bind(
                     "c2",
                     "agent",
-                    HashMap::from([("out".to_string(), "uri-b".to_string())]),
+                    HashMap::from([("result".to_string(), "artifact://plan.md".to_string())]),
                 ),
             ],
         }];
         let err = check_duplicate_producers(&stages, &HashMap::new()).unwrap_err();
-        assert!(err.to_string().contains("duplicate bind"));
+        assert!(err.to_string().contains("duplicate artifact producer"));
     }
 
     #[test]
@@ -313,14 +332,14 @@ mod tests {
         let stages = vec![stage_with_bind(
             "s1",
             "agent",
-            HashMap::from([("out".to_string(), "uri-b".to_string())]),
+            HashMap::from([("out".to_string(), "artifact://plan.md".to_string())]),
         )];
-        let extra_out = HashMap::from([("out".to_string(), "uri-a".to_string())]);
+        let extra_out = HashMap::from([("out".to_string(), "artifact://plan.md".to_string())]);
         let err = check_duplicate_producers(&stages, &extra_out).unwrap_err();
         let msg = err.to_string();
         assert!(
-            msg.contains("duplicate bind"),
-            "expected duplicate bind error, got: {msg}"
+            msg.contains("duplicate artifact producer"),
+            "expected duplicate artifact producer error, got: {msg}"
         );
         assert!(
             msg.contains("bootstrap"),
@@ -329,13 +348,13 @@ mod tests {
     }
 
     #[test]
-    fn test_extra_out_no_collision_on_same_uri() {
+    fn test_extra_out_no_collision_on_different_uri() {
         let stages = vec![stage_with_bind(
             "s1",
             "agent",
-            HashMap::from([("out".to_string(), "uri-a".to_string())]),
+            HashMap::from([("out".to_string(), "artifact://plan.md".to_string())]),
         )];
-        let extra_out = HashMap::from([("out".to_string(), "uri-a".to_string())]);
+        let extra_out = HashMap::from([("out".to_string(), "artifact://spec.md".to_string())]);
         check_duplicate_producers(&stages, &extra_out).unwrap();
     }
 
@@ -346,12 +365,12 @@ mod tests {
             stage_with_bind(
                 "s1",
                 "agent",
-                HashMap::from([("out".to_string(), "uri-a".to_string())]),
+                HashMap::from([("out".to_string(), "artifact://plan.md".to_string())]),
             ),
             stage_with_bind(
                 "s2",
                 "agent",
-                HashMap::from([("out?".to_string(), "uri-b".to_string())]),
+                HashMap::from([("out?".to_string(), "artifact://plan.md".to_string())]),
             ),
         ];
         check_duplicate_producers(&stages, &HashMap::new()).unwrap();

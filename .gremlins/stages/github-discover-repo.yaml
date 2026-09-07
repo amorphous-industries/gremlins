@@ -1,9 +1,9 @@
 stages:
   - name: github-discover-repo
     type: exec
-    skip_if_exists: repo
+    skip_if_exists: "artifact://repo.txt"
     bind:
-      artifact.repo: "file://session/repo.txt"
+      repo: "artifact://repo.txt"
     options:
       cmds:
-        - 'gh repo view --json nameWithOwner -q ".nameWithOwner" | tr -d "\n" > "{artifact_dir}/repo.txt"'
+        - 'gh repo view --json nameWithOwner -q ".nameWithOwner" | tr -d "\n" > "$GREMLINS_ARTIFACT_DIR/repo.txt"'

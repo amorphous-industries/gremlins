@@ -15,6 +15,7 @@ import signal
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
+from _gremlins_core.artifacts import Uri
 from _gremlins_core.config import project_root, scratch_root, state_root
 
 from gremlins.artifacts.registry import ArtifactRegistry
@@ -523,6 +524,11 @@ class _ParallelExecutor:
             if child_scratch.is_dir():
                 shutil.rmtree(child_scratch, ignore_errors=True)
 
+    def _parent_key(child_uri_str: str, child_key: str) -> str:
+        """Prepend child_key as a URI path prefix: artifact://plan.md -> artifact://shard1/plan.md."""
+        uri = Uri.parse(child_uri_str)
+        return f"{uri.scheme}://{child_key}/{uri.path.lstrip('/')}"
+
     def _gather_child_artifacts(self) -> None:
         """Copy child artifact bindings into the parent registry before child dirs are removed."""
         parent_state = self._parent_state
@@ -563,11 +569,11 @@ class _ParallelExecutor:
                     multi,
                 )
             for child_key, _, child in producers:
+                key_map = {key: _parent_key(key, child_key)} if multi else None
                 parent_state.artifacts.merge_from(
                     child,
-                    key_prefix=child_key if multi else "",
+                    key_map=key_map,
                     copy_files=True,
-                    dest_artifact_dir=parent_state.artifact_dir,
                     keys={key},
                 )
 

@@ -3,13 +3,13 @@ required-prompt: true
 stages:
   - name: plan
     type: agent
-    skip_if_exists: plan
+    skip_if_exists: "artifact://plan.md"
     prompt:
       - "{{prompt}}"
     interpolation:
-      instructions: "artifact.instructions?"
+      instructions: "artifact://instructions.md?"
     bind:
-      artifact.plan: "file://session/plan.md"
+      plan: "artifact://plan.md"
     options:
       idle_timeout: 600
 
@@ -18,7 +18,7 @@ stages:
     options:
       cmds:
         - |
-          plan_file="{artifact:plan}"
+          plan_file="{plan}"
           first=$(head -1 "$plan_file" 2>/dev/null) || exit 0
           if ! printf '%s' "$first" | grep -qE '^([^/#]+/[^#]+)?#[0-9]+$'; then
             exit 0
@@ -37,34 +37,34 @@ stages:
             '#'*) printf '%s\n' "$body" > "$plan_file" ;;
             *) printf '# %s\n\n%s\n' "$title" "$body" > "$plan_file" ;;
           esac
-          printf '%s' "$number" > "{artifact_dir}/plan-source-issue-number.txt"
+          printf '%s' "$number" > "$GREMLINS_ARTIFACT_DIR/plan-source-issue-number.txt"
     bind:
-      artifact.plan-source-issue-number?: "file://session/plan-source-issue-number.txt"
+      plan_source_issue_number?: "artifact://plan-source-issue-number.txt"
 
   - name: publish-as-issue
     type: exec
-    skip_if_exists: plan-source-issue-number
+    skip_if_exists: "artifact://plan-source-issue-number.txt"
     options:
       cmds:
         - |
-          if ! [ -s "{artifact:plan}" ]; then
+          if ! [ -s "{plan}" ]; then
               printf 'publish-as-issue: plan.md is empty\n' >&2; exit 1
           fi
-          title=$(awk '/^# /{sub(/^#+ */,""); print; exit}' "{artifact:plan}" | cut -c1-80)
+          title=$(awk '/^# /{sub(/^#+ */,""); print; exit}' "{plan}" | cut -c1-80)
           if [ -z "$title" ]; then
               printf 'publish-as-issue: plan.md has no H1 title\n' >&2; exit 1
           fi
           url=$(gh issue create \
-              --body-file "{artifact:plan}" \
+              --body-file "{plan}" \
               --title "$title")
-          printf '%s' "${url##*/}" > "{artifact_dir}/plan-issue-number.txt"
+          printf '%s' "${url##*/}" > "$GREMLINS_ARTIFACT_DIR/plan-issue-number.txt"
     bind:
-      artifact.plan-issue-number: "file://session/plan-issue-number.txt"
+      plan_issue_number: "artifact://plan-issue-number.txt"
 
   - name: set-description
     type: exec
     bind:
-      artifact.description?: "file://session/description.txt"
+      description?: "artifact://description.txt"
     options:
       cmds:
-        - "head -1 \"{artifact:plan}\" | sed 's/^#\\+ *//' > \"{artifact_dir}/description.txt\""
+        - "head -1 \"{plan}\" | sed 's/^#\\+ *//' > \"$GREMLINS_ARTIFACT_DIR/description.txt\""

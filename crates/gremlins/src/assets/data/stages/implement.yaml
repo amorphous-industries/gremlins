@@ -3,7 +3,9 @@ required-prompt: true
 stages:
   - name: implement
     type: agent
-    interpolation: { spec: artifact.spec, plan: artifact.plan }
+    interpolation:
+      spec: content("artifact://spec.md")
+      plan: content("artifact://plan.md")
     prompt:
       - "{{prompt}}"
     options:
@@ -17,7 +19,8 @@ stages:
         - git diff --cached --quiet || git commit -m "implement plan"
   - name: require-impl-progress
     type: exec
-    interpolation: { base_sha: artifact.base_sha }
+    interpolation:
+      base_sha: content("artifact://base_sha")
     options:
       cmds:
         - |

@@ -307,10 +307,9 @@ pub fn validate_source_values(
     Ok(())
 }
 
-/// Substitute {artifact_dir} and {cwd} placeholders in a command string.
-pub fn substitute_bootstrap_vars(cmd: &str, artifact_dir: &Path, cwd: &Path) -> String {
-    cmd.replace("{artifact_dir}", &artifact_dir.to_string_lossy())
-        .replace("{cwd}", &cwd.to_string_lossy())
+/// Substitute {cwd} placeholder in a command string.
+pub fn substitute_bootstrap_vars(cmd: &str, cwd: &Path) -> String {
+    cmd.replace("{cwd}", &cwd.to_string_lossy())
 }
 
 #[cfg(test)]
@@ -406,10 +405,9 @@ mod tests {
     #[test]
     fn test_substitute_bootstrap_vars() {
         let result = substitute_bootstrap_vars(
-            "echo {artifact_dir} {cwd}",
-            Path::new("/tmp/artifacts"),
+            "echo {cwd}",
             Path::new("/tmp/cwd"),
         );
-        assert_eq!(result, "echo /tmp/artifacts /tmp/cwd");
+        assert_eq!(result, "echo /tmp/cwd");
     }
 }

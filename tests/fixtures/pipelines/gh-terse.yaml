@@ -13,12 +13,12 @@ bootstrap:
       type: [filepath, string]
       optional: true
   launch_cmds:
-    - gremlins:bind_artifact(plan, plan, file://session/plan.md)
-    - gremlins:bind_artifact(instructions, instructions, file://session/instructions.txt)
+    - gremlins:bind_artifact("artifact://plan.md", plan)
+    - gremlins:bind_artifact("artifact://instructions.txt", instructions)
 
 land:
   interpolation:
-    PR_URL: artifact.pr-url
+    PR_URL: content("artifact://pr-url")
   options:
     cmds:
       - gh pr merge --squash --delete-branch "$PR_URL"
@@ -40,7 +40,7 @@ stages:
   - name: normalize
     type: normalize
     bind:
-      artifact.normalize-commits: git://range
+      normalize_commits: "artifact://normalize-commits"
   - { name: verify-check, type: verify, options: { cmds: ["make check"] }, prompt: verify }
   - { name: verify-test,  type: verify, options: { cmds: ["make test"] },  prompt: verify }
   - { name: open-pr,   type: gremlins:github-open-pr }

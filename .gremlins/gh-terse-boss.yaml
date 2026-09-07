@@ -28,7 +28,7 @@ bootstrap:
 stages:
   - name: chain
     type: loop
-    stop_when_exists: done
+    stop_when_exists: "artifact://done"
     options:
       max_iterations: 10
     body:
@@ -37,8 +37,8 @@ stages:
         options:
           cmds:
             - |
-              if [ -f "{artifact_dir}/pr-branch.txt" ]; then
-                branch="$(cat "{artifact_dir}/pr-branch.txt")"
+              if [ -f "$GREMLINS_ARTIFACT_DIR/pr-branch.txt" ]; then
+                branch="$(cat "$GREMLINS_ARTIFACT_DIR/pr-branch.txt")"
                 if [ -n "$branch" ]; then
                   git fetch origin "refs/heads/$branch:refs/remotes/origin/$branch" && git checkout --detach "origin/$branch"
                 fi
@@ -53,4 +53,5 @@ stages:
   - name: address-chain
     type: agent
     prompt: [code-style, gremlins:address.md, gremlins:bail_section.md, dev-env]
-    interpolation: {text: artifact.review-chain}
+    interpolation:
+      text: content("artifact://review-chain")

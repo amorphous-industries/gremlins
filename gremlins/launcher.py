@@ -466,9 +466,15 @@ def launch(
         artifact_dir.mkdir(parents=True, exist_ok=True)
         registry = ArtifactRegistry(artifact_dir=artifact_dir)
         if inputs.base_ref_sha:
-            registry.bind("base_sha", Uri.parse(f"git://commit/{inputs.base_ref_sha}"))
+            uri = Uri.parse(f"artifact://base_sha")
+            path = pathlib.Path(registry.register(uri))
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(inputs.base_ref_sha, encoding="utf-8")
         if inputs.base_ref_name:
-            registry.bind("base_ref", Uri.parse(f"git://ref/{inputs.base_ref_name}"))
+            uri = Uri.parse(f"artifact://base_ref")
+            path = pathlib.Path(registry.register(uri))
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(inputs.base_ref_name, encoding="utf-8")
         p = _spawn(inputs.gremlin_id, inputs, state_dir)
     except Exception:
         shutil.rmtree(state_dir, ignore_errors=True)

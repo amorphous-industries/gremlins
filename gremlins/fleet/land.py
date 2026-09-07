@@ -311,7 +311,7 @@ def _registry_for_gremlin(gremlin_id: str, state: dict[str, Any]) -> ArtifactReg
     )
     artifact_dir = pathlib.Path(_scratch_root_fn(gremlin_id)) / "artifacts"
     artifact_dir.mkdir(parents=True, exist_ok=True)
-    return ArtifactRegistry(artifact_dir=artifact_dir, cwd=cwd)
+    return ArtifactRegistry(artifact_dir=artifact_dir)
 
 
 def compose_commit_message(plan_path: str):
@@ -404,8 +404,8 @@ def _gather_commit_inputs(
 
     _CONTENT_CAP = 4000  # chars; enough context without blowing up the prompt
 
-    inputs["plan"] = registry.get_file_contents("plan")[:_CONTENT_CAP]
-    inputs["spec"] = registry.get_file_contents("spec")[:_CONTENT_CAP]
+    inputs["plan"] = registry.content("artifact://plan.md")[:_CONTENT_CAP]
+    inputs["spec"] = registry.content("artifact://spec.md")[:_CONTENT_CAP]
 
     inputs["git_log"] = "\n".join(
         _git.log_oneline(f"{merge_base}..{branch}", cwd=cwd).splitlines()[:100]
@@ -533,7 +533,7 @@ def _build_commit_message(
             f"warning: AI commit message synthesis failed ({exc}); falling back to plan.md extraction",
             flush=True,
         )
-        plan = registry.get_file_contents("plan")
+        plan = registry.content("artifact://plan.md")
         if not plan:
             print("error: plan.md not found — cannot build commit message")
             raise
@@ -765,21 +765,14 @@ def _land_gh(
     artifact_dir.mkdir(parents=True, exist_ok=True)
     registry = ArtifactRegistry(
         artifact_dir=artifact_dir,
-        cwd=pathlib.Path(cwd) if cwd else None,
     )
     pr_url = None
-    for key in ("pr-url", "pr"):
+    for key in ("artifact://pr-url", "artifact://pr"):
         try:
-            value = registry.read(key)
+            pr_url = registry.content(key).strip()
+            break
         except (KeyError, MissingArtifact):
             continue
-        if isinstance(value, str):
-            pr_url = value
-            break
-        if isinstance(value, dict):
-            uri: str | None = value.get("uri") or value.get("url")  # type: ignore[reportUnknownMemberType]
-            if isinstance(uri, str):
-                pr_url = uri
                 break
     if not pr_url:
         print(f"error: no PR URL recorded for {gremlin_id}")
@@ -1071,7 +1064,7 @@ def do_land(
         artifact_dir = pathlib.Path(_scratch_root_fn(gremlin_id)) / "artifacts"
         artifact_dir.mkdir(parents=True, exist_ok=True)
         registry = ArtifactRegistry(artifact_dir=artifact_dir)
-        if registry.produced("pr"):
+        if registry.produced("artifact://pr"):
             shape = "one_pr"
 
     if shape == "many_prs":

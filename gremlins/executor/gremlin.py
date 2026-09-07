@@ -284,7 +284,6 @@ class Gremlin:
         child_registry = ArtifactRegistry.from_registry_file(
             src_registry,
             artifact_dir=child_artifact_dir,
-            cwd=child_worktree,
         )
 
         # Build new state with updated values
@@ -424,9 +423,9 @@ class Gremlin:
         start_idx = names.index(self.resume_from)
         for stage in self.stages[start_idx:]:
             if stage.type == "exec":
-                for key in stage.bind_map:
-                    if self.registry.produced(key):
-                        self.registry.unbind(key)
+                for uri_str in stage.bind_map.values():
+                    if self.registry.produced(uri_str):
+                        self.registry.unbind(uri_str)
 
     async def run(self) -> None:
         if not hasattr(self, "registry"):
@@ -537,7 +536,6 @@ class Gremlin:
 
         gremlin.registry = ArtifactRegistry(
             artifact_dir=gremlin.artifact_dir,
-            cwd=pathlib.Path(gremlin._cwd),
         )
 
         return gremlin
@@ -640,26 +638,26 @@ class Gremlin:
 
             self.registry = ArtifactRegistry(
                 artifact_dir=self.artifact_dir,
-                cwd=self.worktree_dir,
             )
             bootstrap_block = self.pipeline_data.bootstrap
             source = bootstrap_block.source if bootstrap_block is not None else None
             source_keys: set[str] = set(source.sources) if source is not None else set()
-            # Don't pre-write bootstrap source keys — they are bound by
-            # launch_cmds (via bind_artifact DSL or cli_out) which resolves
-            # the raw value to a proper session URI. Pre-writing the raw
-            # value would cause DuplicateArtifact when bootstrap tries to bind.
             for key, value in (stage_inputs or {}).items():
                 if key in source_keys:
                     continue
                 if value is not None and not self.registry.produced(key):
-                    self.registry.write(key, value)
-            if not self.registry.produced("spec"):
-                self.registry.bind("spec", Uri.parse("file://session/spec.md"))
-            if not self.registry.produced("base_sha"):
+                    # Write stage inputs as artifact files
+                    uri = Uri.parse(f"artifact://{key}")
+                    path = pathlib.Path(self.registry.register(uri))
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text(str(value), encoding="utf-8")
+            if not self.registry.produced("artifact://base_sha"):
                 sha = _git_mod.head_sha(cwd=self.worktree_dir)
                 if sha:
-                    self.registry.bind("base_sha", Uri.parse(f"git://commit/{sha}"))
+                    uri = Uri.parse("artifact://base_sha")
+                    path = pathlib.Path(self.registry.register(uri))
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text(sha, encoding="utf-8")
 
             state_data = StateData(self.gremlin_id)
             default_client = resolved_client or self.pipeline_data.default_client
