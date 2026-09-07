@@ -288,6 +288,7 @@ async def run_pipeline(
                 include_launch=True,
             )
         except Exception as exc:
+            logger.exception("bootstrap failed")
             if gremlin.state:
                 gremlin.state.data.write_bail_file(
                     "other",
@@ -319,6 +320,7 @@ async def run_pipeline(
                 )
 
     _install_signal_handlers(_signal_clients, gremlin)
+    logger.info("running %d stages", len(gremlin.stages))
     try:
         await gremlin.run()
     except Bail as b:
@@ -326,6 +328,7 @@ async def run_pipeline(
         gremlin.state.data.write_bail_file("other", b.reason)
         return 1
     except Exception as exc:
+        logger.exception("unexpected error during pipeline execution")
         assert gremlin.state is not None
         gremlin.state.data.write_bail_file(
             "other",

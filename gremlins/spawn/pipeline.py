@@ -8,13 +8,19 @@ Not intended for direct human invocation.
 from __future__ import annotations
 
 import asyncio
+import logging
 import pathlib
 import sys
 import traceback
 
+logger = logging.getLogger(__name__)
+
 
 def main(argv: list[str] | None = None) -> int:
     from gremlins.executor.gremlin import validate_gremlin_id, write_terminal_state
+    from gremlins.logging_setup import configure_logging
+
+    configure_logging()
 
     if argv is None:
         argv = sys.argv[1:]
@@ -38,12 +44,22 @@ def main(argv: list[str] | None = None) -> int:
         rc = asyncio.run(
             _run_pipeline(pathlib.Path(pipeline_arg), argv=args, gremlin_id=gremlin_id)
         )
+        if rc != 0:
+            logger.warning("pipeline finished with exit code %d", rc)
     except SystemExit as e:
         rc = e.code if isinstance(e.code, int) else 1
+        logger.info("pipeline exited with code %d", rc)
     except BaseException:
         rc = 1
+        logger.exception("pipeline terminated by exception")
         traceback.print_exc()
     finally:
+        logger.info("writing terminal state (exit_code=%d)", rc)
+        for h in logging.getLogger().handlers:
+            try:
+                h.flush()
+            except Exception:
+                pass
         write_terminal_state(gremlin_id, rc)
     sys.exit(rc)
 

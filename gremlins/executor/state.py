@@ -504,8 +504,10 @@ class State:
             if entry.skip_if_exists and base_state.artifacts.verified(
                 entry.skip_if_exists
             ):
+                logger.info("stage skipped (artifact exists): %s", entry.name)
                 return Done()
             child_gremlin = copy.copy(gremlin)
+            logger.debug("preparing state for stage: %s", entry.name)
             prepared_state = _prepare()
             child_gremlin.state = prepared_state
             child_gremlin.registry = prepared_state.artifacts

@@ -227,12 +227,14 @@ async def run_pipeline_bootstrap(
         return
     validate_source_values(bootstrap.source, stage_inputs)
     if bootstrap.launch_cmds:
+        logger.info("running %d launch command(s)", len(bootstrap.launch_cmds))
         env = source_env(bootstrap.source, stage_inputs)
         shell_cmds: list[str] = []
         for c in bootstrap.launch_cmds:
             parsed = _parse_gremlins_command(c)
             if parsed:
                 cmd_name, args = parsed
+                logger.info("launch DSL: %s(%s)", cmd_name, ", ".join(args))
                 await _run_dsl_command(
                     cmd_name,
                     args,
