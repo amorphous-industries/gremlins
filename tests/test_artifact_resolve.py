@@ -37,7 +37,8 @@ def test_unbound_key_literal_default():
     assert resolve_interpolation_map(reg, {"v": "missing?main"}) == {"v": "main"}
 
 
-def test_attr_typo_with_default_returns_default():
+def test_unbound_key_fallback_with_literal_dot_in_name():
+    """Dot-prefixed path syntax is no longer special — dots are literal key chars."""
     reg = _registry({"pr": {"branch": "feat"}})
     assert resolve_interpolation_map(reg, {"v": "pr.brnch?fallback"}) == {
         "v": "fallback"
@@ -50,17 +51,8 @@ def test_no_default_missing_artifact_raises():
         resolve_interpolation_map(reg, {"v": "missing"})
 
 
-def test_bound_attr_access_works():
+def test_missing_artifact_raises_on_literal_dot_key():
+    """Dots in keys are literal — 'ref.name' is a single key, not a traversal."""
     reg = _registry({"ref": {"name": "main"}})
-    assert resolve_interpolation_map(reg, {"v": "ref.name"}) == {"v": "main"}
-
-
-def test_bound_attr_with_default_returns_attr():
-    reg = _registry({"base_ref": {"path": "main"}})
-    assert resolve_interpolation_map(reg, {"v": "base_ref.path?other"}) == {"v": "main"}
-
-
-def test_private_attr_raises_even_with_default():
-    reg = _registry({"pr": {"branch": "feat"}})
-    with pytest.raises(ValueError, match="private attribute"):
-        resolve_interpolation_map(reg, {"v": "pr.__class__?fallback"})
+    with pytest.raises(MissingArtifact):
+        resolve_interpolation_map(reg, {"v": "ref.name"})
