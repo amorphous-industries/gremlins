@@ -38,6 +38,7 @@ prompts:
   code-style: gremlins:code_style.md
   terse: terse_style.md
   dev-env: dev-env-howto.md
+  review: review.md
 
 stage-definitions:
   plan-gh: plan-gh
@@ -92,17 +93,17 @@ stages:
         interpolation:
           plan: content("artifact://plan.md")
           diff: content("artifact://diff.txt")
-        prompt: [code-style, terse, dev-env, local_review_one.md]
+        prompt: [code-style, terse, dev-env, review]
         bind:
-          local_review_one: "artifact://local-review-one.md"
+          filepath: "artifact://local-review-one.md"
       - name: local-review-two
         type: agent
         interpolation:
           plan: content("artifact://plan.md")
           diff: content("artifact://diff.txt")
-        prompt: [code-style, terse, dev-env, local_review_two.md]
+        prompt: [code-style, terse, dev-env, review]
         bind:
-          local_review_two: "artifact://local-review-two.md"
+          filepath: "artifact://local-review-two.md"
 
   - name: local-address
     type: agent
