@@ -96,11 +96,6 @@ class ArtifactRegistry:
         self._persist()
         return self.data[key]
 
-    def write(self, key: str, value: Any) -> None:
-        """Store an arbitrary JSON-serializable value under *key*."""
-        self.data[key] = value
-        self._persist()
-
     def read(self, uri_str: str) -> Any:
         """Return the resolved value (filesystem path for file URIs)."""
         if uri_str not in self.data:

@@ -30,10 +30,6 @@ r = ArtifactRegistry(artifact_dir=state.artifact_dir, cwd=state.cwd)
 # Store a URI pointer (auto-resolved on read)
 r.bind("plan", Uri.parse("file://session/plan.md"))
 
-# Store a plain JSON value directly
-r.write("status", "needs_fix")
-r.write("meta", {"count": 3})
-
 r.produced("plan")          # True
 r.resolve("plan")           # Uri(scheme="file", path="session/plan.md")
 r.read("plan")              # resolved value — file content as str, or dict for opaque://
@@ -51,9 +47,9 @@ rather than constructing a new registry.
 
 ## Values and JSON
 
-All values stored in the registry must be JSON-serializable. `write()` validates this
-at write time via `json.dumps`. Producers and consumers own their pairwise contracts —
-the registry enforces nothing beyond serializability.
+All values stored in the registry are JSON-serializable by construction (paths and URI
+strings). Producers and consumers own their pairwise contracts — the registry enforces
+nothing beyond serializability.
 
 URI strings stored as values (e.g. ``opaque://pr/42``) are resolved automatically on
 `read()`. Consumers see the resolved content (a dict or string) rather than the raw URI.
