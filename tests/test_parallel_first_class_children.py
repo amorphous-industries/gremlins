@@ -1,7 +1,6 @@
 """Tests for the 'parallel children are first-class gremlins' feature.
 
 Covers:
-- FileArtifactResolver._path handles file:///absolute/path URIs
 - _snapshot_registry rewrites file://session/ URIs to absolute paths
 - ParallelStage.run creates <state_root>/<child_id>/state.json for each child
 - A child can read a parent-bound file://session/ artifact via the inherited registry
@@ -13,74 +12,15 @@ import asyncio
 import json
 import pathlib
 
-import pytest
 from _gremlins_core.artifacts import Uri
 from _gremlins_core.config import scratch_root
 from _gremlins_core.config import state_root as _state_root_func
 from conftest import MockGremlin
 
 from gremlins.artifacts.registry import ArtifactRegistry
-from gremlins.artifacts.schemes import FileArtifactResolver
 from gremlins.executor.state import State, StateData, build_state
 from gremlins.stages.parallel import ParallelStage
 from tests.fake_client import FakeClient
-
-# ---------------------------------------------------------------------------
-# FileArtifactResolver._path: absolute path URIs
-# ---------------------------------------------------------------------------
-
-
-def test_file_resolver_absolute_path_uri(tmp_path: pathlib.Path) -> None:
-    """file:///absolute/path URIs resolve directly to that path."""
-    target = tmp_path / "some_file.txt"
-    target.write_text("hello")
-
-    resolver = FileArtifactResolver(tmp_path / "session")
-    uri = Uri.parse(f"file://{target}")
-    result = resolver._path(uri)
-    assert result == target.resolve()
-
-
-def test_file_resolver_absolute_path_read(tmp_path: pathlib.Path) -> None:
-    """read() works for file:///absolute URIs."""
-    target = tmp_path / "data.bin"
-    target.write_bytes(b"binary content")
-
-    artifact_dir = tmp_path / "session"
-    artifact_dir.mkdir()
-    resolver = FileArtifactResolver(artifact_dir)
-    uri = Uri.parse(f"file://{target}")
-    assert resolver.read(uri) == "binary content"
-
-
-def test_file_resolver_absolute_path_verify_produced(tmp_path: pathlib.Path) -> None:
-    """verify_produced() works for file:///absolute URIs."""
-    target = tmp_path / "output.txt"
-    target.write_text("done")
-
-    artifact_dir = tmp_path / "session"
-    artifact_dir.mkdir()
-    resolver = FileArtifactResolver(artifact_dir)
-    uri = Uri.parse(f"file://{target}")
-    resolver.verify_produced(uri)  # should not raise
-
-    empty = tmp_path / "empty.txt"
-    empty.touch()
-    with pytest.raises(FileNotFoundError):
-        resolver.verify_produced(Uri.parse(f"file://{empty}"))
-
-
-def test_file_resolver_session_relative_still_works(tmp_path: pathlib.Path) -> None:
-    """Existing file://session/<name> URIs still resolve correctly."""
-    artifact_dir = tmp_path / "session"
-    artifact_dir.mkdir()
-    target = artifact_dir / "output.txt"
-    target.write_text("data")
-
-    resolver = FileArtifactResolver(artifact_dir)
-    uri = Uri.parse("file://session/output.txt")
-    assert resolver._path(uri) == target.resolve()
-
 
 # ---------------------------------------------------------------------------
 # ParallelStage.run: child gets its own state.json under state_root

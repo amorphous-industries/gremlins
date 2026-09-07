@@ -13,8 +13,6 @@ from typing import Any
 
 from _gremlins_core.artifacts import Uri
 
-from gremlins.artifacts.schemes import FileArtifactResolver
-
 logger = logging.getLogger(__name__)
 
 
@@ -41,7 +39,6 @@ class ArtifactRegistry:
         self.artifact_dir = artifact_dir
         self.registry_path = artifact_dir.parent / "registry.json"
         self.data: dict[str, Any] = {}
-        self._file_resolver = FileArtifactResolver(artifact_dir)
         if self.registry_path.exists():
             data = json.loads(self.registry_path.read_text(encoding="utf-8"))
             self.data = dict(data)
@@ -90,7 +87,16 @@ class ArtifactRegistry:
             )
         if key in self.data and not overwrite:
             raise DuplicateArtifact(key, str(self.data[key]), str(uri))
-        path = self._file_resolver.path_for(uri)
+        # Resolve artifact:// URI to canonical filesystem path
+        name = uri.path.strip("/")
+        if name.startswith("session/"):
+            name = name[len("session/") :]
+        path = (self.artifact_dir / name).resolve()
+        base = self.artifact_dir.resolve()
+        try:
+            path.relative_to(base)
+        except ValueError:
+            raise ValueError(f"path escapes artifact directory: {uri}") from None
         path.parent.mkdir(parents=True, exist_ok=True)
         self.data[key] = str(path)
         self._persist()
@@ -194,10 +200,6 @@ class ArtifactRegistry:
 
     def raw_entry(self, key: str) -> Any | None:
         return self.data.get(key)
-
-    @property
-    def file_resolver(self) -> FileArtifactResolver:
-        return self._file_resolver
 
     def merge_from(
         self,

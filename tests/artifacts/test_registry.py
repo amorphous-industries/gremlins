@@ -140,5 +140,3 @@ def test_register_still_raises_duplicate_after_unbind_register_no_overwrite(
     r.register(uri, overwrite=False)  # clean re-register after unbind
     with pytest.raises(DuplicateArtifact):
         r.register(uri, overwrite=False)  # register(overwrite=False) is still strict
-
-
