@@ -16,7 +16,7 @@ Changed files:
 
 ## Output the review
 
-Write findings as markdown to `{local-review-one}` using this structure:
+Write findings as markdown to `{filepath}` using this structure:
 
 **For each finding**, write a block:
 
