@@ -430,7 +430,7 @@ def test_bind_artifact_unknown_command(tmp_path: pathlib.Path) -> None:
 
 
 def test_bind_artifact_too_few_args(tmp_path: pathlib.Path) -> None:
-    """bind_artifact with < 3 args raises ValueError."""
+    """bind_artifact with a non-URI first argument raises ValueError."""
     artifact_dir = tmp_path / "artifacts"
     artifact_dir.mkdir(exist_ok=True)
     bootstrap = Bootstrap(
@@ -442,7 +442,7 @@ def test_bind_artifact_too_few_args(tmp_path: pathlib.Path) -> None:
     gremlin = _gremlin(tmp_path)
 
     async def _test() -> None:
-        with pytest.raises(ValueError, match="bind_artifact requires 3 arguments"):
+        with pytest.raises(ValueError, match="does not look like a URI"):
             await run_pipeline_bootstrap(
                 bootstrap,
                 cwd=tmp_path,

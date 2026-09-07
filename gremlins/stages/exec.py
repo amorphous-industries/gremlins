@@ -111,13 +111,29 @@ class Exec(Stage):
                 logger.debug(
                     "exec %s:   cmd[%d] %s", self.name, i, c.replace("\n", "\\n")
                 )
+            env_interp: dict[str, str] = {}
+            LARGE_VAL_THRESHOLD = 4096
+            for k, v in interpolation_map.items():
+                if len(v) > LARGE_VAL_THRESHOLD:
+                    tmp = state.artifact_dir / f"interp-{self.name}-{k}"
+                    tmp.write_text(v, encoding="utf-8")
+                    env_interp[k] = str(tmp)
+                    logger.debug(
+                        "exec %s: env value for %r too large (%d bytes), written to %s",
+                        self.name,
+                        k,
+                        len(v),
+                        tmp,
+                    )
+                else:
+                    env_interp[k] = v
             _t0 = time.monotonic()
             result = await _proc.run_shell_async(
                 joined,
                 cwd=pathlib.Path(state.cwd),
                 env={
                     **os.environ,
-                    **interpolation_map,
+                    **env_interp,
                     "GREMLINS_ARTIFACT_DIR": str(state.artifact_dir),
                 },
                 timeout=timeout,
@@ -168,7 +184,7 @@ class Exec(Stage):
             if uri_str == _BAIL_KEY and not bail_triggered:
                 continue
             uri = Uri.parse(uri_str)
-            if not state.artifacts.exists(uri):
+            if not state.artifacts.verified(str(uri)):
                 if optional:
                     continue
                 if uri_str == _BAIL_KEY:

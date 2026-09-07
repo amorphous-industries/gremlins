@@ -115,10 +115,30 @@ def _parse_bind_artifact_args(
     """Validate and unpack bind_artifact arguments.
 
     Returns (source_key, artifact_key, uri).
+
+    Accepts either 2 or 3 arguments:
+      - 2-arg form (current): bind_artifact(uri, source_key)
+        Artifact key is derived from the URI.
+      - 3-arg form (legacy): bind_artifact(source_key, artifact_key, uri)
     """
+    if len(args) == 2:
+        uri_str, source_key = args
+        if not uri_str:
+            raise ValueError("bind_artifact: uri must be non-empty")
+        if not source_key:
+            raise ValueError("bind_artifact: source_key must be non-empty")
+        if "://" not in uri_str:
+            raise ValueError(
+                f"bind_artifact: first argument {uri_str!r} does not look like a URI "
+                f"(expected 'artifact://...'); use the 2-arg form: "
+                f"bind_artifact(uri, source_key) or the 3-arg form: "
+                f"bind_artifact(source_key, artifact_key, uri)"
+            )
+        return source_key, uri_str, uri_str
     if len(args) != 3:
         raise ValueError(
-            f"bind_artifact requires 3 arguments (source_key, artifact_key, uri), got {len(args)}"
+            f"bind_artifact requires 2 or 3 arguments (uri, source_key) "
+            f"or (source_key, artifact_key, uri), got {len(args)}"
         )
     source_key = args[0]
     artifact_key = args[1]

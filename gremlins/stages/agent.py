@@ -85,11 +85,14 @@ class Agent(Stage):
 
         # Register bind URIs and collect output paths
         bind_paths: dict[str, str] = {}
+        # Track which bind keys are optional (end with ?)
+        optional_keys: set[str] = set()
         for raw_key, raw_uri_str in self.bind_map.items():
             key = self.substitute_vars(raw_key, state, interpolation_map)
             optional = key.endswith("?")
             if optional:
                 key = key[:-1]
+                optional_keys.add(key)
             uri_str = self.substitute_vars(raw_uri_str, state, interpolation_map)
             uri = Uri.parse(uri_str)
             bind_paths[key] = state.artifacts.register(uri)
@@ -119,25 +122,15 @@ class Agent(Stage):
             self.substitute_vars(raw_model, state, subst_vars) if raw_model else None
         )
 
-        # Single-output stages: compute expected artifact paths for the reminder loop
+        # Single-output stages: verify artifact was produced
         single = len(bind_paths) == 1
-        if single:
-            expected_paths: list[pathlib.Path] = []
-            for uri_str in bind_paths.values():
-                p = pathlib.Path(uri_str)
-                expected_paths.append(p)
-            if expected_paths:
-                opts["expected_artifact_paths"] = expected_paths
-                opts["artifact_reminder_count"] = 1
 
         await run_agent(
             state, prompt, label=self.name, raw_path=raw_path, model=model, **opts
         )
 
         for key, uri_str in bind_paths.items():
-            optional = key.endswith("?")
-            if optional:
-                key = key[:-1]
+            optional = key in optional_keys
             if not single:
                 # Multi-output stages are best-effort
                 continue

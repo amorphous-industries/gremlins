@@ -77,15 +77,27 @@ class ArtifactRegistry:
                 return Uri(scheme="opaque", path=value)
         return Uri(scheme="opaque", path=str(value))
 
-    def register(self, uri: Uri) -> str:
+    def register(self, uri: Uri, *, overwrite: bool = True) -> str:
         """Register a URI artifact, returning the canonical filesystem path.
 
         Always resolves the URI to its canonical on-disk path (which is what
         exec and agent stages write to), even if the key is already bound in
         the registry.  This keeps the returned path consistent with the file
         the stage is expected to produce.
+
+        If *overwrite* is True (the default), silently overwrites an existing
+        entry.  Set *overwrite* to False to raise DuplicateArtifact when
+        the key already exists (for stages that must be strict about uniqueness).
         """
         key = str(uri)
+        if uri.scheme != "artifact":
+            logger.warning(
+                "register(%r): unrecognized scheme %r — typo? (expected 'artifact')",
+                key,
+                uri.scheme,
+            )
+        if key in self.data and not overwrite:
+            raise DuplicateArtifact(key, str(self.data[key]), str(uri))
         path = self._file_resolver.path_for(uri)
         path.parent.mkdir(parents=True, exist_ok=True)
         self.data[key] = str(path)
@@ -129,6 +141,10 @@ class ArtifactRegistry:
             text = p.read_text(encoding="utf-8")
         else:
             # Logical values (e.g. git:// URIs, raw strings) — return as-is
+            logger.warning(
+                "content(%r): returning raw registry value as-is (not a file path)",
+                uri_str,
+            )
             return raw
         if json_path is None:
             return text
@@ -183,6 +199,11 @@ class ArtifactRegistry:
         if p.is_absolute():
             return p.exists() and p.stat().st_size > 0
         # Non-file string values (e.g. "registered") are considered verified
+        logger.warning(
+            "verified(%r): non-absolute path %r, cannot verify filesystem state",
+            key,
+            value,
+        )
         return True
 
     def keys(self) -> Iterable[str]:
@@ -232,7 +253,11 @@ class ArtifactRegistry:
                     logger.warning("child artifact missing: %s", src_path)
                     continue
                 # Use parent_key to derive a unique filename (key_map means
-                # multi-child disambiguation, so parent_key includes child name)
+                # multi-child disambiguation, so parent_key includes child name).
+                # Naming contract: parent_keys that differ only in separator
+                # position (e.g. "review_code/one" vs "review_code_two") may
+                # collide after transformation.  Pipeline authors should ensure
+                # sibling stage names are sufficiently distinct.
                 if key_map:
                     unique_name = parent_key.replace("/", "_") + src_path.suffix
                 else:
