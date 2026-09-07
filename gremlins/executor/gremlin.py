@@ -162,7 +162,8 @@ async def run_stages(
                 f"resume_from {resume_from!r} is not a valid stage; valid: {names}"
             )
         start_idx = names.index(resume_from)
-    for _, fn in stages[start_idx:]:
+    for name, fn in stages[start_idx:]:
+        logger.info("running stage: %s", name)
         await fn()
 
 
@@ -432,7 +433,9 @@ class Gremlin:
             raise RuntimeError("call initialize_with_runtime() before run()")
         if self.resume_from is not None:
             self._unbind_stale_exec_artifacts()
+        logger.info("collecting %d stages", len(self.stages))
         built = self._collect_stages(self.stages)
+        logger.info("running %d stages (resume_from=%s)", len(built), self.resume_from)
         await run_stages(built, resume_from=self.resume_from)
 
     @classmethod
