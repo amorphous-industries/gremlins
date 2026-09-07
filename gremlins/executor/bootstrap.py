@@ -230,9 +230,7 @@ async def run_pipeline_bootstrap(
                     gremlin=gremlin,
                 )
             else:
-                shell_cmds.append(
-                    substitute_bootstrap_vars(c, cwd=cwd)
-                )
+                shell_cmds.append(substitute_bootstrap_vars(c, cwd=cwd))
         if shell_cmds:
             await run_bootstrap(shell_cmds, cwd, extra_env=env)
     if bootstrap.cli_out:

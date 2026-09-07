@@ -404,10 +404,7 @@ mod tests {
 
     #[test]
     fn test_substitute_bootstrap_vars() {
-        let result = substitute_bootstrap_vars(
-            "echo {cwd}",
-            Path::new("/tmp/cwd"),
-        );
+        let result = substitute_bootstrap_vars("echo {cwd}", Path::new("/tmp/cwd"));
         assert_eq!(result, "echo /tmp/cwd");
     }
 }

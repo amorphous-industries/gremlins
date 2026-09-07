@@ -115,7 +115,9 @@ class Agent(Stage):
             prompt = preamble + "\n\n" + prompt
 
         raw_path = state.artifact_dir / f"stream-{self.name}.jsonl"
-        model = self.substitute_vars(raw_model, state, subst_vars) if raw_model else None
+        model = (
+            self.substitute_vars(raw_model, state, subst_vars) if raw_model else None
+        )
 
         # Single-output stages: compute expected artifact paths for the reminder loop
         file_outputs = self._file_outputs()

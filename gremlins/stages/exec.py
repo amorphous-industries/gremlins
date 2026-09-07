@@ -91,9 +91,7 @@ class Exec(Stage):
         subst_vars = {**interpolation_map, **bind_paths}
 
         raw_cmds = [c.strip() for c in self.options.get("cmds", []) if c.strip()]
-        cmds = [
-            self.substitute_vars(c, state, subst_vars) for c in raw_cmds
-        ]
+        cmds = [self.substitute_vars(c, state, subst_vars) for c in raw_cmds]
         bail_triggered = False
         shell_output = ""
         shell_rc = 0
