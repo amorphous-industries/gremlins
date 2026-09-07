@@ -68,18 +68,6 @@ as-is. Consumers access them via `data_uri()` or `content()`.
 - `is_registered(key)` returns True if the key is bound in the registry
   (no filesystem check).
 
-## git://range helpers
-
-```python
-from gremlins.artifacts.schemes import snapshot_head_before
-
-base = snapshot_head_before(cwd=state.cwd)
-# ... run stage ...
-# Register the range as an artifact
-uri = Uri.parse("artifact://range")
-state.artifacts.register(uri)
-```
-
 ## `{read:KEY}` URI substitution in `out:` maps
 
 Any `out:` URI value may contain `{read:KEY}` tokens. Before the URI is parsed, each
@@ -104,7 +92,7 @@ path is pre-loaded so resumed runs see prior bindings.
 ## Rehydration: base_ref_sha and base_ref on resume
 
 `base_ref_sha` is written at launch time as a file artifact containing
-`git://commit/<revspec>` under the key `"base_sha"`.  The value is a git
+`git://commit/<revspec>` under the key `"artifact://base_sha"`.  The value is a git
 revspec — either a 40-char SHA (normal branch launch) or a symbolic ref
 like `pull/N/head` (PR-mode launch); both are accepted by git commands that
 consume it.  `run.py` reads the file content via `registry.content()`, not
@@ -116,7 +104,7 @@ The binding in `registry.json` is a filesystem path pointing to the
 artifact file — that file is the authoritative source for the value.
 
 `base_ref` (the symbolic ref name, e.g. `main`) is written at launch time as
-a file artifact containing `git://ref/<name>` under the key `"base_ref"`.
+a file artifact containing `git://ref/<name>` under the key `"artifact://base_ref"`.
 `run.py` reads this via `registry.content()` and passes it to
 `Gremlin.initialize_with_runtime(base_ref=...)` which threads it through
 `build_state` into `State.base_ref`.  Recipes access it via the

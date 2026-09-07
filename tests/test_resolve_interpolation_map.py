@@ -79,6 +79,13 @@ def test_opaque_uri_key(tmp_path):
     assert result == {"ref": "opaque://issue/42"}
 
 
+def test_non_string_value_coerced_to_str(tmp_path):
+    reg = _make_registry(tmp_path)
+    reg.data["data"] = {"number": 42}
+    result = resolve_interpolation_map(reg, {"ref": "data"})
+    assert result == {"ref": "{'number': 42}"}
+
+
 # --- content() via file artifacts ---
 
 
