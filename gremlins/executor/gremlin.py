@@ -423,9 +423,12 @@ class Gremlin:
         start_idx = names.index(self.resume_from)
         for stage in self.stages[start_idx:]:
             if stage.type == "exec":
-                for key in stage.bind_map:
-                    if self.registry.produced(key):
-                        self.registry.unbind(key)
+                # bind_map is {logical_key: uri_template}; register() stores
+                # under the full artifact:// URI key, so derive that here.
+                for bind_key in stage.bind_map:
+                    artifact_key = f"artifact://{bind_key}"
+                    if self.registry.is_registered(artifact_key):
+                        self.registry.unbind(artifact_key)
 
     async def run(self) -> None:
         if not hasattr(self, "registry"):
@@ -645,16 +648,20 @@ class Gremlin:
             for key, value in (stage_inputs or {}).items():
                 if key in source_keys:
                     continue
-                if value is not None and not self.registry.produced(key):
+                if value is not None and not self.registry.is_registered(
+                    f"artifact://{key}"
+                ):
                     # Write stage inputs as artifact files
                     uri = Uri.parse(f"artifact://{key}")
                     path = pathlib.Path(self.registry.register(uri))
                     path.parent.mkdir(parents=True, exist_ok=True)
                     path.write_text(str(value), encoding="utf-8")
-            if not self.registry.produced("artifact://base_sha"):
+            if not self.registry.exists("artifact://base_sha"):
                 sha = _git_mod.head_sha(cwd=self.worktree_dir)
                 if sha:
-                    self.registry.write("artifact://base_sha", sha)
+                    uri = Uri.parse("artifact://base_sha")
+                    path = pathlib.Path(self.registry.register(uri))
+                    path.write_text(sha, encoding="utf-8")
 
             state_data = StateData(self.gremlin_id)
             default_client = resolved_client or self.pipeline_data.default_client

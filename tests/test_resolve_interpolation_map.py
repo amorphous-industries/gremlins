@@ -1,4 +1,4 @@
-"""Tests for dotted-key resolution in resolve_interpolation_map."""
+"""Tests for resolve_interpolation_map — key lookup, content(), and ? defaults."""
 
 from __future__ import annotations
 
@@ -41,98 +41,124 @@ def _make_state(tmp_path: pathlib.Path, client=None):
 def test_simple_key_no_dots(tmp_path):
     reg = _make_registry(tmp_path)
     (tmp_path / "artifacts" / "val.txt").write_text("hello")
-    reg.bind("key", Uri.parse("file://session/val.txt"))
+    reg.data["key"] = "file://session/val.txt"
     result = resolve_interpolation_map(reg, {"VAR": "key"})
     assert result == {"VAR": "file://session/val.txt"}
 
 
-def test_dotted_key_reads_attribute(tmp_path):
+def test_unknown_key_raises(tmp_path):
     reg = _make_registry(tmp_path)
-    reg.write(
-        "pr", {"url": "https://github.com/o/r/pull/7", "number": 7, "branch": "feat-x"}
-    )
-    result = resolve_interpolation_map(reg, {"branch": "pr.branch"})
-    assert result == {"branch": "feat-x"}
-
-
-def test_dotted_key_number_attribute(tmp_path):
-    reg = _make_registry(tmp_path)
-    reg.write(
-        "pr", {"url": "https://github.com/o/r/pull/42", "number": 42, "branch": "main"}
-    )
-    result = resolve_interpolation_map(reg, {"num": "pr.number"})
-    assert result == {"num": "42"}
-
-
-def test_dotted_key_url_attribute(tmp_path):
-    reg = _make_registry(tmp_path)
-    reg.write(
-        "pr", {"url": "https://github.com/o/r/pull/3", "number": 3, "branch": "fix"}
-    )
-    result = resolve_interpolation_map(reg, {"url": "pr.url"})
-    assert result == {"url": "https://github.com/o/r/pull/3"}
-
-
-def test_nested_dotted_path(tmp_path):
-    reg = _make_registry(tmp_path)
-    reg.write("obj", {"inner": {"value": "deep"}})
-    result = resolve_interpolation_map(reg, {"v": "obj.inner.value"})
-    assert result == {"v": "deep"}
-
-
-def test_unknown_attribute_raises(tmp_path):
-    reg = _make_registry(tmp_path)
-    reg.write(
-        "pr", {"url": "https://github.com/o/r/pull/1", "number": 1, "branch": "b"}
-    )
+    reg.data["pr"] = "opaque://pr/1"
     with pytest.raises(MissingArtifact):
         resolve_interpolation_map(reg, {"x": "pr.nonexistent"})
 
 
-def test_private_attribute_raises(tmp_path):
+def test_empty_trailing_dot_key_raises(tmp_path):
+    """Keys with trailing dots are literal — no such artifact exists."""
     reg = _make_registry(tmp_path)
-    reg.write(
-        "pr", {"url": "https://github.com/o/r/pull/1", "number": 1, "branch": "b"}
-    )
-    with pytest.raises(ValueError, match="private attribute"):
-        resolve_interpolation_map(reg, {"x": "pr.__class__"})
-
-
-def test_empty_segment_raises(tmp_path):
-    """Empty segment after dot (e.g. "pr.") is treated as missing key traversal."""
-    reg = _make_registry(tmp_path)
-    reg.write("pr", {"key": "value"})
+    reg.data["pr"] = "opaque://pr/1"
     with pytest.raises(MissingArtifact):
         resolve_interpolation_map(reg, {"x": "pr."})
 
 
-# --- opaque:// opaque URI returns {"uri": ...} ---
-
-
-def test_opaque_uri_attribute(tmp_path):
-    """Opaque URIs are returned as-is for simple keys; dotted access requires JSON values."""
+def test_private_like_key_raises_on_missing(tmp_path):
+    """Double-underscore keys are literal — no such artifact exists."""
     reg = _make_registry(tmp_path)
-    reg.bind("plan", Uri.parse("opaque://issue/42"))
-    # Simple key access returns the raw URI string
+    reg.data["pr"] = "opaque://pr/1"
+    with pytest.raises(MissingArtifact):
+        resolve_interpolation_map(reg, {"x": "pr.__class__"})
+
+
+# --- opaque:// opaque URI ---
+
+
+def test_opaque_uri_key(tmp_path):
+    reg = _make_registry(tmp_path)
+    reg.data["plan"] = "opaque://issue/42"
     result = resolve_interpolation_map(reg, {"ref": "plan"})
     assert result == {"ref": "opaque://issue/42"}
 
 
-# --- exec integration: dotted key becomes env var ---
+def test_non_string_value_coerced_to_str(tmp_path):
+    reg = _make_registry(tmp_path)
+    reg.data["data"] = {"number": 42}
+    result = resolve_interpolation_map(reg, {"ref": "data"})
+    assert result == {"ref": "{'number': 42}"}
 
 
-def test_exec_dotted_key_injects_env_var(tmp_path):
+# --- content() via file artifacts ---
+
+
+def test_content_resolves_artifact_file(tmp_path):
+    reg = _make_registry(tmp_path)
+    uri = Uri.parse("artifact://greeting.txt")
+    p = pathlib.Path(reg.register(uri))
+    p.write_text("hello world", encoding="utf-8")
+    result = resolve_interpolation_map(
+        reg, {"msg": 'content("artifact://greeting.txt")'}
+    )
+    assert result == {"msg": "hello world"}
+
+
+def test_content_with_json_path(tmp_path):
+    reg = _make_registry(tmp_path)
+    uri = Uri.parse("artifact://pr.json")
+    p = pathlib.Path(reg.register(uri))
+    p.write_text('{"branch": "feat-x", "number": 7}', encoding="utf-8")
+    result = resolve_interpolation_map(
+        reg, {"branch": 'content("artifact://pr.json", "branch")'}
+    )
+    assert result == {"branch": "feat-x"}
+
+
+def test_content_with_json_path_int(tmp_path):
+    reg = _make_registry(tmp_path)
+    uri = Uri.parse("artifact://pr.json")
+    p = pathlib.Path(reg.register(uri))
+    p.write_text('{"number": 42}', encoding="utf-8")
+    result = resolve_interpolation_map(
+        reg, {"num": 'content("artifact://pr.json", "number")'}
+    )
+    assert result == {"num": "42"}
+
+
+def test_content_unknown_key_raises(tmp_path):
+    reg = _make_registry(tmp_path)
+    uri = Uri.parse("artifact://pr.json")
+    p = pathlib.Path(reg.register(uri))
+    p.write_text('{"branch": "main"}', encoding="utf-8")
+    with pytest.raises(KeyError):
+        resolve_interpolation_map(
+            reg, {"x": 'content("artifact://pr.json", "nonexistent")'}
+        )
+
+
+def test_content_optional_returns_empty(tmp_path):
+    reg = _make_registry(tmp_path)
+    result = resolve_interpolation_map(
+        reg,
+        {"x": 'content("artifact://missing.txt")?'},
+    )
+    assert result == {"x": ""}
+
+
+# --- exec integration: content() interpolation ---
+
+
+def test_exec_content_injects_env_var(tmp_path):
     state = _make_state(tmp_path)
-    state.artifacts.write(
-        "pr",
-        {"url": "https://github.com/o/r/pull/5", "number": 5, "branch": "my-branch"},
+    uri = Uri.parse("artifact://pr.json")
+    p = pathlib.Path(state.artifacts.register(uri))
+    p.write_text(
+        '{"url": "https://github.com/o/r/pull/5", "number": 5, "branch": "my-branch"}',
+        encoding="utf-8",
     )
 
     out_file = tmp_path / "branch.txt"
     stage = Exec(
         "push",
         {"cmds": [f'echo "$branch" > {out_file}']},
-        interpolation_map={"branch": "pr.branch"},
+        interpolation_map={"branch": 'content("artifact://pr.json", "branch")'},
     )
     gremlin = MockGremlin(state=state)
     result = asyncio.run(stage.run(gremlin))
@@ -140,22 +166,24 @@ def test_exec_dotted_key_injects_env_var(tmp_path):
     assert out_file.read_text().strip() == "my-branch"
 
 
-# --- agent integration: dotted key substituted into prompt ---
+# --- agent integration: content() interpolation ---
 
 
-def test_agent_dotted_key_substituted_into_prompt(tmp_path):
+def test_agent_content_substituted_into_prompt(tmp_path):
     client = FakeClient(fixtures={"push-agent": MINIMAL_EVENTS})
     state = _make_state(tmp_path, client)
-    state.artifacts.write(
-        "pr",
-        {"url": "https://github.com/o/r/pull/9", "number": 9, "branch": "agent-branch"},
+    uri = Uri.parse("artifact://pr.json")
+    p = pathlib.Path(state.artifacts.register(uri))
+    p.write_text(
+        '{"url": "https://github.com/o/r/pull/9", "number": 9, "branch": "agent-branch"}',
+        encoding="utf-8",
     )
 
     agent = Agent(
         "push-agent",
         ["Push to branch: {branch}"],
         {},
-        interpolation_map={"branch": "pr.branch"},
+        interpolation_map={"branch": 'content("artifact://pr.json", "branch")'},
     )
     gremlin = MockGremlin(state=state)
     asyncio.run(agent.run(gremlin))

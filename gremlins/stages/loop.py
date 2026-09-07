@@ -21,13 +21,13 @@ logger = logging.getLogger(__name__)
 
 
 def _is_bail_set(artifacts: ArtifactRegistry) -> bool:
-    return artifacts.verified(_BAIL_KEY)
+    return artifacts.exists(_BAIL_KEY)
 
 
 def _do_bail(gremlin: Gremlin, artifacts: ArtifactRegistry) -> None:
     if gremlin.state is None:
         raise RuntimeError("gremlin.state is required for _do_bail")
-    raw = artifacts.read(_BAIL_KEY)
+    raw = artifacts.data_uri(_BAIL_KEY)
     if isinstance(raw, str) and raw.startswith("/"):
         # It's a filesystem path — read the content
         try:
@@ -178,8 +178,8 @@ class LoopStage(Stage):
                 _do_bail(gremlin, gremlin.state.artifacts)
 
             if self._stop_when_exists is not None and (
-                gremlin.state.artifacts.verified(self._stop_when_exists)
-                or gremlin.state.artifacts.verified(
+                gremlin.state.artifacts.exists(self._stop_when_exists)
+                or gremlin.state.artifacts.exists(
                     f"artifact://{self._stop_when_exists}"
                 )
             ):

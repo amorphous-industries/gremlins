@@ -656,10 +656,15 @@ def test_launch_ghgremlin_state_layout(lenv_with_gh):
         f"base_ref_name should not be in state.json (moved to registry), got: {state.get('base_ref_name')!r}"
     )
     registry_data = json.loads((_gremlins_registry_path(lenv, gremlin_id)).read_text())
-    assert registry_data.get("artifact://base_ref") == "git://ref/main", (
-        f"base_ref should be 'git://ref/main' in registry, got: {registry_data.get('base_ref')!r}"
+    base_ref_path = registry_data.get("artifact://base_ref", "")
+    assert base_ref_path and pathlib.Path(base_ref_path).is_file(), (
+        f"base_ref should be a file path in registry, got: {base_ref_path!r}"
     )
-    _sha_uri = registry_data.get("artifact://base_sha", "")
+    assert (
+        pathlib.Path(base_ref_path).read_text(encoding="utf-8") == "git://ref/main"
+    ), f"base_ref content should be 'git://ref/main', got: {base_ref_path!r}"
+    _sha_path = registry_data.get("artifact://base_sha", "")
+    _sha_uri = pathlib.Path(_sha_path).read_text(encoding="utf-8") if _sha_path else ""
     assert (
         _sha_uri.startswith("git://commit/")
         and len(_sha_uri.removeprefix("git://commit/")) == 40
@@ -698,8 +703,12 @@ def test_launch_passes_base_ref_to_worktree_setup(lenv):
 
     state = _read_state(state_dir)
     registry_data = json.loads((_gremlins_registry_path(lenv, gremlin_id)).read_text())
-    assert registry_data.get("artifact://base_sha") == f"git://commit/{head_sha}", (
-        f"expected base_sha=git://commit/{head_sha!r}, got {registry_data.get('base_sha')!r}"
+    _sha_path = registry_data.get("artifact://base_sha", "")
+    _sha_content = (
+        pathlib.Path(_sha_path).read_text(encoding="utf-8") if _sha_path else ""
+    )
+    assert _sha_content == f"git://commit/{head_sha}", (
+        f"expected base_sha=git://commit/{head_sha!r}, got {_sha_content!r}"
     )
     workdir_base = state.get("worktree_base", "")
     assert workdir_base == head_sha, (

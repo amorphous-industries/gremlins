@@ -184,7 +184,7 @@ class Exec(Stage):
             if uri_str == _BAIL_KEY and not bail_triggered:
                 continue
             uri = Uri.parse(uri_str)
-            if not state.artifacts.verified(str(uri)):
+            if not state.artifacts.exists(str(uri)):
                 if optional:
                     continue
                 if uri_str == _BAIL_KEY:

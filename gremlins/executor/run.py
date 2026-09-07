@@ -181,15 +181,15 @@ async def run_pipeline(
     try:
         _registry = ArtifactRegistry(artifact_dir=artifact_dir)
         raw_base_sha = (
-            _registry.read("artifact://base_sha")
-            if _registry.produced("artifact://base_sha")
+            _registry.content("artifact://base_sha")
+            if _registry.exists("artifact://base_sha")
             else ""
         )
         # base_sha may be stored as a raw SHA or a git://commit/<sha> URI
         base_ref_sha = str(raw_base_sha).removeprefix("git://commit/")
         raw_base_ref = (
-            _registry.read("artifact://base_ref")
-            if _registry.produced("artifact://base_ref")
+            _registry.content("artifact://base_ref")
+            if _registry.exists("artifact://base_ref")
             else ""
         )
         base_ref = str(raw_base_ref).removeprefix("git://ref/")

@@ -500,7 +500,7 @@ class State:
             )
 
         async def _run_async() -> Any:
-            if entry.skip_if_exists and base_state.artifacts.verified(
+            if entry.skip_if_exists and base_state.artifacts.exists(
                 entry.skip_if_exists
             ):
                 logger.info("stage skipped (artifact exists): %s", entry.name)

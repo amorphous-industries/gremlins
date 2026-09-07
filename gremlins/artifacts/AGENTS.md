@@ -25,62 +25,48 @@ from _gremlins_core.artifacts import Uri
 ## Registry API
 
 ```python
-r = ArtifactRegistry(artifact_dir=state.artifact_dir, cwd=state.cwd)
+r = ArtifactRegistry(artifact_dir=state.artifact_dir)
 
 # Store a URI pointer (auto-resolved on read)
-r.bind("plan", Uri.parse("file://session/plan.md"))
+r.register(Uri.parse("artifact://plan"))
 
-# Store a plain JSON value directly
-r.write("status", "needs_fix")
-r.write("meta", {"count": 3})
-
-r.produced("plan")          # True
-r.resolve("plan")           # Uri(scheme="file", path="session/plan.md")
-r.read("plan")              # resolved value — file content as str, or dict for opaque://
-r.keys()                    # iterable of bound keys
+r.is_registered("artifact://plan")       # True
+r.data_uri("artifact://plan")           # filesystem path (str)
+r.exists("artifact://plan")             # True (file exists on disk)
+r.content("artifact://plan")            # file content as str
+r.data_uri("some_other_key")            # arbitrary stored value
+r.keys()                                # iterable of bound keys
 ```
 
-`read()` resolves URI strings (at any nesting depth) automatically. A non-URI string or
-scalar passes through untouched. Resolution is recursive: if a resolved value itself
-contains URI strings, those are resolved too.
+`data_uri()` returns the raw stored value for a key (which may be a filesystem
+path string, dict, or other JSON-compatible value).  Raises `MissingArtifact(key)`
+if the key is not bound.
 
-`read()` on an unbound key raises `MissingArtifact(key)`.
+`content()` reads file content from a registered artifact, optionally traversing
+a JSON path for structured data.
 
 In normal pipeline runs `state.artifacts` is already constructed — use it directly
 rather than constructing a new registry.
 
 ## Values and JSON
 
-All values stored in the registry must be JSON-serializable. `write()` validates this
-at write time via `json.dumps`. Producers and consumers own their pairwise contracts —
-the registry enforces nothing beyond serializability.
+All values stored in the registry are JSON-serializable by construction (paths and URI
+strings). Producers and consumers own their pairwise contracts — the registry enforces
+nothing beyond serializability.
 
-URI strings stored as values (e.g. ``opaque://pr/42``) are resolved automatically on
-`read()`. Consumers see the resolved content (a dict or string) rather than the raw URI.
+URI strings stored as values (e.g. ``opaque://pr/42``) are stored
+as-is. Consumers access them via `data_uri()` or `content()`.
 
-## Read returns
+## Data access
 
-Scheme resolvers return plain JSON-compatible values:
-
-- `git://range/<base>..<head>` → `[{"sha": str, "subject": str}, ...]`
-- `git://ref/<name>` → `name` (string)
-- `git://commit/<sha>` → sha (string)
-- `file://session/<name>` → file content (string, UTF-8)
-
-```python
-pr = state.artifacts.read("pr")
-pr["uri"]  # "opaque://pr/42"
-```
-
-## git://range helpers
-
-```python
-from gremlins.artifacts.schemes import snapshot_head_before
-
-base = snapshot_head_before(cwd=state.cwd)
-# ... run stage ...
-state.artifacts.bind_git_commit_range("normalize-commits", base)
-```
+- `data_uri(key)` returns the raw stored value (filesystem path, dict, string,
+  etc.). Raises `MissingArtifact` if unbound.
+- `content(uri_str, json_path=None)` reads file content from a registered
+  artifact, optionally traversing a JSON path for nested fields.
+- `exists(uri)` returns True if the artifact is registered and (for file
+  artifacts) the backing file exists with non-zero size.
+- `is_registered(key)` returns True if the key is bound in the registry
+  (no filesystem check).
 
 ## `{read:KEY}` URI substitution in `out:` maps
 
@@ -105,17 +91,21 @@ path is pre-loaded so resumed runs see prior bindings.
 
 ## Rehydration: base_ref_sha and base_ref on resume
 
-`base_ref_sha` is bound at launch time as `git://commit/<revspec>` under the key
-`"base_sha"`.  The value is a git revspec — either a 40-char SHA (normal branch
-launch) or a symbolic ref like `pull/N/head` (PR-mode launch); both are accepted
-by git commands that consume it.  `run.py` reads this from `registry.json` (not
-`state.json`) before calling `Gremlin.initialize_with_runtime()` so the worktree
-can be created on first start.  On resume the worktree already exists (`workdir`
-is set in `state.json`), so `base_ref_sha` is not re-used by `setup_workdir`.
-The binding in `registry.json` is the authoritative source.
+`base_ref_sha` is written at launch time as a file artifact containing
+`git://commit/<revspec>` under the key `"artifact://base_sha"`.  The value is a git
+revspec — either a 40-char SHA (normal branch launch) or a symbolic ref
+like `pull/N/head` (PR-mode launch); both are accepted by git commands that
+consume it.  `run.py` reads the file content via `registry.content()`, not
+from `registry.json` directly, before calling
+`Gremlin.initialize_with_runtime()` so the worktree can be created on first
+start.  On resume the worktree already exists (`workdir` is set in
+`state.json`), so `base_ref_sha` is not re-used by `setup_workdir`.
+The binding in `registry.json` is a filesystem path pointing to the
+artifact file — that file is the authoritative source for the value.
 
-`base_ref` (the symbolic ref name, e.g. `main`) is bound at launch time as
-`git://ref/<name>` under the key `"base_ref"`.  `run.py` reads this from
-`registry.json` and passes it to `Gremlin.initialize_with_runtime(base_ref=...)`
-which threads it through `build_state` into `State.base_ref`.  Recipes access it
-via the `{base_ref}` substitution variable.
+`base_ref` (the symbolic ref name, e.g. `main`) is written at launch time as
+a file artifact containing `git://ref/<name>` under the key `"artifact://base_ref"`.
+`run.py` reads this via `registry.content()` and passes it to
+`Gremlin.initialize_with_runtime(base_ref=...)` which threads it through
+`build_state` into `State.base_ref`.  Recipes access it via the
+`{base_ref}` substitution variable.

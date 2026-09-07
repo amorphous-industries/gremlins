@@ -71,12 +71,12 @@ def test_no_cmds_returns_done(tmp_path):
 def test_interpolation_map_injects_env_var(tmp_path):
     state = _make_state(tmp_path)
     (state.artifact_dir / "value.txt").write_text("hello")
-    state.artifacts.bind("my-key", Uri.parse("file://session/value.txt"))
+    state.artifacts.register(Uri.parse("artifact://value.txt"))
 
     out_file = tmp_path / "captured.txt"
     stage = _exec(
         cmds=[f'echo "$MY_VAR" > {out_file}'],
-        interpolation_map={"MY_VAR": 'content("my-key")'},
+        interpolation_map={"MY_VAR": 'content("artifact://value.txt")'},
     )
     asyncio.run(stage.run(MockGremlin(state=state)))
     assert out_file.read_text().strip() == "hello"
@@ -100,7 +100,7 @@ def test_bind_file_scheme_binds_and_verifies(tmp_path):
     stage = _exec(cmds=["true"], bind_map={"result": "file://session/out.txt"})
     result = asyncio.run(stage.run(MockGremlin(state=state)))
     assert isinstance(result, Done)
-    assert state.artifacts.produced("file://session/out.txt")
+    assert state.artifacts.exists("file://session/out.txt")
     # register stores the resolved filesystem path, not the original URI
 
 
@@ -171,4 +171,4 @@ def test_bail_artifact_on_exit_2(tmp_path):
     )
     result = asyncio.run(stage.run(MockGremlin(state=state)))
     assert isinstance(result, Done)
-    assert state.artifacts.produced("artifact://bail")
+    assert state.artifacts.exists("artifact://bail")

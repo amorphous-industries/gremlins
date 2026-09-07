@@ -1,7 +1,6 @@
 """Tests for the 'parallel children are first-class gremlins' feature.
 
 Covers:
-- FileArtifactResolver._path handles file:///absolute/path URIs
 - _snapshot_registry rewrites file://session/ URIs to absolute paths
 - ParallelStage.run creates <state_root>/<child_id>/state.json for each child
 - A child can read a parent-bound file://session/ artifact via the inherited registry
@@ -13,74 +12,15 @@ import asyncio
 import json
 import pathlib
 
-import pytest
 from _gremlins_core.artifacts import Uri
 from _gremlins_core.config import scratch_root
 from _gremlins_core.config import state_root as _state_root_func
 from conftest import MockGremlin
 
 from gremlins.artifacts.registry import ArtifactRegistry
-from gremlins.artifacts.schemes import FileArtifactResolver
 from gremlins.executor.state import State, StateData, build_state
 from gremlins.stages.parallel import ParallelStage
 from tests.fake_client import FakeClient
-
-# ---------------------------------------------------------------------------
-# FileArtifactResolver._path: absolute path URIs
-# ---------------------------------------------------------------------------
-
-
-def test_file_resolver_absolute_path_uri(tmp_path: pathlib.Path) -> None:
-    """file:///absolute/path URIs resolve directly to that path."""
-    target = tmp_path / "some_file.txt"
-    target.write_text("hello")
-
-    resolver = FileArtifactResolver(tmp_path / "session")
-    uri = Uri.parse(f"file://{target}")
-    result = resolver._path(uri)
-    assert result == target.resolve()
-
-
-def test_file_resolver_absolute_path_read(tmp_path: pathlib.Path) -> None:
-    """read() works for file:///absolute URIs."""
-    target = tmp_path / "data.bin"
-    target.write_bytes(b"binary content")
-
-    artifact_dir = tmp_path / "session"
-    artifact_dir.mkdir()
-    resolver = FileArtifactResolver(artifact_dir)
-    uri = Uri.parse(f"file://{target}")
-    assert resolver.read(uri) == "binary content"
-
-
-def test_file_resolver_absolute_path_verify_produced(tmp_path: pathlib.Path) -> None:
-    """verify_produced() works for file:///absolute URIs."""
-    target = tmp_path / "output.txt"
-    target.write_text("done")
-
-    artifact_dir = tmp_path / "session"
-    artifact_dir.mkdir()
-    resolver = FileArtifactResolver(artifact_dir)
-    uri = Uri.parse(f"file://{target}")
-    resolver.verify_produced(uri)  # should not raise
-
-    empty = tmp_path / "empty.txt"
-    empty.touch()
-    with pytest.raises(FileNotFoundError):
-        resolver.verify_produced(Uri.parse(f"file://{empty}"))
-
-
-def test_file_resolver_session_relative_still_works(tmp_path: pathlib.Path) -> None:
-    """Existing file://session/<name> URIs still resolve correctly."""
-    artifact_dir = tmp_path / "session"
-    artifact_dir.mkdir()
-    target = artifact_dir / "output.txt"
-    target.write_text("data")
-
-    resolver = FileArtifactResolver(artifact_dir)
-    uri = Uri.parse("file://session/output.txt")
-    assert resolver._path(uri) == target.resolve()
-
 
 # ---------------------------------------------------------------------------
 # ParallelStage.run: child gets its own state.json under state_root
@@ -217,8 +157,8 @@ def test_parallel_child_artifact_dir_is_full_copy(sandbox) -> None:
     data = StateData(gremlin_id=gremlin_id)
     data.state_file = state_file
     parent_artifacts = ArtifactRegistry(artifact_dir=parent_artifact_dir)
-    parent_artifacts.bind("artifact1", Uri.parse("file://session/file1.txt"))
-    parent_artifacts.bind("artifact2", Uri.parse("file://session/file2.txt"))
+    parent_artifacts.register(Uri.parse("artifact://file1.txt"))
+    parent_artifacts.register(Uri.parse("artifact://file2.txt"))
 
     parent = build_state(
         data=data,
@@ -262,8 +202,8 @@ def test_parallel_child_artifact_dir_is_full_copy(sandbox) -> None:
     child_registry_path = pathlib.Path(scratch_root(child_id)) / "registry.json"
     assert child_registry_path.exists()
     child_reg_data = json.loads(child_registry_path.read_text(encoding="utf-8"))
-    assert child_reg_data["artifact1"] == "file://session/file1.txt"
-    assert child_reg_data["artifact2"] == "file://session/file2.txt"
+    assert "artifact://file1.txt" in child_reg_data
+    assert "artifact://file2.txt" in child_reg_data
 
     # Cleanup
     if forked.worktree and forked.worktree.exists():
@@ -346,8 +286,8 @@ def test_fork_uses_parent_not_child_state_as_source(sandbox) -> None:
     data = StateData(gremlin_id=gremlin_id)
     data.state_file = state_file
     parent_artifacts = ArtifactRegistry(artifact_dir=parent_artifact_dir)
-    parent_artifacts.bind("plan", Uri.parse("file://session/plan.md"))
-    parent_artifacts.bind("spec", Uri.parse("file://session/spec.md"))
+    parent_artifacts.register(Uri.parse("artifact://plan.md"))
+    parent_artifacts.register(Uri.parse("artifact://spec.md"))
 
     parent_state = build_state(
         data=data,
@@ -407,8 +347,8 @@ def test_fork_uses_parent_not_child_state_as_source(sandbox) -> None:
         child_registry_path = pathlib.Path(scratch_root(child_id)) / "registry.json"
         assert child_registry_path.exists()
         child_reg_data = json.loads(child_registry_path.read_text(encoding="utf-8"))
-        assert child_reg_data["plan"] == "file://session/plan.md"
-        assert child_reg_data["spec"] == "file://session/spec.md"
+        assert "artifact://plan.md" in child_reg_data
+        assert "artifact://spec.md" in child_reg_data
     finally:
         if forked.worktree and forked.worktree.exists():
             subprocess.run(

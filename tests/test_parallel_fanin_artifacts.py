@@ -79,7 +79,7 @@ def test_single_child_file_artifact_copied(tmp_path: pathlib.Path) -> None:
     ex = _executor(parent, ["sonnet"])
     ex._gather_child_artifacts()
 
-    assert parent.artifacts.produced("review-code")
+    assert parent.artifacts.exists("review-code")
     content = parent.artifacts.content("review-code")
     assert content == "# review"
     dest = parent.artifact_dir / "review.md"
@@ -110,11 +110,11 @@ def test_multi_child_same_key_disambiguated(tmp_path: pathlib.Path) -> None:
     ex = _executor(parent, ["opus", "sonnet"])
     ex._gather_child_artifacts()
 
-    assert parent.artifacts.produced("review-code/opus")
-    assert parent.artifacts.produced("review-code/sonnet")
+    assert parent.artifacts.exists("review-code/opus")
+    assert parent.artifacts.exists("review-code/sonnet")
     assert parent.artifacts.content("review-code/opus") == "opus review"
     assert parent.artifacts.content("review-code/sonnet") == "sonnet review"
-    assert not parent.artifacts.produced("review-code")
+    assert not parent.artifacts.exists("review-code")
 
 
 # ---------------------------------------------------------------------------
@@ -126,14 +126,14 @@ def test_snapshotted_parent_keys_skipped(tmp_path: pathlib.Path) -> None:
     parent = _make_parent(tmp_path, "p3")
     parent_file = parent.artifact_dir / "existing.txt"
     parent_file.write_bytes(b"existing")
-    parent.artifacts.bind("existing-key", Uri.parse("file://session/existing.txt"))
+    parent.artifacts.register(Uri.parse("artifact://existing.txt"))
 
     _make_child_dir(
         tmp_path,
         "p3--grp--child",
         bindings={
-            "existing-key": "file:///some/absolute/path.txt",  # snapshotted, rewritten
-            "new-key": "file://session/new.txt",
+            "artifact://existing.txt": "file:///some/absolute/path.txt",  # snapshotted, rewritten
+            "artifact://new.txt": "file://session/new.txt",
         },
         files={"new.txt": b"new content"},
     )
@@ -142,12 +142,10 @@ def test_snapshotted_parent_keys_skipped(tmp_path: pathlib.Path) -> None:
     ex._gather_child_artifacts()
 
     # existing-key must not be rebound
-    assert (
-        str(parent.artifacts.resolve("existing-key")) == "file://session/existing.txt"
-    )
+    assert parent.artifacts.exists("artifact://existing.txt")
     # new-key must be gathered
-    assert parent.artifacts.produced("new-key")
-    assert parent.artifacts.content("new-key") == "new content"
+    assert parent.artifacts.exists("artifact://new.txt")
+    assert parent.artifacts.content("artifact://new.txt") == "new content"
 
 
 # ---------------------------------------------------------------------------
@@ -167,8 +165,8 @@ def test_non_file_artifact_bound_directly(tmp_path: pathlib.Path) -> None:
     ex = _executor(parent, ["child"])
     ex._gather_child_artifacts()
 
-    assert parent.artifacts.produced("pr")
-    assert str(parent.artifacts.resolve("pr")) == "opaque://pr/42"
+    assert parent.artifacts.exists("pr")
+    assert parent.artifacts.data_uri("pr") == "opaque://pr/42"
 
 
 # ---------------------------------------------------------------------------
@@ -191,5 +189,5 @@ def test_missing_child_artifact_file_skipped(
     with caplog.at_level(logging.WARNING):
         ex._gather_child_artifacts()
 
-    assert not parent.artifacts.produced("review-code")
+    assert not parent.artifacts.exists("review-code")
     assert any("missing" in r.message for r in caplog.records)

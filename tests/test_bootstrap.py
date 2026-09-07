@@ -111,7 +111,7 @@ def test_cli_out_bound_after_launch_cmds(tmp_path: pathlib.Path) -> None:
         )
 
     asyncio.run(_test())
-    assert gremlin.state.artifacts.produced("instructions")
+    assert gremlin.state.artifacts.exists("instructions")
     assert gremlin.state.artifacts.content("instructions") == "do the thing"
 
 
@@ -141,7 +141,7 @@ def test_children_only_run_cmds(tmp_path: pathlib.Path) -> None:
     asyncio.run(_test())
     assert cmds_marker.exists()
     assert not launch_marker.exists()
-    assert not gremlin.state.artifacts.produced("instructions")
+    assert not gremlin.state.artifacts.exists("instructions")
 
 
 def test_cli_out_skipped_when_launch_excluded(tmp_path: pathlib.Path) -> None:
@@ -167,7 +167,7 @@ def test_cli_out_skipped_when_launch_excluded(tmp_path: pathlib.Path) -> None:
         )
 
     asyncio.run(_test())
-    assert not gremlin.state.artifacts.produced("instructions")
+    assert not gremlin.state.artifacts.exists("instructions")
     assert (artifact_dir / "instructions.txt").read_text() == "stale"
 
 
@@ -230,7 +230,7 @@ def test_bind_artifact_inline_text(tmp_path: pathlib.Path) -> None:
         )
 
     asyncio.run(_test())
-    assert gremlin.state.artifacts.produced("plan")
+    assert gremlin.state.artifacts.exists("plan")
     assert gremlin.state.artifacts.content("plan") == "implement the feature"
     assert gremlin.state.artifacts.exists("plan")
 
@@ -266,7 +266,7 @@ def test_bind_artifact_filepath_source(tmp_path: pathlib.Path) -> None:
         )
 
     asyncio.run(_test())
-    assert gremlin.state.artifacts.produced("plan")
+    assert gremlin.state.artifacts.exists("plan")
     assert gremlin.state.artifacts.content("plan") == "plan from file"
     assert gremlin.state.artifacts.exists("plan")
 
@@ -295,7 +295,7 @@ def test_bind_artifact_optional_missing(tmp_path: pathlib.Path) -> None:
         )
 
     asyncio.run(_test())
-    assert not gremlin.state.artifacts.produced("plan")
+    assert not gremlin.state.artifacts.exists("plan")
     assert not (artifact_dir / "plan.md").exists()
 
 
@@ -323,7 +323,7 @@ def test_bind_artifact_optional_empty(tmp_path: pathlib.Path) -> None:
         )
 
     asyncio.run(_test())
-    assert not gremlin.state.artifacts.produced("plan")
+    assert not gremlin.state.artifacts.exists("plan")
 
 
 def test_bind_artifact_different_source_and_artifact_keys(
@@ -352,9 +352,9 @@ def test_bind_artifact_different_source_and_artifact_keys(
         )
 
     asyncio.run(_test())
-    assert gremlin.state.artifacts.produced("plan")
+    assert gremlin.state.artifacts.exists("plan")
     assert gremlin.state.artifacts.content("plan") == "hello from my_plan"
-    assert not gremlin.state.artifacts.produced("my_plan")  # source key not bound
+    assert not gremlin.state.artifacts.exists("my_plan")  # source key not bound
 
 
 def test_bind_artifact_mixed_with_shell_commands(tmp_path: pathlib.Path) -> None:
@@ -397,9 +397,9 @@ def test_bind_artifact_mixed_with_shell_commands(tmp_path: pathlib.Path) -> None
         )
 
     asyncio.run(_test())
-    assert gremlin.state.artifacts.produced("plan")
+    assert gremlin.state.artifacts.exists("plan")
     assert gremlin.state.artifacts.content("plan") == "the plan"
-    assert gremlin.state.artifacts.produced("instructions")
+    assert gremlin.state.artifacts.exists("instructions")
     assert gremlin.state.artifacts.content("instructions") == "the instructions"
     assert (tmp_path / "shell-marker").exists()
 
@@ -498,5 +498,5 @@ def test_bind_artifact_skipped_when_launch_excluded(tmp_path: pathlib.Path) -> N
         )
 
     asyncio.run(_test())
-    assert not gremlin.state.artifacts.produced("plan")
+    assert not gremlin.state.artifacts.exists("plan")
     assert (artifact_dir / "plan.md").read_text() == "stale"

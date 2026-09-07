@@ -63,13 +63,13 @@ def test_in_content_substituted_into_prompt(tmp_path):
     registry = ArtifactRegistry(tmp_path / "artifacts")
     (tmp_path / "artifacts").mkdir(exist_ok=True)
     (tmp_path / "artifacts" / "plan.md").write_bytes(b"# My Plan")
-    registry.bind("plan", Uri.parse("file://session/plan.md"))
+    registry.register(Uri.parse("artifact://plan.md"))
 
     client = FakeClient(fixtures={"my-agent": MINIMAL_EVENTS})
     state = _make_state(tmp_path, client, registry=registry)
     agent = _make_agent(
         prompts=["Process: {plan_text}"],
-        interpolation_map={"plan_text": 'content("plan")'},
+        interpolation_map={"plan_text": 'content("artifact://plan.md")'},
     )
 
     asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
@@ -121,7 +121,7 @@ def test_verify_produced_passes_when_output_written(tmp_path):
 
     assert isinstance(result, Done)
     assert state.artifacts is not None
-    assert state.artifacts.produced("file://session/output.md")
+    assert state.artifacts.exists("file://session/output.md")
 
 
 def test_verify_produced_fails_when_output_missing(tmp_path):
@@ -143,7 +143,8 @@ def test_bind_uri_bound_in_registry_before_agent_runs(tmp_path):
         async def run(self, prompt, *, label, **kwargs):
             registry = state.artifacts
             seen_bound_before_run.append(
-                registry is not None and registry.produced("file://session/output.md")
+                registry is not None
+                and registry.is_registered("file://session/output.md")
             )
             # Extract path from {result} and write so verify passes.
             m = re.search(r"`([^`]*output\.md)`", prompt)

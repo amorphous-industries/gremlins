@@ -13,8 +13,6 @@ from typing import Any
 
 from _gremlins_core.artifacts import Uri
 
-from gremlins.artifacts.schemes import FileArtifactResolver
-
 logger = logging.getLogger(__name__)
 
 
@@ -41,7 +39,6 @@ class ArtifactRegistry:
         self.artifact_dir = artifact_dir
         self.registry_path = artifact_dir.parent / "registry.json"
         self.data: dict[str, Any] = {}
-        self._file_resolver = FileArtifactResolver(artifact_dir)
         if self.registry_path.exists():
             data = json.loads(self.registry_path.read_text(encoding="utf-8"))
             self.data = dict(data)
@@ -53,29 +50,14 @@ class ArtifactRegistry:
         tmp.write_text(json.dumps(self.data), encoding="utf-8")
         os.replace(tmp, path)
 
-    def bind(self, key: str, uri: Uri) -> None:
-        """Bind a key to a URI, raising DuplicateArtifact if already bound."""
-        uri_str = str(uri)
-        if key in self.data:
-            raise DuplicateArtifact(key, str(self.data[key]), uri_str)
-        self.data[key] = uri_str
-        self._persist()
+    def data_uri(self, key: str) -> Any:
+        """Return the local filesystem path for *key*.
 
-    def resolve(self, key: str) -> Uri:
-        """Resolve a key to its URI, raising MissingArtifact if unbound."""
+        Raises MissingArtifact if *key* is not bound.
+        """
         if key not in self.data:
             raise MissingArtifact(key)
-        value = self.data[key]
-        if isinstance(value, str):
-            try:
-                return Uri.parse(value)
-            except ValueError:
-                # Construct Uri directly for non-artifact schemes
-                if "://" in value:
-                    scheme, rest = value.split("://", 1)
-                    return Uri(scheme=scheme, path=rest)
-                return Uri(scheme="opaque", path=value)
-        return Uri(scheme="opaque", path=str(value))
+        return self.data[key]
 
     def register(self, uri: Uri, *, overwrite: bool = True) -> str:
         """Register a URI artifact, returning the canonical filesystem path.
@@ -98,26 +80,24 @@ class ArtifactRegistry:
             )
         if key in self.data and not overwrite:
             raise DuplicateArtifact(key, str(self.data[key]), str(uri))
-        path = self._file_resolver.path_for(uri)
+        # Resolve artifact:// URI to canonical filesystem path
+        name = uri.path.lstrip("/")
+        if name.startswith("session/"):
+            name = name[len("session/") :]
+        path = (self.artifact_dir / name).resolve()
+        base = self.artifact_dir.resolve()
+        try:
+            path.relative_to(base)
+        except ValueError:
+            raise ValueError(f"path escapes artifact directory: {uri}") from None
         path.parent.mkdir(parents=True, exist_ok=True)
         self.data[key] = str(path)
         self._persist()
         return self.data[key]
 
-    def write(self, key: str, value: Any) -> None:
-        """Store an arbitrary JSON-serializable value under *key*."""
-        self.data[key] = value
-        self._persist()
-
-    def read(self, uri_str: str) -> Any:
-        """Return the resolved value (filesystem path for file URIs)."""
-        if uri_str not in self.data:
-            raise MissingArtifact(uri_str)
-        return self.data[uri_str]
-
     def content(self, uri_str: str, json_path: str | None = None) -> str:
         """Read file content, optionally traversing a JSON path."""
-        raw = self.read(uri_str)
+        raw = self.data_uri(uri_str)
         if not isinstance(raw, str):
             raise ValueError(
                 f"content({uri_str!r}): expected a file path, got {type(raw).__name__}"
@@ -159,13 +139,12 @@ class ArtifactRegistry:
         return str(data) if not isinstance(data, str) else data
 
     def exists(self, uri: str | Uri) -> bool:
-        """Check whether a registered artifact exists.
+        """Check whether a registered artifact exists on disk.
 
-        Returns True if the key is registered in the registry with a
-        non-None string value.  For logical artifacts (e.g. ``git://range/...``,
-        ``opaque://...``) this is always True once registered.  For file-based
-        artifacts it checks that the key is bound — the actual file existence
-        is validated by ``verified()``.
+        Returns True if the key is registered and the backing file
+        exists with non-zero size.  For non-file artifacts (e.g.
+        ``git://range/...``, ``opaque://...``) returns True once
+        registered.
         """
         match uri:
             case str():
@@ -174,15 +153,6 @@ class ArtifactRegistry:
                 key = str(uri)
             case _:
                 raise ValueError(f"expected str or Uri, got {type(uri).__name__}")
-        stored = self.data.get(key)
-        if stored is None or not isinstance(stored, str):
-            return False
-        return True
-
-    def produced(self, key: str) -> bool:
-        return key in self.data
-
-    def verified(self, key: str) -> bool:
         if key not in self.data:
             return False
         value = self.data[key]
@@ -198,13 +168,13 @@ class ArtifactRegistry:
             p = pathlib.Path(value)
         if p.is_absolute():
             return p.exists() and p.stat().st_size > 0
-        # Non-file string values (e.g. "registered") are considered verified
-        logger.warning(
-            "verified(%r): non-absolute path %r, cannot verify filesystem state",
-            key,
-            value,
-        )
+        # Non-file values (e.g. git://range, opaque://, raw strings) are
+        # registered but have no on-disk file to check — they always exist.
         return True
+
+    def is_registered(self, key: str) -> bool:
+        """Return True if *key* is bound in the registry."""
+        return key in self.data
 
     def keys(self) -> Iterable[str]:
         return self.data.keys()
@@ -214,13 +184,6 @@ class ArtifactRegistry:
             return
         del self.data[key]
         self._persist()
-
-    def raw_entry(self, key: str) -> Any | None:
-        return self.data.get(key)
-
-    @property
-    def file_resolver(self) -> FileArtifactResolver:
-        return self._file_resolver
 
     def merge_from(
         self,
@@ -236,7 +199,7 @@ class ArtifactRegistry:
         used as-is (identity mapping).  Keys already present in self are skipped.
         """
         for key in keys if keys is not None else other.keys():
-            uri_str = other.raw_entry(key)
+            uri_str = other.data.get(key)
             if not isinstance(uri_str, str):
                 continue
             parent_key = key_map[key] if key_map else key
