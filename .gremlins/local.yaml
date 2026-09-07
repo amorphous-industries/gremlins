@@ -67,6 +67,15 @@ stages:
   - { type: gremlins:plan,      prompt: [code-style, terse, gremlins:plan.md] }
   - { type: gremlins:implement,  prompt: [code-style, terse, dev-env, no_lint_in_implement.md, gremlins:implement_local.md] }
   - { type: check-and-fix }
+  - name: compute-diff
+    type: exec
+    interpolation:
+      base_sha: content("artifact://base_sha")
+    bind:
+      diff: "artifact://diff.txt"
+    options:
+      cmds:
+        - "git diff {base_sha}...HEAD > \"$GREMLINS_ARTIFACT_DIR/diff.txt\""
   - parallel:
       - name: review-one
         type: agent

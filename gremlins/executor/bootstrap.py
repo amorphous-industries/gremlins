@@ -24,7 +24,6 @@ from _gremlins_core.schemas import (
     Bootstrap,
     source_env,
     substitute_bootstrap_vars,
-    validate_source_values,
 )
 
 from gremlins.utils import proc
@@ -242,7 +241,6 @@ async def run_pipeline_bootstrap(
         await run_bootstrap(bootstrap.cmds, cwd)
     if not include_launch:
         return
-    validate_source_values(bootstrap.source, stage_inputs)
     if bootstrap.launch_cmds:
         logger.info("running %d launch command(s)", len(bootstrap.launch_cmds))
         env = source_env(bootstrap.source, stage_inputs)
