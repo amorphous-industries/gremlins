@@ -82,7 +82,7 @@ class Stage:
         for k, v in list(subs.items()):
             if "_" in k:
                 subs.setdefault(k.replace("_", "-"), v)
-        result = _VAR_SUB.sub(lambda m: subs.get(m.group(1), m.group(0)), text)
+        result = _VAR_SUB.sub(lambda m: _sub_var(m, subs), text)
         if result != text:
             if logger.isEnabledFor(logging.DEBUG):
                 logger.debug(

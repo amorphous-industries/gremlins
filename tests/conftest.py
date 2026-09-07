@@ -465,7 +465,7 @@ def write_done_from_shell_cmd(cmd: str) -> None:
 
     # Match any quoted path ending in /done or _done — the bind path may be
     # slugged (e.g. abc123_done) by the artifact registry.
-    _m = _re.search(r"[\"\']([^\"\']*done)[\"\']", cmd)
+    _m = _re.search(r"[\"\']([^\"\']+[/_]done)[\"\']", cmd)
     if _m:
         _p = pathlib.Path(_m.group(1))
         _p.parent.mkdir(parents=True, exist_ok=True)

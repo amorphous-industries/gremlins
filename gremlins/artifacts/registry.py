@@ -242,13 +242,20 @@ class ArtifactRegistry:
             parent_key = key_map[key] if key_map else key
             if parent_key in self.data:
                 continue
-            if copy_files and uri_str.startswith("file://"):
+            # copy_files=True: copy actual file artifacts into self.artifact_dir.
+            # register() stores absolute filesystem paths; older code stores
+            # file:// URIs.  Both represent files that must survive child-dir
+            # cleanup.
+            is_file_artifact = uri_str.startswith("file://") or os.path.isabs(uri_str)
+            if copy_files and is_file_artifact:
                 # Resolve the URI to a filesystem path
                 if uri_str.startswith("file://session/"):
                     name = uri_str[len("file://session/") :]
                     src_path = other.artifact_dir / name
-                else:
+                elif uri_str.startswith("file://"):
                     src_path = pathlib.Path(uri_str[len("file://") :])
+                else:
+                    src_path = pathlib.Path(uri_str)
                 if not src_path.exists():
                     logger.warning("child artifact missing: %s", src_path)
                     continue
