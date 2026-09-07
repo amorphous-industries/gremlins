@@ -111,31 +111,37 @@ pub fn check_duplicate_producers(
     }
 
     for stage in stages {
-        for (raw_key, uri_str) in &stage.bind_map {
-            if raw_key.ends_with('?') {
-                continue;
+        // Stages with skip_if_exists set are conditional producers — they only
+        // produce the artifact if it doesn't already exist, so they should not
+        // trigger duplicate-producer errors.
+        let is_conditional = !stage.skip_if_exists.is_empty();
+
+        if !is_conditional {
+            for (raw_key, uri_str) in &stage.bind_map {
+                if raw_key.ends_with('?') {
+                    continue;
+                }
+                if !uri_str.starts_with("artifact://") {
+                    continue;
+                }
+                let clean_uri = uri_str.clone();
+                if let Some((prev_name, _)) = seen.get(&clean_uri) {
+                    return Err(SchemaError::Generic(format!(
+                        "duplicate artifact producer: stage '{}' and stage '{}' both produce '{}'",
+                        prev_name, stage.name, clean_uri
+                    )));
+                }
+                seen.insert(clean_uri, (stage.name.clone(), uri_str.clone()));
             }
-            if !uri_str.starts_with("artifact://") {
-                continue;
-            }
-            let clean_uri = uri_str.clone();
-            if let Some((prev_name, _)) = seen.get(&clean_uri) {
-                return Err(SchemaError::Generic(format!(
-                    "duplicate artifact producer: stage '{}' and stage '{}' both produce '{}'",
-                    prev_name, stage.name, clean_uri
-                )));
-            }
-            seen.insert(clean_uri, (stage.name.clone(), uri_str.clone()));
         }
 
-        let is_parallel = stage.stage_type == "parallel";
-        if is_parallel {
-            for child in &stage.body {
-                let child_slice = std::slice::from_ref(child);
-                check_duplicate_producers(child_slice, &HashMap::new())?;
-            }
-        } else {
-            check_duplicate_producers(&stage.body, &HashMap::new())?;
+        // For both parallel and sequential bodies, check each child in its own
+        // scope.  Sequential stages intentionally overwrite artifacts (e.g. a
+        // sanitize step rewrites rolling-plan.md), so siblings must not share
+        // a seen map.
+        for child in &stage.body {
+            let child_slice = std::slice::from_ref(child);
+            check_duplicate_producers(child_slice, &HashMap::new())?;
         }
     }
 
@@ -315,7 +321,8 @@ mod tests {
     #[test]
     fn test_non_parallel_children_shared_scope() {
         // Two children of a non-parallel (sequence) stage producing the same
-        // URI should error.
+        // URI is allowed — sequential stages intentionally overwrite artifacts
+        // (e.g. a sanitize step rewrites rolling-plan.md).
         let stages = vec![StageNode {
             name: "seq".to_string(),
             stage_type: "sequence".to_string(),
@@ -334,8 +341,7 @@ mod tests {
                 ),
             ],
         }];
-        let err = check_duplicate_producers(&stages, &HashMap::new()).unwrap_err();
-        assert!(err.to_string().contains("duplicate artifact producer"));
+        check_duplicate_producers(&stages, &HashMap::new()).unwrap();
     }
 
     #[test]

@@ -1,7 +1,5 @@
 use std::fmt;
 
-const ALLOWED_SCHEME: &str = "artifact";
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Uri {
     pub scheme: String,
@@ -17,12 +15,6 @@ impl Uri {
         let (scheme, path) = s
             .split_once("://")
             .ok_or_else(|| UriError::MissingSeparator(s.to_string()))?;
-        if scheme != ALLOWED_SCHEME {
-            return Err(UriError::UnknownScheme {
-                scheme: scheme.to_string(),
-                known: vec![ALLOWED_SCHEME.to_string()],
-            });
-        }
         Ok(Uri {
             scheme: scheme.to_string(),
             path: path.to_string(),
@@ -68,10 +60,9 @@ mod tests {
 
     #[test]
     fn test_parse_unknown_scheme() {
-        let r = Uri::parse("file://session/foo.md");
-        assert!(r.is_err());
-        let e = r.unwrap_err();
-        assert!(e.to_string().contains("unknown"));
+        // All schemes are now accepted by parse()
+        let uri = Uri::parse("file://session/foo.md").unwrap();
+        assert_eq!(uri.scheme, "file");
     }
 
     #[test]
@@ -87,7 +78,12 @@ mod tests {
 
     #[test]
     fn test_parse_or_none_invalid() {
+        // Only missing separator is invalid now
         assert_eq!(Uri::parse_or_none("not-a-uri"), None);
+        assert_eq!(
+            Uri::parse_or_none("file://foo"),
+            Some(Uri::new("file".to_string(), "foo".to_string()))
+        );
     }
 
     #[test]

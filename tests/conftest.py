@@ -489,13 +489,14 @@ def common_local_patches(monkeypatch):
     )
     monkeypatch.setattr("gremlins.executor.run.in_git_repo", lambda: True)
     monkeypatch.setattr(
-        "gremlins.artifacts.registry.git_utils.head_sha",
+        "gremlins.utils.git.head_sha",
         lambda *args, **kwargs: "post-sha",
     )
     import subprocess as _subprocess
 
+    # snapshot_head_before was removed; use a noop
     monkeypatch.setattr(
-        "gremlins.stages.exec.snapshot_head_before",
+        "gremlins.utils.git.head_sha",
         lambda cwd=None: "pre-sha",
     )
 

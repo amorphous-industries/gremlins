@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import pathlib
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any, cast
 
@@ -20,13 +21,21 @@ logger = logging.getLogger(__name__)
 
 
 def _is_bail_set(artifacts: ArtifactRegistry) -> bool:
-    return artifacts.produced(_BAIL_KEY)
+    return artifacts.verified(_BAIL_KEY)
 
 
 def _do_bail(gremlin: Gremlin, artifacts: ArtifactRegistry) -> None:
     if gremlin.state is None:
         raise RuntimeError("gremlin.state is required for _do_bail")
-    reason = str(artifacts.read(_BAIL_KEY)).strip()
+    raw = artifacts.read(_BAIL_KEY)
+    if isinstance(raw, str) and raw.startswith("/"):
+        # It's a filesystem path — read the content
+        try:
+            reason = pathlib.Path(raw).read_text(encoding="utf-8").strip()
+        except Exception:
+            reason = raw
+    else:
+        reason = str(raw).strip()
     gremlin.state.record_bail(reason)
     raise Bail(reason)
 
@@ -145,9 +154,6 @@ class LoopStage(Stage):
         for iteration in range(1, self._max_iterations + 1):
             gremlin.state.record_state_field(loop_iteration=iteration)
             gremlin.state.artifacts.unbind(_BAIL_KEY)
-            for child in self.body:
-                for uri_str in getattr(child, "bind_map", {}).values():
-                    gremlin.state.artifacts.unbind(uri_str)
             logger.info(
                 "loop %s: iteration %d/%d starting (%d body runners)",
                 self.name,
@@ -171,8 +177,11 @@ class LoopStage(Stage):
                 )
                 _do_bail(gremlin, gremlin.state.artifacts)
 
-            if self._stop_when_exists is not None and gremlin.state.artifacts.produced(
-                self._stop_when_exists
+            if self._stop_when_exists is not None and (
+                gremlin.state.artifacts.verified(self._stop_when_exists)
+                or gremlin.state.artifacts.verified(
+                    f"artifact://{self._stop_when_exists}"
+                )
             ):
                 logger.info(
                     "loop %s: stopped after %d iteration(s) — artifact %r produced",

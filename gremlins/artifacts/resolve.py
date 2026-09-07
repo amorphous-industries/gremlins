@@ -16,7 +16,15 @@ def _resolve_attr(artifacts: ArtifactRegistry, uri_str: str) -> str:
 
     ``ref.name`` reads the artifact at key ``ref``, parses its content as JSON,
     and traverses the path ``name``.
+
+    Only simple keys (without ``://``) support dot-separated attribute paths.
+    Full URIs like ``artifact://signal.json`` are used as-is.
     """
+    # Full URIs are used as-is — no attribute path splitting
+    if "://" in uri_str:
+        raw = artifacts.read(uri_str)
+        return str(raw)
+
     parts = uri_str.split(".", 1)
     base_key = parts[0]
     path_str = parts[1] if len(parts) > 1 else None
@@ -58,20 +66,21 @@ def resolve_interpolation_map(
 ) -> dict[str, str]:
     result: dict[str, str] = {}
     for var, raw in interpolation_map.items():
-        if raw.startswith("content(") and raw.rstrip().endswith("?"):
-            raise ValueError(
-                f"Invalid interpolation entry: {raw!r}. "
-                f"The '?' default syntax is not supported for content() entries. "
-                f"Use a plain URI with '?' and then content() separately on the resolved path."
-            )
-        m = _CONTENT_RE.match(raw)
+        # Support optional content() calls: content("uri")? means return "" if missing
+        optional = raw.rstrip().endswith("?")
+        raw_clean = raw.rstrip().rstrip("?")
+
+        m = _CONTENT_RE.match(raw_clean)
         if m:
             uri_str = m.group(1)
             json_path = m.group(2)
             try:
                 result[var] = artifacts.content(uri_str, json_path)
             except MissingArtifact:
-                raise
+                if optional:
+                    result[var] = ""
+                else:
+                    raise
             continue
 
         uri_str, sep, default = raw.partition("?")

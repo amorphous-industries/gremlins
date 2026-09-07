@@ -118,12 +118,7 @@ def test_bind_file_scheme_missing_file_raises(tmp_path):
 
 def test_bind_git_range_binds_commit_range(tmp_path, monkeypatch):
     state = _make_state(tmp_path)
-    monkeypatch.setattr(
-        "gremlins.stages.exec.snapshot_head_before", lambda cwd=None: "abc123"
-    )
-    monkeypatch.setattr(
-        "gremlins.artifacts.registry.git_utils.head_sha", lambda cwd=None: "def456"
-    )
+    monkeypatch.setattr("gremlins.utils.git.head_sha", lambda cwd=None: "def456")
     stage = _exec(cmds=["true"], bind_map={"commits": "git://range"})
     result = asyncio.run(stage.run(MockGremlin(state=state)))
     assert isinstance(result, Done)
@@ -134,13 +129,8 @@ def test_bind_git_range_binds_commit_range(tmp_path, monkeypatch):
 
 def test_bind_git_range_empty_diff_still_binds(tmp_path, monkeypatch):
     state = _make_state(tmp_path)
-    monkeypatch.setattr(
-        "gremlins.stages.exec.snapshot_head_before", lambda cwd=None: "abc123"
-    )
     # HEAD doesn't advance — same SHA before and after
-    monkeypatch.setattr(
-        "gremlins.artifacts.registry.git_utils.head_sha", lambda cwd=None: "abc123"
-    )
+    monkeypatch.setattr("gremlins.utils.git.head_sha", lambda cwd=None: "abc123")
     stage = _exec(cmds=["true"], bind_map={"commits": "git://range"})
     result = asyncio.run(stage.run(MockGremlin(state=state)))
     assert isinstance(result, Done)

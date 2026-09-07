@@ -115,7 +115,11 @@ class Exec(Stage):
             result = await _proc.run_shell_async(
                 joined,
                 cwd=pathlib.Path(state.cwd),
-                env={**os.environ, **interpolation_map},
+                env={
+                    **os.environ,
+                    **interpolation_map,
+                    "GREMLINS_ARTIFACT_DIR": str(state.artifact_dir),
+                },
                 timeout=timeout,
             )
             elapsed = time.monotonic() - _t0

@@ -79,11 +79,14 @@ class ArtifactRegistry:
     def register(self, uri: Uri) -> str:
         """Register a URI artifact, returning the slugged filesystem path.
 
-        Every call generates a fresh slug so that each loop re-entry
+        If the URI is already registered, returns the existing path.
+        Otherwise generates a fresh slug so that each loop re-entry
         (or any repeated binding of the same logical URI) writes to a
         distinct on-disk filename.
         """
         key = str(uri)
+        if key in self.data:
+            return self.data[key]
         base = self._file_resolver.path_for(uri)
         slug = secrets.token_hex(4)
         slugged = base.parent / f"{slug}_{base.name}"
@@ -123,7 +126,12 @@ class ArtifactRegistry:
         return str(data) if not isinstance(data, str) else data
 
     def exists(self, uri: str | Uri) -> bool:
-        """Check whether a registered artifact's on-disk file exists and is non-empty."""
+        """Check whether a registered artifact exists.
+
+        For file-path artifacts (strings starting with /), checks that the
+        on-disk file exists and is non-empty. For logical artifacts (e.g.
+        ``git://range/...``), returns True if the key is registered.
+        """
         match uri:
             case str():
                 key = uri
@@ -134,8 +142,12 @@ class ArtifactRegistry:
         stored = self.data.get(key)
         if stored is None or not isinstance(stored, str):
             return False
-        p = pathlib.Path(stored)
-        return p.exists() and p.stat().st_size > 0
+        if stored.startswith("/"):
+            p = pathlib.Path(stored)
+            return p.exists() and p.stat().st_size > 0
+        # Logical artifacts (git://range, opaque://, etc.) are always "exists"
+        # if registered
+        return True
 
     def produced(self, key: str) -> bool:
         return key in self.data
@@ -146,8 +158,11 @@ class ArtifactRegistry:
         value = self.data[key]
         if not isinstance(value, str):
             return True
-        p = pathlib.Path(value)
-        return p.exists() and p.stat().st_size > 0
+        if value.startswith("/"):
+            p = pathlib.Path(value)
+            return p.exists() and p.stat().st_size > 0
+        # Non-file string values (e.g. "registered") are considered verified
+        return True
 
     def keys(self) -> Iterable[str]:
         return self.data.keys()

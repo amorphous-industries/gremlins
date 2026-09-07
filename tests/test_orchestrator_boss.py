@@ -46,26 +46,29 @@ class _SignalClient(FakeClient):
         self._artifact_dir = artifact_dir
 
     async def run(self, prompt, *, label, **kwargs):
+        import re
+
+        ad = re.escape(str(self._artifact_dir))
         if label == "handoff":
-            # Write each out: file at the slugged path the agent promised
-            # to produce, so verify_produced passes. Copy content from any
-            # unslugged counterpart in the artifact dir.
-            for fname in ("signal.json", "rolling-plan.md", "child-plan.md"):
-                slugged = self._find_slugged(fname, prompt)
-                if slugged.exists():
-                    continue
-                src = self._artifact_dir / fname
-                if fname == "signal.json":
-                    self._write(slugged, json.dumps(self._signal))
-                elif src.exists():
-                    self._write(slugged, src.read_text(encoding="utf-8"))
+            for fname in ("signal.json", "child-plan.md"):
+                # Find the slugged path from the prompt
+                m = re.search(ad + r"/[a-f0-9]+" + re.escape("_" + fname), prompt)
+                if m:
+                    slugged = pathlib.Path(m.group(0))
+                    if not slugged.exists():
+                        if fname == "signal.json":
+                            slugged.write_text(json.dumps(self._signal))
+                        else:
+                            src = self._artifact_dir / fname
+                            if src.exists():
+                                slugged.write_text(src.read_text(encoding="utf-8"))
         elif label == "sanitize":
-            plan_path = self._find_slugged("rolling-plan.md", prompt)
-            # Copy the pre-sanitize backup into the slugged path so
-            # verify_produced finds it.
-            pre = self._artifact_dir / "rolling-plan-pre-sanitize.md"
-            if pre.exists():
-                self._write(plan_path, pre.read_text(encoding="utf-8"))
+            m = re.search(ad + r"/[a-f0-9]+" + re.escape("_rolling-plan.md"), prompt)
+            if m:
+                slugged = pathlib.Path(m.group(0))
+                pre = self._artifact_dir / "rolling-plan-pre-sanitize.md"
+                if pre.exists():
+                    slugged.write_text(pre.read_text(encoding="utf-8"))
         return await super().run(prompt, label=label, **kwargs)
 
     def _find_slugged(self, name: str, prompt: str) -> pathlib.Path:
@@ -113,7 +116,7 @@ def test_boss_chain_done_exits_loop(sandbox, tmp_path):
     }
     gremlin, loop = _make_loop(tmp_path, sandbox.project, signal)
     asyncio.run(loop.run(gremlin))
-    assert gremlin.state.artifacts.produced("done")
+    assert gremlin.state.artifacts.produced("artifact://done")
 
 
 def test_boss_next_plan_needs_fix_and_plan_swap(sandbox, tmp_path):
@@ -143,4 +146,4 @@ def test_boss_bail_raises_with_reason(sandbox, tmp_path):
     gremlin, loop = _make_loop(tmp_path, sandbox.project, signal)
     with pytest.raises(Bail, match="bad state"):
         asyncio.run(loop.run(gremlin))
-    assert gremlin.state.artifacts.produced("bail")
+    assert gremlin.state.artifacts.produced("artifact://bail")

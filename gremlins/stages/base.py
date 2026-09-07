@@ -14,6 +14,20 @@ if TYPE_CHECKING:
 
 _VAR_SUB = re.compile(r"(?<!\$)\{([-\w]+)\}")
 
+
+# Also try underscore-normalized keys for hyphenated template variables
+# so that {child-plan} matches bind key child_plan, etc.
+def _sub_var(m: re.Match[str], subs: dict[str, str]) -> str:
+    key = m.group(1)
+    if key in subs:
+        return subs[key]
+    # Try underscore version
+    alt_key = key.replace("-", "_")
+    if alt_key in subs:
+        return subs[alt_key]
+    return m.group(0)
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -61,8 +75,13 @@ class Stage:
         """Replace {var} tokens with framework subs, resolved in: vars, and
         string options (framework wins on conflict). Unknown tokens and
         non-word braces (shell ${x}, {read:k}, brace expansion) are left as-is."""
-        string_opts = {k: v for k, v in self.options.items() if isinstance(v, str)}
+        string_opts = {k: str(v) for k, v in self.options.items() if isinstance(v, str)}
         subs = {**string_opts, **(extra or {}), **state.framework_subs(self)}  # type: ignore[arg-type]
+        # Also add hyphen-normalized variants for underscore keys so that
+        # template references like {child-plan} match bind keys like child_plan
+        for k, v in list(subs.items()):
+            if "_" in k:
+                subs[k.replace("_", "-")] = v
         result = _VAR_SUB.sub(lambda m: subs.get(m.group(1), m.group(0)), text)
         if result != text:
             if logger.isEnabledFor(logging.DEBUG):

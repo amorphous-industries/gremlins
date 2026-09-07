@@ -14,6 +14,7 @@ stages:
               fi
       - name: handoff-init
         type: exec
+        skip_if_exists: "artifact://rolling-plan.md"
         bind:
           rolling_plan: "artifact://rolling-plan.md"
           boss_spec: "artifact://boss-spec.md"
@@ -44,8 +45,12 @@ stages:
 
       - name: translate-signal
         type: exec
+        interpolation:
+          signal: artifact://signal.json
+          rolling_plan: artifact://rolling-plan.md
+          child_plan: artifact://child-plan.md
         bind:
-          bail: "artifact://bail-reason.txt"
+          bail?: "artifact://bail"
           done?: "artifact://done"
         options:
           cmds:
@@ -104,6 +109,8 @@ stages:
 
       - name: restore-rolling-plan
         type: exec
+        interpolation:
+          rolling_plan: artifact://rolling-plan.md
         options:
           cmds:
             - |
