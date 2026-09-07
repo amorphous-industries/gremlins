@@ -758,19 +758,19 @@ stages:
   - name: stage-a
     type: exec
     bind:
-      artifact.plan: "file://session/plan-a.md"
+      artifact.plan: "artifact://plan.md"
   - name: stage-b
     type: exec
     bind:
-      artifact.plan: "file://session/plan-b.md"
+      artifact.plan: "artifact://plan.md"
 """,
     )
-    with pytest.raises(ValueError, match="duplicate bind.*plan.*stage-a.*stage-b"):
+    with pytest.raises(ValueError, match="duplicate artifact producer.*stage-a.*stage-b.*plan"):
         Pipeline.from_yaml(tmp_path / "pipeline.yaml")
 
 
 def test_duplicate_out_key_same_uri_ok(tmp_path: pathlib.Path) -> None:
-    """Same key + same URI (idempotent rebind) must not be flagged."""
+    """Same key + same non-artifact URI — not checked, must not be flagged."""
     yaml_path = _write_yaml(
         tmp_path / "pipeline.yaml",
         """\
@@ -864,9 +864,9 @@ stages:
     assert len(pipeline.stages) == 2
 
 
-def test_duplicate_out_key_within_loop_body_raises(tmp_path: pathlib.Path) -> None:
-    """Two distinct stages in the same loop body with the same key must be flagged."""
-    _write_yaml(
+def test_duplicate_out_key_within_loop_body_ok(tmp_path: pathlib.Path) -> None:
+    """Siblings in a loop body may produce the same artifact URI (each scoped independently)."""
+    yaml_path = _write_yaml(
         tmp_path / "pipeline.yaml",
         """\
 name: p
@@ -878,22 +878,21 @@ stages:
       - name: producer-a
         type: exec
         bind:
-          artifact.artifact: "file://session/a.md"
+          artifact.artifact: "artifact://a.md"
       - name: producer-b
         type: exec
         bind:
-          artifact.artifact: "file://session/b.md"
+          artifact.artifact: "artifact://a.md"
 """,
     )
-    with pytest.raises(
-        ValueError, match="duplicate bind.*artifact.*producer-a.*producer-b"
-    ):
-        Pipeline.from_yaml(tmp_path / "pipeline.yaml")
+    pipeline = Pipeline.from_yaml(yaml_path)
+    assert len(pipeline.stages) == 1
+    assert pipeline.stages[0].name == "myloop"
 
 
-def test_duplicate_out_key_in_sequence_body_raises(tmp_path: pathlib.Path) -> None:
-    """Two distinct stages in a sequence body with the same key and different URIs."""
-    _write_yaml(
+def test_duplicate_out_key_in_sequence_body_ok(tmp_path: pathlib.Path) -> None:
+    """Siblings in a sequence body may produce the same artifact URI (sequential overwrite)."""
+    yaml_path = _write_yaml(
         tmp_path / "pipeline.yaml",
         """\
 name: p
@@ -905,15 +904,16 @@ stages:
       - name: step-a
         type: exec
         bind:
-          artifact.result: "file://session/result-a.txt"
+          artifact.result: "artifact://result.txt"
       - name: step-b
         type: exec
         bind:
-          artifact.result: "file://session/result-b.txt"
+          artifact.result: "artifact://result.txt"
 """,
     )
-    with pytest.raises(ValueError, match="duplicate bind.*result.*step-a.*step-b"):
-        Pipeline.from_yaml(tmp_path / "pipeline.yaml")
+    pipeline = Pipeline.from_yaml(yaml_path)
+    assert len(pipeline.stages) == 1
+    assert pipeline.stages[0].name == "my-seq"
 
 
 def test_boss_yaml_loads() -> None:

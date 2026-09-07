@@ -121,7 +121,7 @@ def test_snapshot_and_bind_range(tmp_path: pathlib.Path) -> None:
         check=True,
     ).stdout.strip()
 
-    registry = ArtifactRegistry(artifact_dir=tmp_path, cwd=tmp_path)
+    registry = ArtifactRegistry(artifact_dir=tmp_path)
     registry.bind_git_commit_range("test-range", base)
 
     assert registry.produced("test-range")

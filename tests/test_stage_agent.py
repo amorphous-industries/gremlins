@@ -29,7 +29,7 @@ def _make_state(
 ) -> State:
     if client is None:
         client = FakeClient(fixtures={"my-agent": MINIMAL_EVENTS})
-    reg = registry or ArtifactRegistry(tmp_path / "artifacts", cwd=tmp_path)
+    reg = registry or ArtifactRegistry(tmp_path / "artifacts")
     return build_state(
         data=StateData(),
         client=client,
@@ -60,7 +60,7 @@ def _make_agent(
 
 
 def test_in_content_substituted_into_prompt(tmp_path):
-    registry = ArtifactRegistry(tmp_path / "artifacts", cwd=tmp_path)
+    registry = ArtifactRegistry(tmp_path / "artifacts")
     (tmp_path / "artifacts").mkdir(exist_ok=True)
     (tmp_path / "artifacts" / "plan.md").write_bytes(b"# My Plan")
     registry.bind("plan", Uri.parse("file://session/plan.md"))

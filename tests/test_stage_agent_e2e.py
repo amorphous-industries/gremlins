@@ -42,7 +42,7 @@ def test_agent_stage_e2e_reads_artifact_and_writes_output(tmp_path):
     # Bind the source document in the registry
     src_file = tmp_path / "source.md"
     src_file.write_bytes(b"# Hello\nWorld")
-    registry = ArtifactRegistry(tmp_path, cwd=tmp_path)
+    registry = ArtifactRegistry(tmp_path)
     registry.bind("source-doc", Uri.parse("file://session/source.md"))
 
     # Client writes the expected output file when called — extract the

@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 def _make_state(project: pathlib.Path, base_sha: str):
     artifact_dir = project / "session"
     artifact_dir.mkdir(exist_ok=True)
-    registry = ArtifactRegistry(artifact_dir, cwd=project)
+    registry = ArtifactRegistry(artifact_dir)
     registry.bind("base_sha", Uri.parse(f"git://commit/{base_sha}"))
     return build_state(
         data=StateData(),
