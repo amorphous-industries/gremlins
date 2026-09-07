@@ -16,7 +16,6 @@ import subprocess
 from typing import TYPE_CHECKING, Any, cast
 
 import pytest
-from _gremlins_core.artifacts import Uri
 from _gremlins_core.schemas import Pipeline
 from conftest import MockGremlin
 
@@ -34,7 +33,7 @@ def _make_state(project: pathlib.Path, base_sha: str):
     artifact_dir = project / "session"
     artifact_dir.mkdir(exist_ok=True)
     registry = ArtifactRegistry(artifact_dir)
-    registry.bind("base_sha", Uri.parse(f"git://commit/{base_sha}"))
+    registry.write("base_sha", base_sha)
     return build_state(
         data=StateData(),
         client=FakeClient(),

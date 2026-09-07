@@ -38,7 +38,9 @@ def _loop_state(tmp_path: Any) -> RuntimeState:
 def _set_done(state: RuntimeState) -> None:
     """Write the done artifact to signal loop completion."""
     done_uri = Uri.parse("file://session/done.txt")
-    state.artifacts.bind("done", done_uri)
+    (state.artifact_dir / "done.txt").write_text("done")
+    if not state.artifacts.produced("done"):
+        state.artifacts.bind("done", done_uri)
 
 
 # ---------------------------------------------------------------------------
@@ -269,7 +271,10 @@ def test_loop_unbinds_out_keys_between_iterations(tmp_path):
     bound_count = [0]
 
     async def binder() -> Done:
+        # Loop now auto-unbinds between iterations; re-bind by unbinding first.
         uri = Uri.parse(f"file://session/out-{bound_count[0]}.txt")
+        if state.artifacts.produced("loop-out"):
+            state.artifacts.unbind("loop-out")
         state.artifacts.bind("loop-out", uri)
         bound_count[0] += 1
         if bound_count[0] == 2:

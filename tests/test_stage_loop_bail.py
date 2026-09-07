@@ -57,8 +57,8 @@ def test_bail_in_body_exec_terminates_loop(tmp_path: pathlib.Path) -> None:
     state = _make_state(tmp_path)
     exec_stage = Exec(
         "check",
-        {"cmds": ["printf 'bail reason' > '{artifact_dir}/bail'", "exit 2"]},
-        bind_map={"bail": "file://session/bail"},
+        {"cmds": ["printf 'bail reason' > \"$GREMLINS_ARTIFACT_DIR/bail\"", "exit 2"]},
+        bind_map={"bail": "artifact://bail"},
     )
     loop = LoopStage("loop", body=[exec_stage], max_iterations=3)
 
@@ -74,11 +74,11 @@ def test_bail_message_matches_file_contents(tmp_path: pathlib.Path) -> None:
         "check",
         {
             "cmds": [
-                "printf 'specific: assertion broken' > '{artifact_dir}/bail'",
+                "printf 'specific: assertion broken' > \"$GREMLINS_ARTIFACT_DIR/bail\"",
                 "exit 2",
             ]
         },
-        bind_map={"bail": "file://session/bail"},
+        bind_map={"bail": "artifact://bail"},
     )
     loop = LoopStage("loop", body=[exec_stage], max_iterations=3)
 

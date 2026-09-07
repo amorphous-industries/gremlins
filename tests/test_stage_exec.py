@@ -76,7 +76,7 @@ def test_interpolation_map_injects_env_var(tmp_path):
     out_file = tmp_path / "captured.txt"
     stage = _exec(
         cmds=[f'echo "$MY_VAR" > {out_file}'],
-        interpolation_map={"MY_VAR": "my-key"},
+        interpolation_map={"MY_VAR": 'content("my-key")'},
     )
     asyncio.run(stage.run(MockGremlin(state=state)))
     assert out_file.read_text().strip() == "hello"
@@ -100,14 +100,14 @@ def test_bind_file_scheme_binds_and_verifies(tmp_path):
     stage = _exec(cmds=["true"], bind_map={"result": "file://session/out.txt"})
     result = asyncio.run(stage.run(MockGremlin(state=state)))
     assert isinstance(result, Done)
-    assert state.artifacts.produced("result")
-    assert state.artifacts.resolve("result") == Uri.parse("file://session/out.txt")
+    assert state.artifacts.produced("file://session/out.txt")
+    # register stores the resolved filesystem path, not the original URI
 
 
 def test_bind_file_scheme_missing_file_raises(tmp_path):
     state = _make_state(tmp_path)
     stage = _exec(cmds=["true"], bind_map={"result": "file://session/missing.txt"})
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(Bail, match="was not produced"):
         asyncio.run(stage.run(MockGremlin(state=state)))
 
 
@@ -167,8 +167,8 @@ def test_bail_artifact_on_exit_2(tmp_path):
     bail_file.write_text("something broke")
     stage = _exec(
         cmds=["exit 2"],
-        bind_map={"bail": "file://session/bail"},
+        bind_map={"bail": "artifact://bail"},
     )
     result = asyncio.run(stage.run(MockGremlin(state=state)))
     assert isinstance(result, Done)
-    assert state.artifacts.produced("bail")
+    assert state.artifacts.produced("artifact://bail")

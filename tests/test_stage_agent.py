@@ -14,7 +14,7 @@ from conftest import MINIMAL_EVENTS, MockGremlin
 from gremlins.artifacts.registry import ArtifactRegistry, MissingArtifact
 from gremlins.executor.state import State, StateData, build_state
 from gremlins.stages.agent import Agent
-from gremlins.stages.outcome import Done
+from gremlins.stages.outcome import Bail, Done
 from tests.fake_client import FakeClient
 
 if TYPE_CHECKING:
@@ -68,7 +68,8 @@ def test_in_content_substituted_into_prompt(tmp_path):
     client = FakeClient(fixtures={"my-agent": MINIMAL_EVENTS})
     state = _make_state(tmp_path, client, registry=registry)
     agent = _make_agent(
-        prompts=["Process: {plan_text}"], interpolation_map={"plan_text": "plan"}
+        prompts=["Process: {plan_text}"],
+        interpolation_map={"plan_text": 'content("plan")'},
     )
 
     asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
@@ -102,8 +103,8 @@ def test_no_interpolation_map_runs_prompt_unchanged(tmp_path):
 def test_verify_produced_passes_when_output_written(tmp_path):
     class WritingClient(FakeClient):
         async def run(self, prompt, *, label, **kwargs):
-            # Extract the slugged path from {result} in the prompt.
-            m = re.search(r"`([^`]*[0-9a-f]+_output\.md)`", prompt)
+            # Extract path from {result} in the prompt.
+            m = re.search(r"`([^`]*output\.md)`", prompt)
             assert m, prompt
             pathlib.Path(m.group(1)).parent.mkdir(parents=True, exist_ok=True)
             pathlib.Path(m.group(1)).write_text("# Output")
@@ -120,7 +121,7 @@ def test_verify_produced_passes_when_output_written(tmp_path):
 
     assert isinstance(result, Done)
     assert state.artifacts is not None
-    assert state.artifacts.produced("result")
+    assert state.artifacts.produced("file://session/output.md")
 
 
 def test_verify_produced_fails_when_output_missing(tmp_path):
@@ -131,7 +132,7 @@ def test_verify_produced_fails_when_output_missing(tmp_path):
         bind_map={"result": "file://session/missing.md"},
     )
 
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(Bail, match="was not produced"):
         asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
 
 
@@ -142,10 +143,10 @@ def test_bind_uri_bound_in_registry_before_agent_runs(tmp_path):
         async def run(self, prompt, *, label, **kwargs):
             registry = state.artifacts
             seen_bound_before_run.append(
-                registry is not None and registry.produced("result")
+                registry is not None and registry.produced("file://session/output.md")
             )
-            # Extract slugged path from {result} and write so verify passes.
-            m = re.search(r"`([^`]*[0-9a-f]+_output\.md)`", prompt)
+            # Extract path from {result} and write so verify passes.
+            m = re.search(r"`([^`]*output\.md)`", prompt)
             if m:
                 p = pathlib.Path(m.group(1))
                 p.parent.mkdir(parents=True, exist_ok=True)
@@ -175,8 +176,8 @@ def test_with_dict_parses_interpolation_and_bind_maps(tmp_path):
         "bind": {"artifact.result": "file://session/result.md"},
     }
     agent = Agent.with_dict(d)
-    assert agent.interpolation_map == {"task": "task-key"}
-    assert agent.bind_map == {"result": "file://session/result.md"}
+    assert agent.interpolation_map == {"task": "artifact.task-key"}
+    assert agent.bind_map == {"artifact.result": "file://session/result.md"}
 
 
 def test_with_dict_rejects_non_dict_interpolation(tmp_path):
@@ -212,7 +213,7 @@ def test_with_dict_rejects_old_out_key(tmp_path):
 def test_single_file_out_prompt_gets_slug_prefixed_name(tmp_path):
     class WritingClient(FakeClient):
         async def run(self, prompt, *, label, cwd=None, **kwargs):
-            m = re.search(r"`([^`]*[0-9a-f]+_output\.md)`", prompt)
+            m = re.search(r"`([^`]*output\.md)`", prompt)
             assert m, prompt
             pathlib.Path(m.group(1)).parent.mkdir(parents=True, exist_ok=True)
             pathlib.Path(m.group(1)).write_text("# Output", encoding="utf-8")
@@ -229,21 +230,18 @@ def test_single_file_out_prompt_gets_slug_prefixed_name(tmp_path):
 
     assert len(client.calls) == 1
     m = re.search(
-        r"Write to `"
-        + re.escape(str(state.artifact_dir))
-        + r"/([0-9a-f]{8})_output\.md`",
+        r"Write to `" + re.escape(str(state.artifact_dir)) + r"/output\.md`",
         client.calls[0].prompt,
     )
     assert m, client.calls[0].prompt
 
 
 def test_single_file_out_keeps_slug_in_artifact_dir(tmp_path):
-    """Slugged file remains on disk after the agent completes — the slug is
-    never stripped, giving each run a unique file footprint."""
+    """Output file is written at the expected path under artifact_dir."""
 
     class WritingClient(FakeClient):
         async def run(self, prompt, *, label, cwd=None, **kwargs):
-            m = re.search(r"`([^`]*[0-9a-f]+_output\.md)`", prompt)
+            m = re.search(r"`([^`]*output\.md)`", prompt)
             assert m, prompt
             pathlib.Path(m.group(1)).parent.mkdir(parents=True, exist_ok=True)
             pathlib.Path(m.group(1)).write_text("# Output", encoding="utf-8")
@@ -258,18 +256,15 @@ def test_single_file_out_keeps_slug_in_artifact_dir(tmp_path):
 
     result = asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
     assert isinstance(result, Done)
-    # The slugged file is what the agent was told to write — it stays on disk.
-    slugged = list(state.artifact_dir.glob("*_output.md"))
-    assert len(slugged) == 1, f"expected 1 slugged output.md, got {slugged}"
-    assert slugged[0].read_text(encoding="utf-8") == "# Output"
-    # No unslugged output.md (slug is not stripped).
-    assert not (state.artifact_dir / "output.md").exists()
+    output_file = state.artifact_dir / "output.md"
+    assert output_file.exists(), f"expected output.md at {output_file}"
+    assert output_file.read_text(encoding="utf-8") == "# Output"
 
 
 def test_single_file_out_uses_substituted_out_map_name(tmp_path):
     class WritingClient(FakeClient):
         async def run(self, prompt, *, label, cwd=None, **kwargs):
-            m = re.search(r"`([^`]*[0-9a-f]+_review-code\.md)`", prompt)
+            m = re.search(r"`([^`]*review-code\.md)`", prompt)
             assert m, prompt
             pathlib.Path(m.group(1)).parent.mkdir(parents=True, exist_ok=True)
             pathlib.Path(m.group(1)).write_text("# Review", encoding="utf-8")
@@ -285,9 +280,9 @@ def test_single_file_out_uses_substituted_out_map_name(tmp_path):
 
     result = asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
     assert isinstance(result, Done)
-    slugged = list(state.artifact_dir.glob("*_review-code.md"))
-    assert len(slugged) == 1
-    assert slugged[0].read_text(encoding="utf-8") == "# Review"
+    output_file = state.artifact_dir / "review-code.md"
+    assert output_file.exists()
+    assert output_file.read_text(encoding="utf-8") == "# Review"
 
 
 def test_single_file_out_missing_source_raises(tmp_path):
@@ -298,7 +293,7 @@ def test_single_file_out_missing_source_raises(tmp_path):
         bind_map={"result": "file://session/never-written.md"},
     )
 
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(Bail, match="was not produced"):
         asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
 
 
@@ -323,9 +318,9 @@ def test_multi_file_out_prompt_gets_per_key_paths(tmp_path):
     prompt = client.calls[0].prompt
     ad = str(state.artifact_dir)
     for key in ("blah", "foo", "biz"):
-        assert re.search(
-            rf"{re.escape(ad)}/[0-9a-f]{{8}}_{re.escape(key)}\.md", prompt
-        ), f"{key} not found in prompt"
+        assert re.search(rf"{re.escape(ad)}/{re.escape(key)}\.md", prompt), (
+            f"{key} not found in prompt"
+        )
 
 
 def test_multi_file_out_renames_only_written_files(tmp_path):
@@ -333,7 +328,7 @@ def test_multi_file_out_renames_only_written_files(tmp_path):
         async def run(self, prompt, *, label, cwd=None, **kwargs):
             # Write two of the three declared files; biz.md is skipped.
             for key in ("blah", "foo"):
-                m = re.search(rf"([0-9a-f]{{8}}_{re.escape(key)}\.md)", prompt)
+                m = re.search(rf"({re.escape(key)}\.md)", prompt)
                 if m:
                     p = state.artifact_dir / m.group(1)
                     p.parent.mkdir(parents=True, exist_ok=True)
@@ -353,14 +348,13 @@ def test_multi_file_out_renames_only_written_files(tmp_path):
 
     result = asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
     assert isinstance(result, Done)
-    # Files stay at slugged paths — the slug is never stripped.
-    slugged_blah = list(state.artifact_dir.glob("*_blah.md"))
-    slugged_foo = list(state.artifact_dir.glob("*_foo.md"))
-    assert len(slugged_blah) == 1
-    assert len(slugged_foo) == 1
-    assert slugged_blah[0].read_text(encoding="utf-8") == "# blah.md"
-    assert slugged_foo[0].read_text(encoding="utf-8") == "# foo.md"
-    assert not (state.artifact_dir / "blah.md").exists()
+    # Files are written directly at the expected paths.
+    blah_file = state.artifact_dir / "blah.md"
+    foo_file = state.artifact_dir / "foo.md"
+    assert blah_file.exists()
+    assert foo_file.exists()
+    assert blah_file.read_text(encoding="utf-8") == "# blah.md"
+    assert foo_file.read_text(encoding="utf-8") == "# foo.md"
     assert not (state.artifact_dir / "biz.md").exists()
 
 

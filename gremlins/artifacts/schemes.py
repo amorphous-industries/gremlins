@@ -18,7 +18,7 @@ class FileArtifactResolver:
             return pathlib.Path(uri.path).resolve()
         name = uri.path.lstrip("/")
         if name.startswith("session/"):
-            name = name[len("session/"):]
+            name = name[len("session/") :]
         p = (self._artifact_dir / name).resolve()
         base = self._artifact_dir.resolve()
         try:

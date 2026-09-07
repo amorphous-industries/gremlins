@@ -52,9 +52,7 @@ class _SignalClient(FakeClient):
         if label == "handoff":
             for fname in ("signal.json", "child-plan.md"):
                 # Find the artifact path in the prompt (non-slugged: <artifact_dir>/<fname>)
-                m = re.search(
-                    ad + re.escape("/" + fname) + r"\b", prompt
-                ) or re.search(
+                m = re.search(ad + re.escape("/" + fname) + r"\b", prompt) or re.search(
                     # legacy slugged form: <artifact_dir>/<hex>_<fname>
                     ad + r"/[a-f0-9]+" + re.escape("_" + fname),
                     prompt,
@@ -71,9 +69,7 @@ class _SignalClient(FakeClient):
         elif label == "sanitize":
             m = re.search(
                 ad + re.escape("/rolling-plan.md") + r"\b", prompt
-            ) or re.search(
-                ad + r"/[a-f0-9]+" + re.escape("_rolling-plan.md"), prompt
-            )
+            ) or re.search(ad + r"/[a-f0-9]+" + re.escape("_rolling-plan.md"), prompt)
             if m:
                 target = pathlib.Path(m.group(0))
                 pre = self._artifact_dir / "rolling-plan-pre-sanitize.md"

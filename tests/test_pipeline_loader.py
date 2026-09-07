@@ -765,7 +765,9 @@ stages:
       artifact.plan: "artifact://plan.md"
 """,
     )
-    with pytest.raises(ValueError, match="duplicate artifact producer.*stage-a.*stage-b.*plan"):
+    with pytest.raises(
+        ValueError, match="duplicate artifact producer.*stage-a.*stage-b.*plan"
+    ):
         Pipeline.from_yaml(tmp_path / "pipeline.yaml")
 
 
