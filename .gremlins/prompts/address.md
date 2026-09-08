@@ -2,11 +2,15 @@ Two code reviews of the most recent implementation follow. **Default: fix every 
 
 ## Code review one
 
+<review>
 {review_one}
+</review>
 
 ## Code review two
 
+<review>
 {review_two}
+</review>
 
 ---
 

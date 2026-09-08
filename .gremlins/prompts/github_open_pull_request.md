@@ -2,11 +2,15 @@ You are composing a GitHub pull request for implementation work that has already
 
 ## Implementation plan
 
+<plan>
 {plan}
+</plan>
 
 ## Changes since base
 
+<diff>
 {diff_summary}
+</diff>
 
 Do NOT run git commands or inspect the working tree — all the information you need is above.
 Write exactly the following three files using the provided content, then stop:

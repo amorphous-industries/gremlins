@@ -8,7 +8,9 @@ You are addressing review comments on a GitHub pull request. Your job is to fix 
 
 ## Review content
 
+<content>
 {content}
+</content>
 
 ## Process
 
