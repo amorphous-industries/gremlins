@@ -24,14 +24,12 @@ stages:
     options:
       cmds:
         - |
-          base="${base_sha#git://commit/}"
-          git merge-base --is-ancestor "$base" HEAD || {
-            echo "implement diverged from $base; expected fast-forward" >&2
+          git merge-base --is-ancestor "{base_sha}" HEAD || {
+            echo "implement diverged from {base_sha}; expected fast-forward" >&2
             exit 1
           }
         - |
-          base="${base_sha#git://commit/}"
-          test "$(git rev-list --count "$base"..HEAD)" -gt 0 || {
-            echo "implement produced no commits since $base" >&2
+          test "$(git rev-list --count "{base_sha}..HEAD")" -gt 0 || {
+            echo "implement produced no commits since {base_sha}" >&2
             exit 1
           }

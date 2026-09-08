@@ -192,6 +192,7 @@ async def run_pipeline(
             if _registry.exists("artifact://base_ref")
             else ""
         )
+        # base_ref may be stored as a raw ref or a git://ref/<name> URI
         base_ref = str(raw_base_ref).removeprefix("git://ref/")
     except Exception:
         logger.warning(
