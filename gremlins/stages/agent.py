@@ -79,7 +79,9 @@ class Agent(Stage):
         try:
             counter = state.loop_iter
             interpolation_map = resolve_interpolation_map(
-                state.artifacts, self.interpolation_map, loop_iter=counter,
+                state.artifacts,
+                self.interpolation_map,
+                loop_iter=counter,
                 namespace=self.namespace_path,
             )
         except ValueError as exc:

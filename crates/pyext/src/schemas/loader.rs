@@ -321,9 +321,7 @@ fn walk_namespace(
                     .and_then(|v| v.extract::<String>().ok())
                     .unwrap_or_default();
                 if stype == "agent" || stype == "exec" {
-                    return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                        "namespace is only valid on composite stages (loop, sequence, parallel)"
-                    )));
+                    return Err(pyo3::exceptions::PyValueError::new_err("namespace is only valid on composite stages (loop, sequence, parallel)".to_string()));
                 }
                 *counter += 1;
                 stack.push(format!("{}-{}", ns_name, counter));
