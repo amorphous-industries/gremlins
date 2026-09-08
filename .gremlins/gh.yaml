@@ -28,7 +28,7 @@ bootstrap:
 
 land:
   interpolation:
-    PR_URL: content("artifact://pr-url")
+    PR_URL: content("artifact://pr-url.txt")
   options:
     cmds:
       - gh pr merge --squash --delete-branch "$PR_URL"
@@ -120,7 +120,7 @@ stages:
   - name: gather-github-review-content
     type: exec
     interpolation:
-      pr: content("artifact://pr-url")
+      pr: content("artifact://pr-url.txt")
     bind:
       github_review_content: "artifact://github-review-content.md"
     options:
@@ -164,7 +164,7 @@ stages:
   - name: github-address-pull-request-reviews
     type: agent
     interpolation:
-      pr: content("artifact://pr-url")
+      pr: content("artifact://pr-url.txt")
       content: content("artifact://github-review-content.md")
     prompt:
       - code-style
