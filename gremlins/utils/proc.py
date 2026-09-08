@@ -154,7 +154,7 @@ async def run_shell_async(
         f" timeout={timeout}s" if timeout is not None else "",
         f" cmd={cmd.replace(chr(10), ' ')[:200]}"
         if len(cmd) <= 200
-        else f" cmd={cmd[:197]}...",
+        else f" cmd={cmd.replace(chr(10), ' ')[:197]}...",
     )
     proc = await asyncio.create_subprocess_shell(
         cmd,
@@ -169,7 +169,9 @@ async def run_shell_async(
         proc.pid,
     )
 
-    async def _drain(stream: asyncio.StreamReader, label: str) -> tuple[bytes, int]:
+    async def _drain(
+        stream: asyncio.StreamReader, label: str, sink: list[bytes] | None = None
+    ) -> tuple[bytes, int]:
         """Read stream until EOF. Returns (data, line_count).
 
         Continuous pumping avoids pipe-buffer deadlock where a burst of output
@@ -192,6 +194,8 @@ async def run_shell_async(
                     )
                 break
             chunks.append(chunk)
+            if sink is not None:
+                sink.append(chunk)
             if debug_enabled:
                 buf += chunk
                 while b"\n" in buf:
@@ -233,8 +237,7 @@ async def run_shell_async(
     async def _drain_wrapper(
         stream: asyncio.StreamReader, label: str, sink: list[bytes]
     ) -> bytes:
-        data, _ = await _drain(stream, label)
-        sink.append(data)
+        data, _ = await _drain(stream, label, sink=sink)
         return data
 
     stdout_task = asyncio.create_task(
