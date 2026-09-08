@@ -41,6 +41,7 @@ class StageProtocol(Protocol):
     # child_state()).
     client_explicit: bool
     skip_if_exists: str
+    namespace_path: str
 
     async def run(self, gremlin: Any) -> Any:
         """Run this stage with the orchestrator."""

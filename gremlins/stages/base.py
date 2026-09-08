@@ -68,6 +68,7 @@ class Stage:
         self.options: dict[str, Any] = {}
         self.bind_map = {}
         self.gremlin = None
+        self.namespace_path: str = ""
 
     def substitute_vars(
         self, text: str, state: State, extra: dict[str, str] | None = None

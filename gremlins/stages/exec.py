@@ -71,7 +71,8 @@ class Exec(Stage):
         try:
             counter = state.loop_iter
             interpolation_map = resolve_interpolation_map(
-                state.artifacts, self.interpolation_map, loop_iter=counter
+                state.artifacts, self.interpolation_map, loop_iter=counter,
+                namespace=self.namespace_path,
             )
         except ValueError as exc:
             raise Bail(f"exec {self.name}: {exc}") from exc
@@ -85,6 +86,7 @@ class Exec(Stage):
                 key = key[:-1]
             uri_str = self.substitute_vars(raw_uri_str, state, interpolation_map)
             uri_str = uri_str.replace("{loop_iter}", counter)
+            uri_str = uri_str.replace("{namespace}", self.namespace_path)
             uri = Uri.parse(uri_str)
             bind_paths[key] = state.artifacts.register(uri)
 
@@ -184,6 +186,7 @@ class Exec(Stage):
                 key = key[:-1]
             uri_str = self.substitute_vars(raw_uri_str, state, interpolation_map)
             uri_str = uri_str.replace("{loop_iter}", counter)
+            uri_str = uri_str.replace("{namespace}", self.namespace_path)
             if uri_str == _BAIL_KEY and not bail_triggered:
                 continue
             uri = Uri.parse(uri_str)

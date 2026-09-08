@@ -13,6 +13,7 @@ def resolve_interpolation_map(
     artifacts: ArtifactRegistry,
     interpolation_map: dict[str, str],
     loop_iter: str = "",
+    namespace: str = "",
 ) -> dict[str, str]:
     result: dict[str, str] = {}
     for var, raw in interpolation_map.items():
@@ -25,6 +26,8 @@ def resolve_interpolation_map(
             uri_str = m.group(1)
             if loop_iter:
                 uri_str = uri_str.replace("{loop_iter}", loop_iter)
+            if namespace:
+                uri_str = uri_str.replace("{namespace}", namespace)
             json_path = m.group(2)
             try:
                 result[var] = artifacts.content(uri_str, json_path)
@@ -38,6 +41,8 @@ def resolve_interpolation_map(
         key, sep, default = raw.partition("?")
         if loop_iter:
             key = key.replace("{loop_iter}", loop_iter)
+        if namespace:
+            key = key.replace("{namespace}", namespace)
         try:
             value = artifacts.data_uri(key)
             result[var] = value if isinstance(value, str) else str(value)

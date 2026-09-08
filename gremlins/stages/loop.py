@@ -184,6 +184,7 @@ class LoopStage(Stage):
                     resolved = self._stop_when_exists.replace(
                         "{loop_iter}", state.loop_iter
                     )
+                    resolved = resolved.replace("{namespace}", self.namespace_path)
                     if state.artifacts.exists(resolved) or state.artifacts.exists(
                         f"artifact://{resolved}"
                     ):

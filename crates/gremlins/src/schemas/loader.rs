@@ -125,6 +125,9 @@ pub fn check_duplicate_producers(
                 if !uri_str.starts_with("artifact://") {
                     continue;
                 }
+                if uri_str.contains("{namespace}") {
+                    continue;
+                }
                 let clean_uri = uri_str.clone();
                 if let Some((prev_name, _)) = seen.get(&clean_uri) {
                     return Err(SchemaError::Generic(format!(
@@ -162,8 +165,11 @@ fn extract_artifact_uris(raw: &str) -> Vec<(String, bool)> {
     // Match artifact://... URIs embedded in content() calls or bare
     let re = regex::Regex::new(r#"artifact://[^\s"')?]+"#).unwrap();
     re.find_iter(raw)
-        .map(|m| {
+        .filter_map(|m| {
             let uri = m.as_str().to_string();
+            if uri.contains("{namespace}") {
+                return None;
+            }
             // Each URI is optional if it's immediately followed by '?' or
             // ')', optional whitespace/quote, and then '?' (content()-style).
             let after = raw[m.end()..].trim_start();
@@ -173,7 +179,7 @@ fn extract_artifact_uris(raw: &str) -> Vec<(String, bool)> {
                         c == ')' || c == '"' || c == '\'' || c.is_whitespace()
                     })
                     .starts_with('?');
-            (uri, uri_optional)
+            Some((uri, uri_optional))
         })
         .collect()
 }

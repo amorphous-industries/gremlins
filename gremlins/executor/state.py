@@ -510,6 +510,7 @@ class State:
             skip = entry.skip_if_exists
             if skip:
                 skip = skip.replace("{loop_iter}", base_state.loop_iter)
+                skip = skip.replace("{namespace}", entry.namespace_path)
                 if base_state.artifacts.exists(skip):
                     logger.info("stage skipped (artifact exists): %s", entry.name)
                     return Done()

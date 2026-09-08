@@ -8,5 +8,6 @@ FRAMEWORK_KEYS = frozenset(
         "model",
         "cwd",
         "base_ref",
+        "namespace",
     }
 )
