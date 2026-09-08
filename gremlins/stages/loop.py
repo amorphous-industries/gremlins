@@ -144,7 +144,7 @@ class LoopStage(Stage):
         if gremlin.state is None:
             raise RuntimeError("gremlin.state is required for LoopStage")
         state = gremlin.state
-        state.push_loop(self.name)
+        state.push_loop(self.name, stage_path=self.path or "")
         try:
             if logger.isEnabledFor(logging.DEBUG):
                 logger.debug(

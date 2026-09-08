@@ -415,11 +415,22 @@ class State:
 
     @property
     def loop_iter(self) -> str:
+        """Flat name-qualified iteration path, e.g. 'my_loop~3'.
+
+        Returns '1' when no loop is active.  Each frame in the
+        stack is formatted as ``name~iteration`` and joined with
+        ``~``, so a nested loop yields e.g. ``outer~2~inner~1``.
+        The outermost frame name is derived from the stage path
+        (``/`` replaced with ``-``) for global uniqueness across
+        different pipeline scopes.
+        """
         if not self.loop_stack:
             return "1"
         return "~".join(f"{name}~{n}" for name, n in self.loop_stack)
 
-    def push_loop(self, name: str) -> None:
+    def push_loop(self, name: str, *, stage_path: str = "") -> None:
+        if not self.loop_stack and stage_path:
+            name = stage_path.replace("/", "-")
         self.loop_stack.append((name, 1))
 
     def pop_loop(self) -> None:
