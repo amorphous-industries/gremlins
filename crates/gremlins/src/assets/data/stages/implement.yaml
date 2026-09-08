@@ -29,7 +29,7 @@ stages:
             exit 1
           }
         - |
-          test "$(git rev-list --count "{base_sha}"..HEAD)" -gt 0 || {
+          test "$(git rev-list --count "{base_sha}..HEAD")" -gt 0 || {
             echo "implement produced no commits since {base_sha}" >&2
             exit 1
           }

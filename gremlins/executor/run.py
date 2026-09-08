@@ -185,13 +185,15 @@ async def run_pipeline(
             if _registry.exists("artifact://base_sha")
             else ""
         )
-        base_ref_sha = str(raw_base_sha)
+        # base_sha may be stored as a raw SHA or a git://commit/<sha> URI
+        base_ref_sha = str(raw_base_sha).removeprefix("git://commit/")
         raw_base_ref = (
             _registry.content("artifact://base_ref")
             if _registry.exists("artifact://base_ref")
             else ""
         )
-        base_ref = str(raw_base_ref)
+        # base_ref may be stored as a raw ref or a git://ref/<name> URI
+        base_ref = str(raw_base_ref).removeprefix("git://ref/")
     except Exception:
         logger.warning(
             "failed to read base_sha/base_ref from registry.json", exc_info=True

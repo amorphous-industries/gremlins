@@ -660,8 +660,9 @@ def test_launch_ghgremlin_state_layout(lenv_with_gh):
     assert base_ref_path and pathlib.Path(base_ref_path).is_file(), (
         f"base_ref should be a file path in registry, got: {base_ref_path!r}"
     )
-    assert pathlib.Path(base_ref_path).read_text(encoding="utf-8") == "main", (
-        f"base_ref content should be 'main', got: {base_ref_path!r}"
+    _ref_content = pathlib.Path(base_ref_path).read_text(encoding="utf-8")
+    assert _ref_content == "main", (
+        f"base_ref content should be 'main', got: {_ref_content!r}"
     )
     _sha_path = registry_data.get("artifact://base_sha", "")
     _sha_uri = pathlib.Path(_sha_path).read_text(encoding="utf-8") if _sha_path else ""
