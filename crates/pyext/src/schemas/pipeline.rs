@@ -146,6 +146,7 @@ impl Pipeline {
         };
 
         let stages = loader::parse_stages(py, raw_stages, 0)?;
+        loader::assign_namespace_paths(py, &stages)?;
 
         // Reject the old "inputs" key
         if raw_dict.get_item("inputs")?.is_some() {

@@ -270,7 +270,7 @@ fn check_consumers_inner(
         for (key, val) in &stage.bind_map {
             // Resolve runtime templates in keys: {name} → stage name
             let resolved_key = key.replace("{name}", &stage.name);
-            if val.starts_with("artifact://") {
+            if val.starts_with("artifact://") && !val.contains("{namespace}") {
                 stage_outputs.push(val.clone());
             }
             // Plain keys (no :// scheme) also serve as artifact lookup keys.

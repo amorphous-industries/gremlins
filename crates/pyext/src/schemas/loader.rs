@@ -131,7 +131,6 @@ pub fn parse_stages(
         let d: &Bound<'_, PyDict> = item.cast()?;
         stages.push(parse_stage(py, d, depth)?);
     }
-    assign_namespace_paths(py, &stages)?;
     Ok(stages)
 }
 
@@ -292,7 +291,7 @@ pub fn py_stages_to_nodes(stages: &Bound<'_, PyList>) -> PyResult<Vec<core_loade
     Ok(nodes)
 }
 
-fn assign_namespace_paths(py: Python<'_>, stages: &[Py<PyAny>]) -> PyResult<()> {
+pub fn assign_namespace_paths(py: Python<'_>, stages: &[Py<PyAny>]) -> PyResult<()> {
     let mut counter: usize = 0;
     let mut stack: Vec<String> = Vec::new();
     walk_namespace(py, stages, &mut counter, &mut stack)
@@ -320,11 +319,15 @@ fn walk_namespace(
                     .get_item("type")?
                     .and_then(|v| v.extract::<String>().ok())
                     .unwrap_or_default();
-                if stype == "agent" || stype == "exec" {
-                    return Err(pyo3::exceptions::PyValueError::new_err(
-                        "namespace is only valid on composite stages (loop, sequence, parallel)"
-                            .to_string(),
-                    ));
+                if stype != "loop" && stype != "sequence" && stype != "parallel" {
+                    let stage_name: String = rd
+                        .get_item("name")?
+                        .and_then(|v| v.extract::<String>().ok())
+                        .unwrap_or_else(|| "<unnamed>".to_string());
+                    return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                        "namespace is only valid on composite stages (loop, sequence, parallel); got stage '{}' of type '{}'",
+                        stage_name, stype
+                    )));
                 }
                 *counter += 1;
                 stack.push(format!("{}-{}", ns_name, counter));
