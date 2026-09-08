@@ -37,4 +37,4 @@ Write findings as markdown to `{filepath}` using this structure:
 
 End with a 2–4 sentence overall summary.
 
-**Reminder: review the diff and only the diff. Do not read source files, do not run tools, do not look at anything outside the <diff> block.**
+**Reminder: review the diff and plan above. Do not read source files, do not run tools, do not look at anything outside the <plan> and <diff> blocks.**

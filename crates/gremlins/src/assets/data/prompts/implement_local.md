@@ -1,4 +1,5 @@
-{spec}<plan>
+{spec}
+<plan>
 {plan}
 </plan>
 
