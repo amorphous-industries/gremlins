@@ -32,7 +32,7 @@ pub enum SchemaError {
     #[error("stage {stage}: interpolation key {key:?} is not referenced in any prompt or command")]
     UnusedInterpolationKey { stage: String, key: String },
 
-    #[error("stage {stage}: artifact {uri:?} is consumed via interpolation but never produced by any prior stage's bind")]
+    #[error("stage {stage}: artifact {uri:?} is consumed via interpolation but never produced by any prior stage's bind, bootstrap bind_artifact, cli_out, or implicit artifact (base_sha, base_ref)")]
     UnresolvedArtifactConsumer { stage: String, uri: String },
 
     #[error("pipeline is missing 'default_client' — every pipeline must declare one")]

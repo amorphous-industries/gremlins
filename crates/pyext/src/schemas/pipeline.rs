@@ -206,6 +206,18 @@ impl Pipeline {
         });
         loader::check_duplicate_producers(&stages_list, extra_out.as_ref())?;
 
+        // Validate that artifact consumers have a producer
+        let launch_cmds: Vec<String> = bootstrap
+            .as_ref()
+            .and_then(|bs| {
+                bs.getattr(py, "launch_cmds")
+                    .ok()
+                    .and_then(|v| v.extract::<Vec<String>>(py).ok())
+            })
+            .unwrap_or_default();
+        let launch_cmds_list = PyList::new(py, &launch_cmds)?;
+        loader::check_unresolved_consumers(&stages_list, &launch_cmds_list, extra_out.as_ref())?;
+
         // Handle default_client_override
         let default_client = match (default_client, default_client_override) {
             (None, Some(override_str)) => {

@@ -159,18 +159,20 @@ pub fn check_duplicate_producers(
 ///   artifact://foo                   → (artifact://foo, false)
 ///   artifact://foo?                  → (artifact://foo, true)
 fn extract_artifact_uris(raw: &str) -> Vec<(String, bool)> {
-    let is_optional = raw.trim_end().ends_with('?');
-
     // Match artifact://... URIs embedded in content() calls or bare
     let re = regex::Regex::new(r#"artifact://[^\s"')?]+"#).unwrap();
     re.find_iter(raw)
         .map(|m| {
             let uri = m.as_str().to_string();
-            // A URI at end of string or before )? is optional
+            // Each URI is optional if it's immediately followed by '?' or
+            // ')', optional whitespace/quote, and then '?' (content()-style).
             let after = raw[m.end()..].trim_start();
-            let uri_optional = is_optional
-                || after.starts_with(")?")
-                || (after.starts_with(')') && after[1..].trim_start().starts_with('?'));
+            let uri_optional = after.starts_with('?')
+                || after
+                    .trim_start_matches(|c: char| {
+                        c == ')' || c == '"' || c == '\'' || c.is_whitespace()
+                    })
+                    .starts_with('?');
             (uri, uri_optional)
         })
         .collect()
@@ -193,11 +195,15 @@ pub fn check_unresolved_consumers(
     produced.insert("artifact://base_sha".to_string());
     produced.insert("artifact://base_ref".to_string());
 
-    // Parse launch_cmds for gremlins:bind_artifact("uri", ...)
-    let bind_re = regex::Regex::new(r#"gremlins:bind_artifact\("([^"]+)"#).unwrap();
+    // Parse launch_cmds for gremlins:bind_artifact(...) — any argument
+    // position, quoted or unquoted (2-arg and legacy 3-arg forms).
+    let bind_call_re = regex::Regex::new(r#"gremlins:bind_artifact\(([^)]*)\)"#).unwrap();
+    let uri_re = regex::Regex::new(r#"artifact://[^\s"',)]+"#).unwrap();
     for cmd in launch_cmds {
-        if let Some(caps) = bind_re.captures(cmd) {
-            produced.insert(caps[1].to_string());
+        for caps in bind_call_re.captures_iter(cmd) {
+            for m in uri_re.find_iter(&caps[1]) {
+                produced.insert(m.as_str().to_string());
+            }
         }
     }
 
@@ -246,20 +252,46 @@ fn check_consumers_inner(
             }
         }
 
-        // Add this stage's bind outputs to the produced set.
-        // Even stages with skip_if_exists are treated as producers here —
-        // if the artifact already existed, later stages can consume it;
-        // if it didn't, the stage produces it now.
-        for uri in stage.bind_map.values() {
-            if uri.starts_with("artifact://") {
-                produced.insert(uri.clone());
+        // Collect this stage's bind outputs.
+        // Both bind_map values and keys can serve as producer URIs:
+        // - Values like "artifact://plan.md" are direct artifact URIs.
+        // - Keys like "review-chain" can be referenced as
+        //   artifact://review-chain by downstream consumers (the executor
+        //   resolves the key through the artifact registry at runtime).
+        // - Runtime templates ({name}, etc.) are resolved against the
+        //   stage's own metadata so that recipes produce predictable URIs.
+        let mut stage_outputs: Vec<String> = Vec::new();
+        for (key, val) in &stage.bind_map {
+            // Resolve runtime templates in keys: {name} → stage name
+            let resolved_key = key.replace("{name}", &stage.name);
+            if val.starts_with("artifact://") {
+                stage_outputs.push(val.clone());
+            }
+            // Plain keys (no :// scheme) also serve as artifact lookup keys.
+            if !resolved_key.ends_with('?') && !resolved_key.contains("://") {
+                stage_outputs.push(format!("artifact://{resolved_key}"));
             }
         }
 
-        // Recurse into body children
+        // Add to the shared produced set (needed for sequential siblings)
+        for uri in &stage_outputs {
+            produced.insert(uri.clone());
+        }
+
+        // Recurse into body children.
+        // For parallel children, pass only pre-parallel + this child's own
+        // outputs so nested parallels don't see sibling outputs.
         if !stage.body.is_empty() {
             let is_parallel = stage.stage_type == "parallel";
-            check_consumers_inner(&stage.body, produced, is_parallel)?;
+            if is_parallel_child {
+                let mut child_produced = base_produced.clone();
+                for uri in &stage_outputs {
+                    child_produced.insert(uri.clone());
+                }
+                check_consumers_inner(&stage.body, &mut child_produced, is_parallel)?;
+            } else {
+                check_consumers_inner(&stage.body, produced, is_parallel)?;
+            }
         }
     }
 
@@ -591,6 +623,18 @@ mod tests {
         assert_eq!(uris[1].0, "artifact://b.txt");
     }
 
+    #[test]
+    fn test_extract_mixed_optionality() {
+        // Only the last URI is optional — earlier ones must not inherit it.
+        let uris =
+            extract_artifact_uris(r#"content("artifact://a.txt") content("artifact://b.txt")?"#);
+        assert_eq!(uris.len(), 2);
+        assert_eq!(uris[0].0, "artifact://a.txt");
+        assert!(!uris[0].1, "first URI must not be optional");
+        assert_eq!(uris[1].0, "artifact://b.txt");
+        assert!(uris[1].1, "second URI must be optional");
+    }
+
     // --- check_unresolved_consumers tests ---
 
     #[test]
@@ -660,6 +704,22 @@ mod tests {
     }
 
     #[test]
+    fn test_unresolved_launch_cmds_3arg_form() {
+        // Legacy 3-arg form where URI is the third argument
+        let launch_cmds =
+            vec!["gremlins:bind_artifact(plan, plan, artifact://session/plan.md)".to_string()];
+        let stages = vec![stage_with_interp(
+            "consumer",
+            "agent",
+            HashMap::from([(
+                "plan".to_string(),
+                r#"content("artifact://session/plan.md")"#.to_string(),
+            )]),
+        )];
+        check_unresolved_consumers(&stages, &launch_cmds, &HashMap::new()).unwrap();
+    }
+
+    #[test]
     fn test_unresolved_base_sha_always_available() {
         let stages = vec![stage_with_interp(
             "consumer",
@@ -711,6 +771,54 @@ mod tests {
         assert!(
             msg.contains("artifact://c1-out.txt"),
             "expected uri in error, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_unresolved_nested_parallel_does_not_leak_siblings() {
+        // A nested parallel inside parallel child c2 must not see c1's outputs.
+        let stages = vec![StageNode {
+            name: "par".to_string(),
+            stage_type: "parallel".to_string(),
+            bind_map: HashMap::new(),
+            interpolation_map: HashMap::new(),
+            skip_if_exists: String::new(),
+            body: vec![
+                stage_with_bind(
+                    "c1",
+                    "agent",
+                    HashMap::from([("out".to_string(), "artifact://c1-out.txt".to_string())]),
+                ),
+                // c2 has a nested parallel whose child tries to consume c1's output
+                StageNode {
+                    name: "c2".to_string(),
+                    stage_type: "agent".to_string(),
+                    bind_map: HashMap::new(),
+                    interpolation_map: HashMap::new(),
+                    skip_if_exists: String::new(),
+                    body: vec![StageNode {
+                        name: "nested-par".to_string(),
+                        stage_type: "parallel".to_string(),
+                        bind_map: HashMap::new(),
+                        interpolation_map: HashMap::new(),
+                        skip_if_exists: String::new(),
+                        body: vec![stage_with_interp(
+                            "nc1",
+                            "agent",
+                            HashMap::from([(
+                                "bad".to_string(),
+                                r#"content("artifact://c1-out.txt")"#.to_string(),
+                            )]),
+                        )],
+                    }],
+                },
+            ],
+        }];
+        let err = check_unresolved_consumers(&stages, &[], &HashMap::new()).unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("artifact://c1-out.txt"),
+            "nested parallel must not see sibling outputs, got: {msg}"
         );
     }
 
