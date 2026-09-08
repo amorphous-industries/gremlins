@@ -1,6 +1,8 @@
 {spec}The following is the implementation plan from the GitHub issue:
 
+<plan>
 {plan}
+</plan>
 
 The plan above is complete and approved. Do NOT re-derive, re-analyze, or re-plan it, and do NOT survey the whole codebase or design a global strategy before starting — trust the plan and begin.
 

@@ -8,11 +8,15 @@ Review the diff below and only the diff below. Do not read any source files, do 
 
 The plan for this change is:
 
+<plan>
 {plan}
+</plan>
 
-diff:
+The diff:
 
+<diff>
 {diff}
+</diff>
 
 ## Output the review
 
@@ -32,3 +36,5 @@ Write findings as markdown to `{filepath}` using this structure:
 - If there are no issues worth noting, say so explicitly with an empty findings list
 
 End with a 2–4 sentence overall summary.
+
+**Reminder: review the diff and only the diff. Do not read source files, do not run tools, do not look at anything outside the <diff> block.**

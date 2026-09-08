@@ -2,7 +2,9 @@ Read surrounding code as needed — don't review in isolation.
 
 The plan for this change is:
 
+<plan>
 {plan}
+</plan>
 
 Review the changes introduced by the most recent commit (HEAD vs HEAD~1) plus
 any uncommitted working-tree changes. Use `git diff HEAD~1 HEAD` and `git diff`
