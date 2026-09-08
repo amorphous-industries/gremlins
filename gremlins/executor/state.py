@@ -414,7 +414,7 @@ class State:
     loop_stack: list[int] = dataclasses.field(default_factory=list)
 
     @property
-    def loop_counter(self) -> str:
+    def loop_iter(self) -> str:
         """Slash-joined iteration path, e.g. '1/3' in a nested loop. Returns '1' when no loop is active."""
         if not self.loop_stack:
             return "1"
@@ -509,7 +509,7 @@ class State:
         async def _run_async() -> Any:
             skip = entry.skip_if_exists
             if skip:
-                skip = skip.replace("{loop_counter}", base_state.loop_counter)
+                skip = skip.replace("{loop_iter}", base_state.loop_iter)
                 if base_state.artifacts.exists(skip):
                     logger.info("stage skipped (artifact exists): %s", entry.name)
                     return Done()

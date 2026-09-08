@@ -259,7 +259,7 @@ def test_loop_patches_loop_iteration_to_state(tmp_path, make_state_dir):
     )
 
     async def runner() -> Done:
-        seen_iterations.append(loop_state.loop_counter)
+        seen_iterations.append(loop_state.loop_iter)
         return Done()
 
     loop = LoopStage("loop", body_runners=[runner], max_iterations=3)
@@ -299,23 +299,23 @@ def test_loop_registers_artifacts_across_iterations(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# loop_counter in-memory stack
+# loop_iter in-memory stack
 # ---------------------------------------------------------------------------
 
 
 def test_nested_loop_stack(tmp_path):
-    """Nested loops produce slash-joined loop_counter values."""
+    """Nested loops produce slash-joined loop_iter values."""
     outer_state = _loop_state(tmp_path)
     recorded: list[str] = []
 
     async def inner_runner() -> Done:
-        recorded.append(outer_state.loop_counter)
+        recorded.append(outer_state.loop_iter)
         return Done()
 
     inner = LoopStage("inner", body_runners=[inner_runner], max_iterations=2)
 
     async def outer_runner() -> Done:
-        recorded.append(outer_state.loop_counter)
+        recorded.append(outer_state.loop_iter)
         try:
             await inner.run(_make_gremlin_wrapper(outer_state))
         except Bail:
@@ -331,12 +331,12 @@ def test_nested_loop_stack(tmp_path):
     assert recorded == ["1", "1/1", "1/2", "2", "2/1", "2/2"]
 
 
-def test_stop_when_exists_resolves_loop_counter(tmp_path):
-    """stop_when_exists with {loop_counter} resolves per-iteration."""
+def test_stop_when_exists_resolves_loop_iter(tmp_path):
+    """stop_when_exists with {loop_iter} resolves per-iteration."""
     loop_state = _loop_state(tmp_path)
 
     async def runner() -> Done:
-        it = loop_state.loop_counter
+        it = loop_state.loop_iter
         p = loop_state.artifact_dir / it / "done"
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text("done")
@@ -347,18 +347,18 @@ def test_stop_when_exists_resolves_loop_counter(tmp_path):
         "loop",
         body_runners=[runner],
         max_iterations=5,
-        stop_when_exists="artifact://{loop_counter}/done",
+        stop_when_exists="artifact://{loop_iter}/done",
     )
     outcome = asyncio.run(loop.run(_make_gremlin_wrapper(loop_state)))
     assert outcome == Done()
 
 
-def test_loop_counter_not_in_framework_subs(tmp_path):
-    """loop_counter and loop_iteration are absent from framework_subs."""
+def test_loop_iter_not_in_framework_subs(tmp_path):
+    """loop_iter and loop_iteration are absent from framework_subs."""
     loop_state = _loop_state(tmp_path)
     stage = LoopStage("test", body_runners=[], max_iterations=1)
     subs = loop_state.framework_subs(stage)
-    assert "loop_counter" not in subs
+    assert "loop_iter" not in subs
     assert "loop_iteration" not in subs
 
 

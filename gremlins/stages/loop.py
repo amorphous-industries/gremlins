@@ -182,7 +182,7 @@ class LoopStage(Stage):
 
                 if self._stop_when_exists is not None:
                     resolved = self._stop_when_exists.replace(
-                        "{loop_counter}", state.loop_counter
+                        "{loop_iter}", state.loop_iter
                     )
                     if state.artifacts.exists(resolved) or state.artifacts.exists(
                         f"artifact://{resolved}"

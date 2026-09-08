@@ -453,12 +453,12 @@ def test_multi_file_out_missing_files_do_not_raise(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# loop_counter in bind URIs and interpolation values
+# loop_iter in bind URIs and interpolation values
 # ---------------------------------------------------------------------------
 
 
-def test_loop_counter_in_bind_uri(tmp_path):
-    """{loop_counter} in bind URIs is resolved before registration."""
+def test_loop_iter_in_bind_uri(tmp_path):
+    """{loop_iter} in bind URIs is resolved before registration."""
 
     class WritingClient(FakeClient):
         async def run(self, prompt, *, label, cwd=None, **kwargs):
@@ -476,15 +476,15 @@ def test_loop_counter_in_bind_uri(tmp_path):
     state.loop_stack = [3]
     agent = _make_agent(
         prompts=["Write to `{out}`"],
-        bind_map={"out": "artifact://{loop_counter}/out.txt"},
+        bind_map={"out": "artifact://{loop_iter}/out.txt"},
     )
     result = asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
     assert isinstance(result, Done)
     assert state.artifacts.exists("artifact://3/out.txt")
 
 
-def test_loop_counter_in_interpolation_value(tmp_path):
-    """{loop_counter} in interpolation values is resolved before resolution."""
+def test_loop_iter_in_interpolation_value(tmp_path):
+    """{loop_iter} in interpolation values is resolved before resolution."""
     client = FakeClient(fixtures={"my-agent": MINIMAL_EVENTS})
     state = _make_state(tmp_path, client)
     state.loop_stack = [2]
@@ -494,7 +494,7 @@ def test_loop_counter_in_interpolation_value(tmp_path):
     state.artifacts.register(Uri.parse("artifact://2/plan.md"))
     agent = _make_agent(
         prompts=["Plan: {plan}"],
-        interpolation_map={"plan": 'content("artifact://{loop_counter}/plan.md")'},
+        interpolation_map={"plan": 'content("artifact://{loop_iter}/plan.md")'},
     )
     result = asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
     assert isinstance(result, Done)
