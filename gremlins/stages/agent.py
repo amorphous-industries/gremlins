@@ -126,7 +126,14 @@ class Agent(Stage):
         single = len(bind_paths) == 1
 
         await run_agent(
-            state, prompt, label=self.name, raw_path=raw_path, model=model, **opts
+            state,
+            prompt,
+            label=self.name,
+            raw_path=raw_path,
+            model=model,
+            expected_artifact_paths=list(bind_paths.values()),
+            artifact_reminder_count=3,
+            **opts,
         )
 
         for key, uri_str in bind_paths.items():
