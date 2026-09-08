@@ -970,6 +970,12 @@ fn _expand_stage_def(
         }
 
         let mut ctx = serde_yaml::Mapping::new();
+        if let Some(name) = call_site_map.get("name").and_then(|v| v.as_str()) {
+            ctx.insert(
+                serde_yaml::Value::String("name".to_string()),
+                serde_yaml::Value::String(name.to_string()),
+            );
+        }
         ctx.insert(
             serde_yaml::Value::String("options".to_string()),
             serde_yaml::Value::Mapping(
