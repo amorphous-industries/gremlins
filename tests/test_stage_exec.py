@@ -119,16 +119,16 @@ def test_bind_file_scheme_missing_file_raises(tmp_path):
 def test_loop_iter_in_bind_uri(tmp_path):
     """{loop_iter} in bind URIs is resolved before registration."""
     state = _make_state(tmp_path)
-    state.loop_stack = [3]
-    (state.artifact_dir / "3" / "out.txt").parent.mkdir(parents=True, exist_ok=True)
-    (state.artifact_dir / "3" / "out.txt").write_text("data")
+    state.loop_stack = [("test-exec", 3)]
+    (state.artifact_dir / "test-exec-3" / "out.txt").parent.mkdir(parents=True, exist_ok=True)
+    (state.artifact_dir / "test-exec-3" / "out.txt").write_text("data")
     stage = _exec(
         cmds=["true"],
         bind_map={"result": "artifact://{loop_iter}/out.txt"},
     )
     result = asyncio.run(stage.run(MockGremlin(state=state)))
     assert isinstance(result, Done)
-    assert state.artifacts.exists("artifact://3/out.txt")
+    assert state.artifacts.exists("artifact://test-exec-3/out.txt")
 
 
 # ---------------------------------------------------------------------------

@@ -473,25 +473,25 @@ def test_loop_iter_in_bind_uri(tmp_path):
 
     client = WritingClient(fixtures={"my-agent": MINIMAL_EVENTS})
     state = _make_state(tmp_path, client)
-    state.loop_stack = [3]
+    state.loop_stack = [("my-agent", 3)]
     agent = _make_agent(
         prompts=["Write to `{out}`"],
         bind_map={"out": "artifact://{loop_iter}/out.txt"},
     )
     result = asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
     assert isinstance(result, Done)
-    assert state.artifacts.exists("artifact://3/out.txt")
+    assert state.artifacts.exists("artifact://my-agent-3/out.txt")
 
 
 def test_loop_iter_in_interpolation_value(tmp_path):
     """{loop_iter} in interpolation values is resolved before resolution."""
     client = FakeClient(fixtures={"my-agent": MINIMAL_EVENTS})
     state = _make_state(tmp_path, client)
-    state.loop_stack = [2]
-    p = state.artifact_dir / "2" / "plan.md"
+    state.loop_stack = [("my-agent", 2)]
+    p = state.artifact_dir / "my-agent-2" / "plan.md"
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text("# Plan for iteration 2")
-    state.artifacts.register(Uri.parse("artifact://2/plan.md"))
+    state.artifacts.register(Uri.parse("artifact://my-agent-2/plan.md"))
     agent = _make_agent(
         prompts=["Plan: {plan}"],
         interpolation_map={"plan": 'content("artifact://{loop_iter}/plan.md")'},

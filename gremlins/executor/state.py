@@ -411,17 +411,16 @@ class State:
     base_ref: str = ""
 
     FRAMEWORK_KEYS: ClassVar[frozenset[str]] = FRAMEWORK_KEYS
-    loop_stack: list[int] = dataclasses.field(default_factory=list)
+    loop_stack: list[tuple[str, int]] = dataclasses.field(default_factory=list)
 
     @property
     def loop_iter(self) -> str:
-        """Slash-joined iteration path, e.g. '1/3' in a nested loop. Returns '1' when no loop is active."""
         if not self.loop_stack:
             return "1"
-        return "/".join(str(n) for n in self.loop_stack)
+        return "--".join(f"{name}-{n}" for name, n in self.loop_stack)
 
-    def push_loop(self) -> None:
-        self.loop_stack.append(1)
+    def push_loop(self, name: str) -> None:
+        self.loop_stack.append((name, 1))
 
     def pop_loop(self) -> None:
         if self.loop_stack:
@@ -429,7 +428,8 @@ class State:
 
     def set_loop_iteration(self, n: int) -> None:
         if self.loop_stack:
-            self.loop_stack[-1] = n
+            name, _ = self.loop_stack[-1]
+            self.loop_stack[-1] = (name, n)
 
     def framework_subs(self, stage: StageProtocol) -> dict[str, str]:
         """Runtime-owned substitution vars. Stages must not assemble these themselves."""

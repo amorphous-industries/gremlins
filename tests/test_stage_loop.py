@@ -266,7 +266,7 @@ def test_loop_patches_loop_iteration_to_state(tmp_path, make_state_dir):
     with pytest.raises(Bail):
         asyncio.run(loop.run(_make_gremlin_wrapper(loop_state)))
 
-    assert seen_iterations == ["1", "2", "3"]
+    assert seen_iterations == ["loop-1", "loop-2", "loop-3"]
 
 
 def test_loop_registers_artifacts_across_iterations(tmp_path):
@@ -304,7 +304,7 @@ def test_loop_registers_artifacts_across_iterations(tmp_path):
 
 
 def test_nested_loop_stack(tmp_path):
-    """Nested loops produce slash-joined loop_iter values."""
+    """Nested loops produce flat, name-qualified loop_iter values."""
     outer_state = _loop_state(tmp_path)
     recorded: list[str] = []
 
@@ -326,9 +326,12 @@ def test_nested_loop_stack(tmp_path):
     with pytest.raises(Bail):
         asyncio.run(outer.run(_make_gremlin_wrapper(outer_state)))
 
-    # outer iter 1: "1", inner iter 1: "1/1", inner iter 2: "1/2",
-    # outer iter 2: "2", inner iter 1: "2/1", inner iter 2: "2/2"
-    assert recorded == ["1", "1/1", "1/2", "2", "2/1", "2/2"]
+    assert recorded == [
+        "outer-1",
+        "outer-1--inner-1", "outer-1--inner-2",
+        "outer-2",
+        "outer-2--inner-1", "outer-2--inner-2",
+    ]
 
 
 def test_stop_when_exists_resolves_loop_iter(tmp_path):
