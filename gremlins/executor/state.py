@@ -425,10 +425,8 @@ class State:
             return "1"
         return "~".join(f"{name}~{n}" for name, n in self.loop_stack)
 
-    def push_loop(self, name: str, *, stage_path: str = "") -> None:
-        if not self.loop_stack and stage_path:
-            name = stage_path.replace("/", "-")
-        self.loop_stack.append((name, 1))
+    def push_loop(self, stage_path: str) -> None:
+        self.loop_stack.append((stage_path.replace("/", "-"), 1))
 
     def pop_loop(self) -> None:
         if self.loop_stack:
