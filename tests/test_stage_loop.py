@@ -266,7 +266,7 @@ def test_loop_patches_loop_iteration_to_state(tmp_path, make_state_dir):
     with pytest.raises(Bail):
         asyncio.run(loop.run(_make_gremlin_wrapper(loop_state)))
 
-    assert seen_iterations == ["loop-1", "loop-2", "loop-3"]
+    assert seen_iterations == ["loop~1", "loop~2", "loop~3"]
 
 
 def test_loop_registers_artifacts_across_iterations(tmp_path):
@@ -327,12 +327,12 @@ def test_nested_loop_stack(tmp_path):
         asyncio.run(outer.run(_make_gremlin_wrapper(outer_state)))
 
     assert recorded == [
-        "outer-1",
-        "outer-1--inner-1",
-        "outer-1--inner-2",
-        "outer-2",
-        "outer-2--inner-1",
-        "outer-2--inner-2",
+        "outer~1",
+        "outer~1~inner~1",
+        "outer~1~inner~2",
+        "outer~2",
+        "outer~2~inner~1",
+        "outer~2~inner~2",
     ]
 
 

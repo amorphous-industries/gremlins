@@ -417,7 +417,7 @@ class State:
     def loop_iter(self) -> str:
         if not self.loop_stack:
             return "1"
-        return "--".join(f"{name}-{n}" for name, n in self.loop_stack)
+        return "~".join(f"{name}~{n}" for name, n in self.loop_stack)
 
     def push_loop(self, name: str) -> None:
         self.loop_stack.append((name, 1))
