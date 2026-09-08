@@ -44,6 +44,7 @@ stage-definitions:
       - name: format
         type: exec
         options:
+          timeout: 300
           cmds:
             - make autoformat || true
             - git add -A
@@ -99,5 +100,4 @@ stages:
     interpolation:
       review_one: content("artifact://review-one.md")
       review_two: content("artifact://review-two.md")
-  - { name: address-code, type: agent, interpolation: {text: "content(\"artifact://review-code-{model}.md\")?"}, prompt: [code-style, terse, dev-env, gremlins:address.md, gremlins:bail_section.md] }
   - { type: check-and-fix }

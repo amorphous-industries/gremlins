@@ -16,6 +16,7 @@ bootstrap:
     - uv venv .venv
     - uv pip install -e ".[dev]"
   env: |
+    export GREMLINS_OPENAI_AGENTS_MAX_TURNS='1000'
     unset VIRTUAL_ENV UV_PYTHON UV_PROJECT_ENVIRONMENT UV_SYSTEM_PYTHON PYTHONPATH
     THE_ENV="${GREMLINS_PROJECT_ROOT}/.gremlins/env"
     if [ -f "$THE_ENV" ]; then
