@@ -319,7 +319,12 @@ fn walk_namespace(
                     .get_item("type")?
                     .and_then(|v| v.extract::<String>().ok())
                     .unwrap_or_default();
-                if stype != "loop" && stype != "sequence" && stype != "parallel" {
+                let is_parallel_shorthand = rd.contains("parallel")?;
+                if stype != "loop"
+                    && stype != "sequence"
+                    && stype != "parallel"
+                    && !is_parallel_shorthand
+                {
                     let stage_name: String = rd
                         .get_item("name")?
                         .and_then(|v| v.extract::<String>().ok())
@@ -442,6 +447,277 @@ mod tests {
                     .unwrap(),
                 "custom"
             );
+        });
+    }
+
+    // --- namespace helpers ---
+
+    fn make_mock_stage(
+        py: Python<'_>,
+        raw_dict: &Bound<'_, PyDict>,
+        body: Vec<Py<PyAny>>,
+    ) -> Py<PyAny> {
+        let globals = PyDict::new(py);
+        let code = std::ffi::CString::new(
+            "class _MockStage:\n    def __init__(self, raw_dict, body):\n        self.raw_dict = raw_dict\n        self.body = body\n        self.namespace_path = \"\"\n",
+        )
+        .unwrap();
+        py.run(&code, Some(&globals), None).unwrap();
+        let cls = globals.get_item("_MockStage").unwrap().unwrap();
+        let body_list = PyList::new(py, body).unwrap();
+        cls.call1((raw_dict, body_list)).unwrap().extract().unwrap()
+    }
+
+    fn ns_dict<'py>(py: Python<'py>, entries: &[(&str, &str)]) -> Bound<'py, PyDict> {
+        let d = PyDict::new(py);
+        for (k, v) in entries {
+            d.set_item(*k, *v).unwrap();
+        }
+        d
+    }
+
+    // --- assign_namespace_paths tests ---
+
+    #[test]
+    fn test_namespace_shorthand_parallel() {
+        Python::attach(|py| {
+            let raw = ns_dict(
+                py,
+                &[("parallel", ""), ("namespace", "my-ns"), ("name", "mypar")],
+            );
+            let stage = make_mock_stage(py, &raw, vec![]);
+            let stages = vec![stage];
+            assign_namespace_paths(py, &stages).unwrap();
+            let stage_ref = stages[0].bind(py);
+            let path: String = stage_ref
+                .getattr("namespace_path")
+                .unwrap()
+                .extract()
+                .unwrap();
+            assert_eq!(path, "my-ns-1");
+        });
+    }
+
+    #[test]
+    fn test_namespace_explicit_parallel() {
+        Python::attach(|py| {
+            let raw = ns_dict(
+                py,
+                &[
+                    ("type", "parallel"),
+                    ("namespace", "my-ns"),
+                    ("name", "mypar"),
+                ],
+            );
+            let stage = make_mock_stage(py, &raw, vec![]);
+            let stages = vec![stage];
+            assign_namespace_paths(py, &stages).unwrap();
+            let stage_ref = stages[0].bind(py);
+            let path: String = stage_ref
+                .getattr("namespace_path")
+                .unwrap()
+                .extract()
+                .unwrap();
+            assert_eq!(path, "my-ns-1");
+        });
+    }
+
+    #[test]
+    fn test_namespace_loop() {
+        Python::attach(|py| {
+            let raw = ns_dict(
+                py,
+                &[("type", "loop"), ("namespace", "my-ns"), ("name", "myloop")],
+            );
+            let stage = make_mock_stage(py, &raw, vec![]);
+            let stages = vec![stage];
+            assign_namespace_paths(py, &stages).unwrap();
+            let stage_ref = stages[0].bind(py);
+            let path: String = stage_ref
+                .getattr("namespace_path")
+                .unwrap()
+                .extract()
+                .unwrap();
+            assert_eq!(path, "my-ns-1");
+        });
+    }
+
+    #[test]
+    fn test_namespace_sequence() {
+        Python::attach(|py| {
+            let raw = ns_dict(
+                py,
+                &[
+                    ("type", "sequence"),
+                    ("namespace", "my-ns"),
+                    ("name", "myseq"),
+                ],
+            );
+            let stage = make_mock_stage(py, &raw, vec![]);
+            let stages = vec![stage];
+            assign_namespace_paths(py, &stages).unwrap();
+            let stage_ref = stages[0].bind(py);
+            let path: String = stage_ref
+                .getattr("namespace_path")
+                .unwrap()
+                .extract()
+                .unwrap();
+            assert_eq!(path, "my-ns-1");
+        });
+    }
+
+    #[test]
+    fn test_namespace_rejected_on_agent() {
+        Python::attach(|py| {
+            let raw = ns_dict(
+                py,
+                &[("type", "agent"), ("namespace", "bad"), ("name", "myagent")],
+            );
+            let stage = make_mock_stage(py, &raw, vec![]);
+            let stages = vec![stage];
+            let err = assign_namespace_paths(py, &stages).unwrap_err();
+            let msg = err.to_string();
+            assert!(
+                msg.contains("namespace is only valid on composite stages"),
+                "expected composite-only error, got: {msg}"
+            );
+            assert!(
+                msg.contains("myagent"),
+                "expected stage name in error, got: {msg}"
+            );
+        });
+    }
+
+    #[test]
+    fn test_namespace_rejected_on_exec() {
+        Python::attach(|py| {
+            let raw = ns_dict(
+                py,
+                &[("type", "exec"), ("namespace", "bad"), ("name", "myexec")],
+            );
+            let stage = make_mock_stage(py, &raw, vec![]);
+            let stages = vec![stage];
+            let err = assign_namespace_paths(py, &stages).unwrap_err();
+            let msg = err.to_string();
+            assert!(
+                msg.contains("namespace is only valid on composite stages"),
+                "expected composite-only error, got: {msg}"
+            );
+        });
+    }
+
+    #[test]
+    fn test_namespace_nested_stack() {
+        Python::attach(|py| {
+            // Outer loop with namespace "outer", body has a sequence with namespace "inner"
+            let inner_raw = ns_dict(
+                py,
+                &[
+                    ("type", "sequence"),
+                    ("namespace", "inner"),
+                    ("name", "inner-seq"),
+                ],
+            );
+            let inner_stage = make_mock_stage(py, &inner_raw, vec![]);
+            let outer_raw = ns_dict(
+                py,
+                &[
+                    ("type", "loop"),
+                    ("namespace", "outer"),
+                    ("name", "outer-loop"),
+                ],
+            );
+            let outer_stage = make_mock_stage(py, &outer_raw, vec![inner_stage]);
+            let stages = vec![outer_stage];
+            assign_namespace_paths(py, &stages).unwrap();
+
+            // Outer stage should have "outer-1"
+            let outer_ref = stages[0].bind(py);
+            let outer_path: String = outer_ref
+                .getattr("namespace_path")
+                .unwrap()
+                .extract()
+                .unwrap();
+            assert_eq!(outer_path, "outer-1");
+
+            // Inner stage should have "outer-1/inner-2"
+            let body = outer_ref.getattr("body").unwrap();
+            let body_list = body.cast::<PyList>().unwrap();
+            let inner_ref = body_list.get_item(0).unwrap();
+            let inner_path: String = inner_ref
+                .getattr("namespace_path")
+                .unwrap()
+                .extract()
+                .unwrap();
+            assert_eq!(inner_path, "outer-1/inner-2");
+        });
+    }
+
+    #[test]
+    fn test_namespace_no_namespace_empty_path() {
+        Python::attach(|py| {
+            let raw = ns_dict(py, &[("type", "agent"), ("name", "plain-agent")]);
+            let stage = make_mock_stage(py, &raw, vec![]);
+            let stages = vec![stage];
+            assign_namespace_paths(py, &stages).unwrap();
+            let stage_ref = stages[0].bind(py);
+            let path: String = stage_ref
+                .getattr("namespace_path")
+                .unwrap()
+                .extract()
+                .unwrap();
+            assert_eq!(path, "");
+        });
+    }
+
+    #[test]
+    fn test_namespace_sibling_counter_increments() {
+        Python::attach(|py| {
+            let raw1 = ns_dict(
+                py,
+                &[("type", "loop"), ("namespace", "first"), ("name", "loop1")],
+            );
+            let raw2 = ns_dict(
+                py,
+                &[("type", "loop"), ("namespace", "second"), ("name", "loop2")],
+            );
+            let stage1 = make_mock_stage(py, &raw1, vec![]);
+            let stage2 = make_mock_stage(py, &raw2, vec![]);
+            let stages = vec![stage1, stage2];
+            assign_namespace_paths(py, &stages).unwrap();
+
+            let s1_ref = stages[0].bind(py);
+            let p1: String = s1_ref.getattr("namespace_path").unwrap().extract().unwrap();
+            assert_eq!(p1, "first-1");
+
+            let s2_ref = stages[1].bind(py);
+            let p2: String = s2_ref.getattr("namespace_path").unwrap().extract().unwrap();
+            assert_eq!(p2, "second-2");
+        });
+    }
+
+    #[test]
+    fn test_namespace_stack_pops_correctly() {
+        Python::attach(|py| {
+            // composite with namespace, then a sibling without namespace:
+            // the sibling should get an empty path (stack popped after composite)
+            let comp_raw = ns_dict(
+                py,
+                &[("type", "loop"), ("namespace", "only"), ("name", "comp")],
+            );
+            let agent_raw = ns_dict(py, &[("type", "agent"), ("name", "plain")]);
+            let comp_stage = make_mock_stage(py, &comp_raw, vec![]);
+            let agent_stage = make_mock_stage(py, &agent_raw, vec![]);
+            let stages = vec![comp_stage, agent_stage];
+            assign_namespace_paths(py, &stages).unwrap();
+
+            let s0_ref = stages[0].bind(py);
+            let p0: String = s0_ref.getattr("namespace_path").unwrap().extract().unwrap();
+            assert_eq!(p0, "only-1");
+
+            let s1_ref = stages[1].bind(py);
+            let p1: String = s1_ref.getattr("namespace_path").unwrap().extract().unwrap();
+            assert_eq!(p1, "");
         });
     }
 }
