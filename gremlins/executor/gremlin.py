@@ -90,7 +90,6 @@ def write_initial_state(
         "stage": "starting",
         "pid": None,
         "stage_inputs": stage_inputs,
-        "loop_iteration": 1,
         "attempt": "",
         "group_name": "",
         "child_key": "",

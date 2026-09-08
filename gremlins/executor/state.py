@@ -83,7 +83,6 @@ class StateData:
     """Handle for reading/writing state.json. All field reads go to disk."""
 
     FIELD_DEFAULTS: ClassVar[dict[str, Any]] = {
-        "loop_iteration": 1,
         "attempt": "",
         "kind": "",
         "project_root": "",
@@ -412,6 +411,25 @@ class State:
     base_ref: str = ""
 
     FRAMEWORK_KEYS: ClassVar[frozenset[str]] = FRAMEWORK_KEYS
+    loop_stack: list[int] = dataclasses.field(default_factory=list)
+
+    @property
+    def loop_iter(self) -> str:
+        """Slash-joined iteration path, e.g. '1/3' in a nested loop. Returns '1' when no loop is active."""
+        if not self.loop_stack:
+            return "1"
+        return "/".join(str(n) for n in self.loop_stack)
+
+    def push_loop(self) -> None:
+        self.loop_stack.append(1)
+
+    def pop_loop(self) -> None:
+        if self.loop_stack:
+            self.loop_stack.pop()
+
+    def set_loop_iteration(self, n: int) -> None:
+        if self.loop_stack:
+            self.loop_stack[-1] = n
 
     def framework_subs(self, stage: StageProtocol) -> dict[str, str]:
         """Runtime-owned substitution vars. Stages must not assemble these themselves."""
@@ -420,7 +438,6 @@ class State:
             "model": self.client.model,
             "cwd": self.cwd,
             "base_ref": self.base_ref,
-            "loop_iteration": str(self.data.loop_iteration),
         }
 
     @staticmethod
@@ -434,16 +451,6 @@ class State:
         sf = state_dir / "state.json"
         if gremlin_id and not sf.exists():
             write_state(state_dir, {"id": gremlin_id})
-
-    def format(self, template: str) -> str:
-        scope = "/".join(s.name for s in self.current_scope)
-        return template.format(
-            n=self.data.loop_iteration,
-            attempt=self.data.attempt,
-            scope=scope,
-            cwd=self.cwd,
-            base_ref=self.base_ref,
-        )
 
     def done_for(self, path: str) -> set[str]:
         return self.data.done_for(path)
@@ -500,11 +507,12 @@ class State:
             )
 
         async def _run_async() -> Any:
-            if entry.skip_if_exists and base_state.artifacts.exists(
-                entry.skip_if_exists
-            ):
-                logger.info("stage skipped (artifact exists): %s", entry.name)
-                return Done()
+            skip = entry.skip_if_exists
+            if skip:
+                skip = skip.replace("{loop_iter}", base_state.loop_iter)
+                if base_state.artifacts.exists(skip):
+                    logger.info("stage skipped (artifact exists): %s", entry.name)
+                    return Done()
             child_gremlin = copy.copy(gremlin)
             logger.debug("preparing state for stage: %s", entry.name)
             prepared_state = _prepare()

@@ -10,7 +10,9 @@ _CONTENT_RE = re.compile(r'^content\("([^"]+)"(?:,\s*"([^"]+)")?\)\s*$')
 
 
 def resolve_interpolation_map(
-    artifacts: ArtifactRegistry, interpolation_map: dict[str, str]
+    artifacts: ArtifactRegistry,
+    interpolation_map: dict[str, str],
+    loop_iter: str = "",
 ) -> dict[str, str]:
     result: dict[str, str] = {}
     for var, raw in interpolation_map.items():
@@ -21,6 +23,8 @@ def resolve_interpolation_map(
         m = _CONTENT_RE.match(raw_clean)
         if m:
             uri_str = m.group(1)
+            if loop_iter:
+                uri_str = uri_str.replace("{loop_iter}", loop_iter)
             json_path = m.group(2)
             try:
                 result[var] = artifacts.content(uri_str, json_path)
@@ -32,6 +36,8 @@ def resolve_interpolation_map(
             continue
 
         key, sep, default = raw.partition("?")
+        if loop_iter:
+            key = key.replace("{loop_iter}", loop_iter)
         try:
             value = artifacts.data_uri(key)
             result[var] = value if isinstance(value, str) else str(value)
