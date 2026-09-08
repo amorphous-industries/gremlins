@@ -304,6 +304,79 @@ fn check_consumers_inner(
     Ok(())
 }
 
+/// A stage node for namespace-path assignment.
+///
+/// The namespace_path field is the output — the walk sets it on each node
+/// based on the namespace stack at the current position.
+pub struct NamespaceNode {
+    pub name: String,
+    pub stage_type: String,
+    pub is_parallel_shorthand: bool,
+    pub namespace: Option<String>,
+    pub namespace_path: String,
+    pub body: Vec<NamespaceNode>,
+}
+
+/// Assign namespace_path to every node in a pre-order walk.
+///
+/// Namespace is only valid on composite stages (loop, sequence, parallel,
+/// or shorthand parallel).  Non-composite stages with a `namespace` key
+/// cause a validation error.
+///
+/// Each namespace declaration pushes a `{name}-{counter}` segment onto
+/// the stack, where counter is a global incrementing counter.  The path
+/// for a stage is `stack.join("/")` (empty string if no namespaces are
+/// active).  When the walk exits a composite with a namespace, the
+/// segment is popped.
+pub fn assign_namespace_paths(nodes: &mut [NamespaceNode]) -> Result<(), SchemaError> {
+    let mut counter: usize = 0;
+    let mut stack: Vec<String> = Vec::new();
+    walk_namespace(nodes, &mut counter, &mut stack)
+}
+
+fn walk_namespace(
+    nodes: &mut [NamespaceNode],
+    counter: &mut usize,
+    stack: &mut Vec<String>,
+) -> Result<(), SchemaError> {
+    for node in nodes.iter_mut() {
+        let mut had_namespace = false;
+        if let Some(ref ns_name) = node.namespace {
+            let is_composite = node.stage_type == "loop"
+                || node.stage_type == "sequence"
+                || node.stage_type == "parallel"
+                || node.is_parallel_shorthand;
+            if !is_composite {
+                return Err(SchemaError::Stage {
+                    name: node.name.clone(),
+                    msg: format!(
+                        "namespace is only valid on composite stages (loop, sequence, parallel); got type '{}'",
+                        node.stage_type
+                    ),
+                });
+            }
+            *counter += 1;
+            stack.push(format!("{}-{}", ns_name, counter));
+            had_namespace = true;
+        }
+
+        node.namespace_path = if stack.is_empty() {
+            String::new()
+        } else {
+            stack.join("/")
+        };
+
+        if !node.body.is_empty() {
+            walk_namespace(&mut node.body, counter, stack)?;
+        }
+
+        if had_namespace {
+            stack.pop();
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -895,5 +968,174 @@ mod tests {
         )];
         let err = check_unresolved_consumers(&stages, &[], &HashMap::new()).unwrap_err();
         assert!(err.to_string().contains("artifact://instructions.md"));
+    }
+
+    // --- namespace helpers ---
+
+    fn ns_node(name: &str, stage_type: &str) -> NamespaceNode {
+        NamespaceNode {
+            name: name.to_string(),
+            stage_type: stage_type.to_string(),
+            is_parallel_shorthand: false,
+            namespace: None,
+            namespace_path: String::new(),
+            body: vec![],
+        }
+    }
+
+    fn ns_node_with_namespace(
+        name: &str,
+        stage_type: &str,
+        namespace: &str,
+    ) -> NamespaceNode {
+        NamespaceNode {
+            namespace: Some(namespace.to_string()),
+            ..ns_node(name, stage_type)
+        }
+    }
+
+    fn ns_node_parallel_shorthand(name: &str, namespace: &str) -> NamespaceNode {
+        NamespaceNode {
+            name: name.to_string(),
+            stage_type: String::new(),
+            is_parallel_shorthand: true,
+            namespace: Some(namespace.to_string()),
+            namespace_path: String::new(),
+            body: vec![],
+        }
+    }
+
+    fn ns_node_with_body(
+        name: &str,
+        stage_type: &str,
+        body: Vec<NamespaceNode>,
+    ) -> NamespaceNode {
+        NamespaceNode {
+            body,
+            ..ns_node(name, stage_type)
+        }
+    }
+
+    // --- assign_namespace_paths tests ---
+
+    #[test]
+    fn test_namespace_shorthand_parallel() {
+        let mut nodes = vec![ns_node_parallel_shorthand("mypar", "my-ns")];
+        assign_namespace_paths(&mut nodes).unwrap();
+        assert_eq!(nodes[0].namespace_path, "my-ns-1");
+    }
+
+    #[test]
+    fn test_namespace_explicit_parallel() {
+        let mut nodes = vec![ns_node_with_namespace("mypar", "parallel", "my-ns")];
+        assign_namespace_paths(&mut nodes).unwrap();
+        assert_eq!(nodes[0].namespace_path, "my-ns-1");
+    }
+
+    #[test]
+    fn test_namespace_loop() {
+        let mut nodes = vec![ns_node_with_namespace("myloop", "loop", "my-ns")];
+        assign_namespace_paths(&mut nodes).unwrap();
+        assert_eq!(nodes[0].namespace_path, "my-ns-1");
+    }
+
+    #[test]
+    fn test_namespace_sequence() {
+        let mut nodes = vec![ns_node_with_namespace("myseq", "sequence", "my-ns")];
+        assign_namespace_paths(&mut nodes).unwrap();
+        assert_eq!(nodes[0].namespace_path, "my-ns-1");
+    }
+
+    #[test]
+    fn test_namespace_rejected_on_agent() {
+        let mut nodes = vec![ns_node_with_namespace("myagent", "agent", "bad")];
+        let err = assign_namespace_paths(&mut nodes).unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("namespace is only valid on composite stages"),
+            "expected composite-only error, got: {msg}"
+        );
+        assert!(
+            msg.contains("myagent"),
+            "expected stage name in error, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_namespace_rejected_on_exec() {
+        let mut nodes = vec![ns_node_with_namespace("myexec", "exec", "bad")];
+        let err = assign_namespace_paths(&mut nodes).unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("namespace is only valid on composite stages"),
+            "expected composite-only error, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_namespace_nested_stack() {
+        let mut nodes = vec![ns_node_with_body(
+            "outer-loop",
+            "loop",
+            vec![ns_node_with_body(
+                "inner-seq",
+                "sequence",
+                vec![ns_node("leaf", "agent")],
+            )],
+        )];
+        // outer-loop has namespace, inner-seq does not
+        nodes[0].namespace = Some("outer".to_string());
+        assign_namespace_paths(&mut nodes).unwrap();
+        assert_eq!(nodes[0].namespace_path, "outer-1");
+        assert_eq!(nodes[0].body[0].namespace_path, "outer-1");
+        assert_eq!(nodes[0].body[0].body[0].namespace_path, "outer-1");
+    }
+
+    #[test]
+    fn test_namespace_double_nested() {
+        let mut nodes = vec![ns_node_with_body(
+            "outer-loop",
+            "loop",
+            vec![ns_node_with_body(
+                "inner-seq",
+                "sequence",
+                vec![ns_node("leaf", "agent")],
+            )],
+        )];
+        nodes[0].namespace = Some("outer".to_string());
+        nodes[0].body[0].namespace = Some("inner".to_string());
+        assign_namespace_paths(&mut nodes).unwrap();
+        assert_eq!(nodes[0].namespace_path, "outer-1");
+        assert_eq!(nodes[0].body[0].namespace_path, "outer-1/inner-2");
+        assert_eq!(nodes[0].body[0].body[0].namespace_path, "outer-1/inner-2");
+    }
+
+    #[test]
+    fn test_namespace_no_namespace_empty_path() {
+        let mut nodes = vec![ns_node("plain-agent", "agent")];
+        assign_namespace_paths(&mut nodes).unwrap();
+        assert_eq!(nodes[0].namespace_path, "");
+    }
+
+    #[test]
+    fn test_namespace_sibling_counter_increments() {
+        let mut nodes = vec![
+            ns_node_with_namespace("loop1", "loop", "first"),
+            ns_node_with_namespace("loop2", "loop", "second"),
+        ];
+        assign_namespace_paths(&mut nodes).unwrap();
+        assert_eq!(nodes[0].namespace_path, "first-1");
+        assert_eq!(nodes[1].namespace_path, "second-2");
+    }
+
+    #[test]
+    fn test_namespace_stack_pops_correctly() {
+        let mut nodes = vec![
+            ns_node_with_namespace("comp", "loop", "only"),
+            ns_node("plain", "agent"),
+        ];
+        assign_namespace_paths(&mut nodes).unwrap();
+        assert_eq!(nodes[0].namespace_path, "only-1");
+        assert_eq!(nodes[1].namespace_path, "");
     }
 }

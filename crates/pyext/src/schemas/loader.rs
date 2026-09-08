@@ -292,73 +292,91 @@ pub fn py_stages_to_nodes(stages: &Bound<'_, PyList>) -> PyResult<Vec<core_loade
 }
 
 pub fn assign_namespace_paths(py: Python<'_>, stages: &[Py<PyAny>]) -> PyResult<()> {
-    let mut counter: usize = 0;
-    let mut stack: Vec<String> = Vec::new();
-    walk_namespace(py, stages, &mut counter, &mut stack)
+    let mut nodes = py_stages_to_namespace_nodes(py, stages)?;
+    core_loader::assign_namespace_paths(&mut nodes)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    apply_namespace_paths(py, stages, &nodes)
 }
 
-fn walk_namespace(
+fn py_stages_to_namespace_nodes(
     py: Python<'_>,
     stages: &[Py<PyAny>],
-    counter: &mut usize,
-    stack: &mut Vec<String>,
-) -> PyResult<()> {
+) -> PyResult<Vec<core_loader::NamespaceNode>> {
+    let mut nodes = Vec::new();
     for stage in stages {
         let stage_ref = stage.bind(py);
-
         let raw_attr = stage_ref.getattr("raw_dict")?;
         let raw_dict = raw_attr.cast::<PyDict>().ok();
 
-        let mut had_namespace = false;
+        let mut name = String::new();
+        let mut stage_type = String::new();
+        let mut is_parallel_shorthand = false;
+        let mut namespace = None;
+
         if let Some(rd) = raw_dict {
-            if let Some(ns_val) = rd.get_item("namespace")? {
-                let ns_name: String = ns_val.extract::<String>().map_err(|_| {
-                    pyo3::exceptions::PyValueError::new_err("namespace value must be a string")
-                })?;
-                let stype: String = rd
-                    .get_item("type")?
-                    .and_then(|v| v.extract::<String>().ok())
-                    .unwrap_or_default();
-                let is_parallel_shorthand = rd.contains("parallel")?;
-                if stype != "loop"
-                    && stype != "sequence"
-                    && stype != "parallel"
-                    && !is_parallel_shorthand
-                {
-                    let stage_name: String = rd
-                        .get_item("name")?
-                        .and_then(|v| v.extract::<String>().ok())
-                        .unwrap_or_else(|| "<unnamed>".to_string());
-                    return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                        "namespace is only valid on composite stages (loop, sequence, parallel); got stage '{}' of type '{}'",
-                        stage_name, stype
-                    )));
+            name = rd
+                .get_item("name")?
+                .and_then(|v| v.extract::<String>().ok())
+                .unwrap_or_default();
+            stage_type = rd
+                .get_item("type")?
+                .and_then(|v| v.extract::<String>().ok())
+                .unwrap_or_default();
+            is_parallel_shorthand = rd.contains("parallel")?;
+            namespace = match rd.get_item("namespace")? {
+                Some(v) => {
+                    let s: String = v.extract::<String>().map_err(|_| {
+                        pyo3::exceptions::PyValueError::new_err(
+                            "namespace value must be a string",
+                        )
+                    })?;
+                    Some(s)
                 }
-                *counter += 1;
-                stack.push(format!("{}-{}", ns_name, counter));
-                had_namespace = true;
-            }
+                None => None,
+            };
         }
 
-        let path = if stack.is_empty() {
-            String::new()
-        } else {
-            stack.join("/")
-        };
-        stage_ref.setattr("namespace_path", path)?;
-
-        if let Ok(body) = stage_ref.getattr("body") {
-            if let Ok(body_list) = body.cast::<PyList>() {
+        let mut body = Vec::new();
+        if let Ok(body_attr) = stage_ref.getattr("body") {
+            if let Ok(body_list) = body_attr.cast::<PyList>() {
                 let mut body_stages: Vec<Py<PyAny>> = Vec::new();
                 for item in body_list.iter() {
                     body_stages.push(item.extract::<Py<PyAny>>()?);
                 }
-                walk_namespace(py, &body_stages, counter, stack)?;
+                body = py_stages_to_namespace_nodes(py, &body_stages)?;
             }
         }
 
-        if had_namespace {
-            stack.pop();
+        nodes.push(core_loader::NamespaceNode {
+            name,
+            stage_type,
+            is_parallel_shorthand,
+            namespace,
+            namespace_path: String::new(),
+            body,
+        });
+    }
+    Ok(nodes)
+}
+
+fn apply_namespace_paths(
+    py: Python<'_>,
+    stages: &[Py<PyAny>],
+    nodes: &[core_loader::NamespaceNode],
+) -> PyResult<()> {
+    for (stage, node) in stages.iter().zip(nodes.iter()) {
+        let stage_ref = stage.bind(py);
+        stage_ref.setattr("namespace_path", &node.namespace_path)?;
+        if !node.body.is_empty() {
+            if let Ok(body_attr) = stage_ref.getattr("body") {
+                if let Ok(body_list) = body_attr.cast::<PyList>() {
+                    let mut body_stages: Vec<Py<PyAny>> = Vec::new();
+                    for item in body_list.iter() {
+                        body_stages.push(item.extract::<Py<PyAny>>()?);
+                    }
+                    apply_namespace_paths(py, &body_stages, &node.body)?;
+                }
+            }
         }
     }
     Ok(())
