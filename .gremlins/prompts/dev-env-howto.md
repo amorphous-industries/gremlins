@@ -61,6 +61,14 @@ make test       # full verification (slower)
 pass even when tests would fail. Always run `make test` (or at least
 `make install`) after Rust changes.
 
+## Batch replacement over iterative edits
+
+When making the same mechanical change across many files (e.g., fixing a
+missing separator in template references), do a single `grep -rn` to
+enumerate all occurrences, then apply every edit in one batch pass.
+Iterating "find one → fix → find another" wastes turns and risks
+introducing regressions from partial fixes.
+
 ## Python ↔ Rust boundary
 
 This project has an incremental Rust port. Two crates exist:

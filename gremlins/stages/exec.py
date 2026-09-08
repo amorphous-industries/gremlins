@@ -98,6 +98,13 @@ class Exec(Stage):
         shell_rc = 0
         raw_timeout = self.options.get("timeout")
         timeout: float | None = float(raw_timeout) if raw_timeout is not None else None
+        logger.info(
+            "exec %s: entering stage, %d command(s), timeout=%s, cwd=%s",
+            self.name,
+            len(cmds),
+            f"{timeout}s" if timeout is not None else "none",
+            state.cwd,
+        )
         if cmds:
             joined = " && ".join(cmds)
             _cmd_summary = " && ".join(c.replace("\n", "\\n") for c in raw_cmds)
@@ -120,8 +127,8 @@ class Exec(Stage):
                     tmp = state.artifact_dir / f"interp-{self.name}-{k}"
                     tmp.write_text(v, encoding="utf-8")
                     env_interp[k] = str(tmp)
-                    logger.debug(
-                        "exec %s: env value for %r too large (%d bytes), written to %s",
+                    logger.info(
+                        "exec %s: env %r too large (%d bytes), written to %s",
                         self.name,
                         k,
                         len(v),
@@ -129,6 +136,16 @@ class Exec(Stage):
                     )
                 else:
                     env_interp[k] = v
+            logger.debug(
+                "exec %s: env keys=%s",
+                self.name,
+                sorted(env_interp.keys()),
+            )
+            logger.debug(
+                "exec %s: spawning subprocess, artifact_dir=%s",
+                self.name,
+                state.artifact_dir,
+            )
             _t0 = time.monotonic()
             result = await _proc.run_shell_async(
                 joined,

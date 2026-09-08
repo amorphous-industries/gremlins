@@ -148,10 +148,13 @@ async def run_shell_async(
             timeout,
         )
 
-    logger.debug(
-        "run_shell_async: starting%s%s",
+    logger.info(
+        "run_shell_async: starting pid=soon%s%s%s",
         f" cwd={cwd_str}" if cwd_str else "",
         f" timeout={timeout}s" if timeout is not None else "",
+        f" cmd={cmd.replace(chr(10), ' ')[:200]}"
+        if len(cmd) <= 200
+        else f" cmd={cmd.replace(chr(10), ' ')[:197]}...",
     )
     proc = await asyncio.create_subprocess_shell(
         cmd,
@@ -161,18 +164,23 @@ async def run_shell_async(
         env=env,
         start_new_session=True,
     )
-    logger.debug(
-        "run_shell_async: pid=%d shell_cmd=%s",
+    logger.info(
+        "run_shell_async: pid=%d spawned",
         proc.pid,
-        cmd.replace("\n", "\\n")[:200],
     )
 
-    async def _drain(stream: asyncio.StreamReader, label: str) -> bytes:
-        """Read stream until EOF. Continuous pumping avoids pipe-buffer deadlock
-        where a burst of output fills the kernel pipe buffer before the event loop
-        can schedule the read handler."""
+    async def _drain(
+        stream: asyncio.StreamReader, label: str, sink: list[bytes] | None = None
+    ) -> tuple[bytes, int]:
+        """Read stream until EOF. Returns (data, line_count).
+
+        Continuous pumping avoids pipe-buffer deadlock where a burst of output
+        fills the kernel pipe buffer before the event loop can schedule the
+        read handler.
+        """
         chunks: list[bytes] = []
         buf = b""
+        line_count = 0
         debug_enabled = logger.isEnabledFor(logging.DEBUG)
         while True:
             chunk = await stream.read(65536)
@@ -186,22 +194,61 @@ async def run_shell_async(
                     )
                 break
             chunks.append(chunk)
+            if sink is not None:
+                sink.append(chunk)
             if debug_enabled:
                 buf += chunk
                 while b"\n" in buf:
                     line, buf = buf.split(b"\n", 1)
+                    line_count += 1
                     logger.debug(
                         "run_shell_async: pid=%d %s: %s",
                         proc.pid,
                         label,
                         line.decode("utf-8", "replace").rstrip(),
                     )
-        return b"".join(chunks)
+            else:
+                # Count lines even without DEBUG for the heartbeat
+                buf += chunk
+                while b"\n" in buf:
+                    _, buf = buf.split(b"\n", 1)
+                    line_count += 1
+        return b"".join(chunks), line_count
 
-    stdout_task = asyncio.create_task(_drain(proc.stdout, "stdout"))
-    stderr_task = asyncio.create_task(_drain(proc.stderr, "stderr"))
+    async def _heartbeat() -> None:
+        """Periodic progress log so hangs are visible without DEBUG."""
+        interval = 30.0
+        while True:
+            await asyncio.sleep(interval)
+            elapsed = time.monotonic() - _t0
+            stdout_bytes = sum(len(c) for c in _stdout_chunks)
+            stderr_bytes = sum(len(c) for c in _stderr_chunks)
+            logger.info(
+                "run_shell_async: pid=%d heartbeat elapsed=%.0fs stdout=%db stderr=%db",
+                proc.pid,
+                elapsed,
+                stdout_bytes,
+                stderr_bytes,
+            )
+
+    _stdout_chunks: list[bytes] = []
+    _stderr_chunks: list[bytes] = []
+
+    async def _drain_wrapper(
+        stream: asyncio.StreamReader, label: str, sink: list[bytes]
+    ) -> bytes:
+        data, _ = await _drain(stream, label, sink=sink)
+        return data
+
+    stdout_task = asyncio.create_task(
+        _drain_wrapper(proc.stdout, "stdout", _stdout_chunks)
+    )
+    stderr_task = asyncio.create_task(
+        _drain_wrapper(proc.stderr, "stderr", _stderr_chunks)
+    )
     proc_task = asyncio.create_task(proc.wait())
     monitor_task = asyncio.create_task(_timeout_monitor())
+    heartbeat_task = asyncio.create_task(_heartbeat())
 
     try:
         await asyncio.wait_for(
@@ -231,10 +278,12 @@ async def run_shell_async(
         except (TimeoutError, asyncio.CancelledError):
             pass
         logger.warning(
-            "run_shell_async: pid=%d timed out after %.2fs (timeout=%s)",
+            "run_shell_async: pid=%d timed out after %.2fs (timeout=%s) stdout_so_far=%db stderr_so_far=%db",
             proc.pid,
             elapsed,
             timeout,
+            sum(len(c) for c in _stdout_chunks),
+            sum(len(c) for c in _stderr_chunks),
         )
         return subprocess.CompletedProcess(
             cmd,
@@ -268,15 +317,22 @@ async def run_shell_async(
             else b""
         )
         logger.warning(
-            "run_shell_async: pid=%d cancelled after %.2fs%s%s",
+            "run_shell_async: pid=%d cancelled after %.2fs stdout_so_far=%db stderr_so_far=%db%s%s",
             proc.pid,
             elapsed,
+            sum(len(c) for c in _stdout_chunks),
+            sum(len(c) for c in _stderr_chunks),
             f" cwd={cwd_str}" if cwd_str else "",
             f" timeout={timeout}s" if timeout is not None else "",
         )
         raise
     finally:
+        heartbeat_task.cancel()
         monitor_task.cancel()
+        try:
+            await heartbeat_task
+        except asyncio.CancelledError:
+            pass
         try:
             await monitor_task
         except asyncio.CancelledError:
