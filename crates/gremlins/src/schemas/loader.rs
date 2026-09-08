@@ -983,11 +983,7 @@ mod tests {
         }
     }
 
-    fn ns_node_with_namespace(
-        name: &str,
-        stage_type: &str,
-        namespace: &str,
-    ) -> NamespaceNode {
+    fn ns_node_with_namespace(name: &str, stage_type: &str, namespace: &str) -> NamespaceNode {
         NamespaceNode {
             namespace: Some(namespace.to_string()),
             ..ns_node(name, stage_type)
@@ -1005,11 +1001,7 @@ mod tests {
         }
     }
 
-    fn ns_node_with_body(
-        name: &str,
-        stage_type: &str,
-        body: Vec<NamespaceNode>,
-    ) -> NamespaceNode {
+    fn ns_node_with_body(name: &str, stage_type: &str, body: Vec<NamespaceNode>) -> NamespaceNode {
         NamespaceNode {
             body,
             ..ns_node(name, stage_type)

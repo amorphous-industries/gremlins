@@ -326,9 +326,7 @@ fn py_stages_to_namespace_nodes(
             namespace = match rd.get_item("namespace")? {
                 Some(v) => {
                     let s: String = v.extract::<String>().map_err(|_| {
-                        pyo3::exceptions::PyValueError::new_err(
-                            "namespace value must be a string",
-                        )
+                        pyo3::exceptions::PyValueError::new_err("namespace value must be a string")
                     })?;
                     Some(s)
                 }
