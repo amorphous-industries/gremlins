@@ -8,6 +8,5 @@ FRAMEWORK_KEYS = frozenset(
         "model",
         "cwd",
         "base_ref",
-        "loop_iteration",
     }
 )

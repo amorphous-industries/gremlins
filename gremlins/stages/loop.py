@@ -143,71 +143,77 @@ class LoopStage(Stage):
     async def run(self, gremlin: Gremlin) -> Outcome:
         if gremlin.state is None:
             raise RuntimeError("gremlin.state is required for LoopStage")
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(
-                "loop %s: starting (max_iterations=%d, stop_when_exists=%s, interval=%s)",
-                self.name,
-                self._max_iterations,
-                self._stop_when_exists,
-                self._interval,
-            )
-        for iteration in range(1, self._max_iterations + 1):
-            gremlin.state.record_state_field(loop_iteration=iteration)
-            gremlin.state.artifacts.unbind(_BAIL_KEY)
-            logger.info(
-                "loop %s: iteration %d/%d starting (%d body runners)",
-                self.name,
-                iteration,
-                self._max_iterations,
-                len(self.body),
-            )
-            runners = (
-                self._body_runners
-                if self._body_runners is not None
-                else self._build_runners(gremlin)
-            )
-            for runner in runners:
-                await runner()
-
-            if _is_bail_set(gremlin.state.artifacts):
-                logger.info(
-                    "loop %s: iteration %d hit bail artifact",
-                    self.name,
-                    iteration,
-                )
-                _do_bail(gremlin, gremlin.state.artifacts)
-
-            if self._stop_when_exists is not None and (
-                gremlin.state.artifacts.exists(self._stop_when_exists)
-                or gremlin.state.artifacts.exists(
-                    f"artifact://{self._stop_when_exists}"
-                )
-            ):
-                logger.info(
-                    "loop %s: stopped after %d iteration(s) — artifact %r produced",
-                    self.name,
-                    iteration,
-                    self._stop_when_exists,
-                )
-                return Done()
-
-            if iteration == self._max_iterations:
-                logger.info(
-                    "loop %s: exhausted after %d iteration(s) without meeting stop condition",
+        state = gremlin.state
+        state.push_loop()
+        try:
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(
+                    "loop %s: starting (max_iterations=%d, stop_when_exists=%s, interval=%s)",
                     self.name,
                     self._max_iterations,
+                    self._stop_when_exists,
+                    self._interval,
                 )
-                gremlin.state.record_bail(
-                    f"loop exhausted {self._max_iterations} iterations"
+            for iteration in range(1, self._max_iterations + 1):
+                state.set_loop_iteration(iteration)
+                state.artifacts.unbind(_BAIL_KEY)
+                logger.info(
+                    "loop %s: iteration %d/%d starting (%d body runners)",
+                    self.name,
+                    iteration,
+                    self._max_iterations,
+                    len(self.body),
                 )
-                raise Bail(f"loop exhausted {self._max_iterations} iterations")
+                runners = (
+                    self._body_runners
+                    if self._body_runners is not None
+                    else self._build_runners(gremlin)
+                )
+                for runner in runners:
+                    await runner()
 
-            if self._interval is not None:
-                await asyncio.sleep(self._interval)
+                if _is_bail_set(state.artifacts):
+                    logger.info(
+                        "loop %s: iteration %d hit bail artifact",
+                        self.name,
+                        iteration,
+                    )
+                    _do_bail(gremlin, state.artifacts)
 
-        # All loop paths above either return Done() or raise Bail.
-        raise RuntimeError(
-            f"LoopStage.run() fell through — "
-            f"max_iterations={self._max_iterations}, "
-            f"stop_when_exists={self._stop_when_exists!r}"
-        )
+                if self._stop_when_exists is not None:
+                    resolved = self._stop_when_exists.replace(
+                        "{loop_counter}", state.loop_counter
+                    )
+                    if state.artifacts.exists(resolved) or state.artifacts.exists(
+                        f"artifact://{resolved}"
+                    ):
+                        logger.info(
+                            "loop %s: stopped after %d iteration(s) — artifact %r produced",
+                            self.name,
+                            iteration,
+                            self._stop_when_exists,
+                        )
+                        return Done()
+
+                if iteration == self._max_iterations:
+                    logger.info(
+                        "loop %s: exhausted after %d iteration(s) without meeting stop condition",
+                        self.name,
+                        self._max_iterations,
+                    )
+                    state.record_bail(
+                        f"loop exhausted {self._max_iterations} iterations"
+                    )
+                    raise Bail(f"loop exhausted {self._max_iterations} iterations")
+
+                if self._interval is not None:
+                    await asyncio.sleep(self._interval)
+
+            # All loop paths above either return Done() or raise Bail.
+            raise RuntimeError(
+                f"LoopStage.run() fell through — "
+                f"max_iterations={self._max_iterations}, "
+                f"stop_when_exists={self._stop_when_exists!r}"
+            )
+        finally:
+            state.pop_loop()

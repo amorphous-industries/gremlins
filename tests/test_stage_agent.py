@@ -450,3 +450,52 @@ def test_multi_file_out_missing_files_do_not_raise(tmp_path):
 
     result = asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
     assert isinstance(result, Done)
+
+
+# ---------------------------------------------------------------------------
+# loop_counter in bind URIs and interpolation values
+# ---------------------------------------------------------------------------
+
+
+def test_loop_counter_in_bind_uri(tmp_path):
+    """{loop_counter} in bind URIs is resolved before registration."""
+
+    class WritingClient(FakeClient):
+        async def run(self, prompt, *, label, cwd=None, **kwargs):
+            import re
+
+            m = re.search(r"`([^`]*out\.txt)`", prompt)
+            if m:
+                p = pathlib.Path(m.group(1))
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_text("data")
+            return await super().run(prompt, label=label, cwd=cwd, **kwargs)
+
+    client = WritingClient(fixtures={"my-agent": MINIMAL_EVENTS})
+    state = _make_state(tmp_path, client)
+    state.loop_stack = [3]
+    agent = _make_agent(
+        prompts=["Write to `{out}`"],
+        bind_map={"out": "artifact://{loop_counter}/out.txt"},
+    )
+    result = asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
+    assert isinstance(result, Done)
+    assert state.artifacts.exists("artifact://3/out.txt")
+
+
+def test_loop_counter_in_interpolation_value(tmp_path):
+    """{loop_counter} in interpolation values is resolved before resolution."""
+    client = FakeClient(fixtures={"my-agent": MINIMAL_EVENTS})
+    state = _make_state(tmp_path, client)
+    state.loop_stack = [2]
+    p = state.artifact_dir / "2" / "plan.md"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text("# Plan for iteration 2")
+    state.artifacts.register(Uri.parse("artifact://2/plan.md"))
+    agent = _make_agent(
+        prompts=["Plan: {plan}"],
+        interpolation_map={"plan": 'content("artifact://{loop_counter}/plan.md")'},
+    )
+    result = asyncio.run(agent.run(cast("Gremlin", MockGremlin(state))))
+    assert isinstance(result, Done)
+    assert "# Plan for iteration 2" in client.calls[0].prompt

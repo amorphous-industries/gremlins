@@ -77,8 +77,9 @@ class Agent(Stage):
         raw_model = cast(str | None, opts.pop("model", None))
 
         try:
+            counter = state.loop_counter
             interpolation_map = resolve_interpolation_map(
-                state.artifacts, self.interpolation_map
+                state.artifacts, self.interpolation_map, loop_counter=counter
             )
         except ValueError as exc:
             raise Bail(f"agent {self.name}: {exc}") from exc
@@ -94,6 +95,7 @@ class Agent(Stage):
                 key = key[:-1]
                 optional_keys.add(key)
             uri_str = self.substitute_vars(raw_uri_str, state, interpolation_map)
+            uri_str = uri_str.replace("{loop_counter}", counter)
             uri = Uri.parse(uri_str)
             bind_paths[key] = state.artifacts.register(uri)
 
