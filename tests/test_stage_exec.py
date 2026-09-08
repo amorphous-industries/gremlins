@@ -120,7 +120,9 @@ def test_loop_iter_in_bind_uri(tmp_path):
     """{loop_iter} in bind URIs is resolved before registration."""
     state = _make_state(tmp_path)
     state.loop_stack = [("test-exec", 3)]
-    (state.artifact_dir / "test-exec-3" / "out.txt").parent.mkdir(parents=True, exist_ok=True)
+    (state.artifact_dir / "test-exec-3" / "out.txt").parent.mkdir(
+        parents=True, exist_ok=True
+    )
     (state.artifact_dir / "test-exec-3" / "out.txt").write_text("data")
     stage = _exec(
         cmds=["true"],
