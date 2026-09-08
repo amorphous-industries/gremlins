@@ -88,29 +88,29 @@ stages:
         - "git diff {base_sha}...HEAD > \"$GREMLINS_ARTIFACT_DIR/diff.txt\""
 
   - parallel:
-      - name: local-review-one
+      - name: review-one
         type: agent
         interpolation:
           plan: content("artifact://plan.md")
           diff: content("artifact://diff.txt")
         prompt: [code-style, terse, dev-env, review]
         bind:
-          filepath: "artifact://local-review-one.md"
-      - name: local-review-two
+          filepath: "artifact://review-one.md"
+      - name: review-two
         type: agent
         interpolation:
           plan: content("artifact://plan.md")
           diff: content("artifact://diff.txt")
         prompt: [code-style, terse, dev-env, review]
         bind:
-          filepath: "artifact://local-review-two.md"
+          filepath: "artifact://review-two.md"
 
-  - name: local-address
+  - name: address
     type: agent
-    prompt: [code-style, terse, dev-env, local_address.md, no_lint_in_implement.md, gremlins:bail_section.md]
+    prompt: [code-style, terse, dev-env, address.md, no_lint_in_implement.md, gremlins:bail_section.md]
     interpolation:
-      review_one: content("artifact://local-review-one.md")
-      review_two: content("artifact://local-review-two.md")
+      review_one: content("artifact://review-one.md")
+      review_two: content("artifact://review-two.md")
 
   - { type: check-and-fix }
   - { type: github-open-pr }

@@ -95,7 +95,7 @@ stages:
           filepath: "artifact://review-two.md"
   - name: address
     type: agent
-    prompt: [code-style, terse, dev-env, local_address.md, no_lint_in_implement.md, gremlins:bail_section.md]
+    prompt: [code-style, terse, dev-env, address.md, no_lint_in_implement.md, gremlins:bail_section.md]
     interpolation:
       review_one: content("artifact://review-one.md")
       review_two: content("artifact://review-two.md")
